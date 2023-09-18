@@ -1,0 +1,386 @@
+<!--
+ Copyright (c) 2023 Intel Corporation.
+ All rights reserved.
+-->
+<?xml version="1.0" encoding="utf-8"?>
+<unattend xmlns="urn:schemas-microsoft-com:unattend">
+
+  <settings pass="windowsPE">
+
+    <component name="Microsoft-Windows-International-Core-WinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <SetupUILanguage>
+        <UILanguage>en-US</UILanguage>
+      </SetupUILanguage>
+      <SystemLocale>en-US</SystemLocale>
+      <UILanguage>en-US</UILanguage>
+      <UserLocale>en-US</UserLocale>
+    </component>
+
+    <component name="Microsoft-Windows-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+      <DiskConfiguration>
+        <Disk wcm:action="add">
+            <CreatePartitions>
+                <CreatePartition wcm:action="add">
+                    <Order>3</Order>
+                    <Size>16</Size>
+                    <Type>MSR</Type>
+                </CreatePartition>
+                <CreatePartition wcm:action="add">
+                    <Order>1</Order>
+                    <Size>500</Size>
+                    <Type>Primary</Type>
+                </CreatePartition>
+                <CreatePartition wcm:action="add">
+                    <Order>2</Order>
+                    <Size>100</Size>
+                    <Type>EFI</Type>
+                </CreatePartition>
+                <CreatePartition wcm:action="add">
+                    <Extend>true</Extend>
+                    <Order>4</Order>
+                    <Type>Primary</Type>
+                </CreatePartition>
+            </CreatePartitions>
+            <ModifyPartitions>
+                <ModifyPartition wcm:action="add">
+                    <Format>NTFS</Format>
+                    <Label>WinRE</Label>
+                    <Order>1</Order>
+                    <PartitionID>1</PartitionID>
+                    <TypeID>DE94BBA4-06D1-4D40-A16A-BFD50179D6AC</TypeID>
+                </ModifyPartition>
+                <ModifyPartition wcm:action="add">
+                    <Format>FAT32</Format>
+                    <Label>System</Label>
+                    <Order>2</Order>
+                    <PartitionID>2</PartitionID>
+                </ModifyPartition>
+                <ModifyPartition wcm:action="add">
+                    <Order>3</Order>
+                    <PartitionID>3</PartitionID>
+                </ModifyPartition>
+                <ModifyPartition wcm:action="add">
+                    <Format>NTFS</Format>
+                    <Label>Windows</Label>
+                    <Letter>C</Letter>
+                    <Order>4</Order>
+                    <PartitionID>4</PartitionID>
+                </ModifyPartition>
+            </ModifyPartitions>
+            <DiskID>0</DiskID>
+            <WillWipeDisk>true</WillWipeDisk>
+        </Disk>
+        <WillShowUI>OnError</WillShowUI>
+      </DiskConfiguration>
+
+      <ImageInstall>
+        <OSImage>
+          <InstallFrom>
+            <MetaData wcm:action="add">
+              <Key>/IMAGE/INDEX</Key>
+              <Value>2</Value>
+            </MetaData>
+          </InstallFrom>
+          <InstallTo>
+            <DiskID>0</DiskID>
+            <PartitionID>4</PartitionID>
+          </InstallTo>
+        </OSImage>
+      </ImageInstall>
+
+      <UserData>
+        <AcceptEula>true</AcceptEula>
+        <FullName>Admin</FullName>
+  <Organization></Organization>
+	<ProductKey>
+            <Key></Key>
+            <WillShowUI>OnError</WillShowUI>
+        </ProductKey>
+      </UserData>
+
+    </component>
+
+    <component name="Microsoft-Windows-PnpCustomizationsWinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <DriverPaths>
+        <PathAndCredentials wcm:action="add" wcm:keyValue="1">
+          <Path>E:\amd64\w10\</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="2">
+          <Path>E:\NetKVM\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="3">
+          <Path>E:\Balloon\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="4">
+          <Path>E:\qxldod\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="5">
+          <Path>E:\viogpudo\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="6">
+          <Path>E:\pvpanic\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="7">
+          <Path>E:\qemupciserial\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="8">
+          <Path>E:\vioinput\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="9">
+          <Path>E:\viorng\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="10">
+          <Path>E:\vioscsi\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="11">
+          <Path>E:\vioserial\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="12">
+          <Path>E:\viostor\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="13">
+          <Path>E:\viofs\w10\amd64</Path>
+        </PathAndCredentials>
+
+        <PathAndCredentials wcm:action="add" wcm:keyValue="14">
+          <Path>E:\fwcfg\w10\amd64</Path>
+        </PathAndCredentials>
+      </DriverPaths>
+    </component>
+
+  </settings>
+
+  <settings pass="specialize">
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <ComputerName>Win10-Packer</ComputerName>
+    </component>
+
+    <component name="Microsoft-Windows-TerminalServices-LocalSessionManager" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <fDenyTSConnections>false</fDenyTSConnections>
+    </component>
+    <component name="Microsoft-Windows-TerminalServices-RDP-WinStationExtensions" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <UserAuthentication>0</UserAuthentication>
+    </component>
+    <component name="Networking-MPSSVC-Svc" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <FirewallGroups>
+        <FirewallGroup wcm:action="add" wcm:keyValue="RemoteDesktop">
+          <Active>true</Active>
+          <Profile>all</Profile>
+          <Group>@FirewallAPI.dll,-28752</Group>
+        </FirewallGroup>
+      </FirewallGroups>
+    </component>
+
+  </settings>
+
+  <settings pass="auditSystem">
+
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+      <AutoLogon>
+        <Password>
+          <Value>user1234</Value>
+          <PlainText>true</PlainText>
+        </Password>
+        <Enabled>true</Enabled>
+        <Username>user</Username>
+      </AutoLogon>
+
+      <TimeZone>Pacific Standard Time</TimeZone>
+    </component>
+
+  </settings>
+
+  <settings pass="auditUser">
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+	<RunSynchronous>
+        <!-- Create Temp directory -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command New-Item -Path 'C:\' -Name 'Temp' -ItemType 'directory'</Path>
+          <Description>Create temp directory folder</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>1</Order>
+        </RunSynchronousCommand>
+        <!-- Download Windows update -->
+        <RunSynchronousCommand wcm:action="add">
+          <Order>2</Order>
+          <Description>Download Windows OS Patch</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates.msu' "%FILE_SERVER_URL%/windows-updates.msu"</Path>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Enable Windows hibernation -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command powercfg.exe /HIBERNATE ON</Path>
+          <Description>Enable hibernation</Description>
+          <Order>3</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Enable Windows SSHD -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Add-WindowsCapability -Online -Name 'OpenSSH.Server~~~~0.0.1.0'</Path>
+          <Description>Install the OpenSSH Server</Description>
+          <Order>4</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Service sshd</Path>
+          <Description>Start SSHD service</Description>
+          <Order>5</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Set-Service -Name sshd -StartupType 'Automatic'</Path>
+          <Description>Configure SSHD for automatic start</Description>
+          <Order>6</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Install QEMU Guest agent -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\guest-agent\qemu-ga-x86_64.msi /quiet'</Path>
+          <Description>Install QEMU guest agent</Description>
+          <Order>7</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Install Windows OS Patch -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates.msu', '/quiet', '/norestart'</Path>
+          <Description>Install Windows OS Patch</Description>
+          <Order>8</Order>
+          <WillReboot>Always</WillReboot>
+        </RunSynchronousCommand>
+
+        <!-- Download graphics driver + Zero-Copy Driver -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\ZCBuild_MSFT_Signed.zip' "%FILE_SERVER_URL%/ZCBuild_MSFT_Signed.zip"</Path>
+          <Description>Download Zero-Copy driver</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>20</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\Driver-Release-64-bit.zip' "%FILE_SERVER_URL%/Driver-Release-64-bit.zip"</Path>
+          <Description>Download graphics driver</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>21</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command New-Item -Path 'C:\Temp' -Name 'ZCBuild_Install' -ItemType 'directory'</Path>
+          <Description>Create driver install directory folder</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>22</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Expand-Archive -Path 'C:\Temp\ZCBuild_MSFT_Signed.zip' -DestinationPath 'C:\Temp\ZCBuild_Install' -Force</Path>
+          <Description>Unzip Zero-Copy driver</Description>
+          <Order>23</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>powershell.exe -Command Get-ChildItem -Path 'C:\Temp\ZCBuild_Install'|Where-Object {$_.PSIsContainer -eq $True -and $_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'}|ForEach-Object {Rename-Item -Path "$_.FullName" -NewName 'ZCBuild_MSFT_Signed' -Force}</Path>
+          <Description>Rename Zero-Copy driver folder</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>24</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Expand-Archive -Path 'C:\Temp\Driver-Release-64-bit.zip' -DestinationPath 'C:\Temp\GraphicsDriver' -Force</Path>
+          <Description>Unzip Graphics driver</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>25</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\zc_install.ps1' "%FILE_SERVER_URL%/zc_install.ps1"</Path>
+          <Description>Download Zero-copy driver install script</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>27</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>schtasks /create /tn "\Microsoft\Windows\RunZCDrvInstall\RunZCDrvInstall" /sc onstart /delay 0000:30 /rl highest /ru system /tr "powershell.exe -ExecutionPolicy Bypass -file C:\Temp\zc_install.ps1"</Path>
+          <Description>Schedule task for Zero-copy driver install</Description>
+          <Order>28</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command New-Item -Path '%WINDIR%\Panther' -Name 'Unattend'-ItemType 'directory'</Path>
+          <Description>Create Unattend folder</Description>
+          <WillReboot>OnRequest</WillReboot>
+          <Order>98</Order>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command curl.exe -fSLo "%WINDIR%\Panther\Unattend\Unattend.xml" "%FILE_SERVER_URL%/unattend.xml"</Path>
+          <Description>Download answer file</Description>
+          <Order>99</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+      </RunSynchronous>
+
+      <Reseal>
+        <ForceShutdownNow>true</ForceShutdownNow>
+        <Mode>OOBE</Mode>
+      </Reseal>
+
+    </component>
+
+  </settings>
+
+  <settings pass="oobeSystem">
+
+    <component name="Microsoft-Windows-Deployment" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+      <Reseal>
+        <ForceShutdownNow>false</ForceShutdownNow>
+        <Mode>Audit</Mode>
+      </Reseal>
+    </component>
+
+    <component name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS" xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+
+      <UserAccounts>
+        <LocalAccounts>
+          <LocalAccount wcm:action="add">
+            <Password>
+              <Value>user1234</Value>
+              <PlainText>true</PlainText>
+            </Password>
+            <Description>account 1</Description>
+            <DisplayName>user</DisplayName>
+            <Group>Administrators</Group>
+            <Name>user</Name>
+          </LocalAccount>
+        </LocalAccounts>
+      </UserAccounts>
+
+      <AutoLogon>
+        <Password>
+          <Value>user1234</Value>
+          <PlainText>true</PlainText>
+        </Password>
+        <Enabled>true</Enabled>
+        <Username>user</Username>
+      </AutoLogon>
+
+      <OOBE>
+        <NetworkLocation>Work</NetworkLocation>
+        <HideEULAPage>true</HideEULAPage>
+        <ProtectYourPC>3</ProtectYourPC>
+        <SkipMachineOOBE>true</SkipMachineOOBE>
+        <SkipUserOOBE>true</SkipUserOOBE>
+      </OOBE>
+
+    </component>
+
+  </settings>
+
+
+</unattend>

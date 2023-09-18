@@ -1,0 +1,87 @@
+<!--
+ Copyright (c) 2023 Intel Corporation.
+ All rights reserved.
+-->
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>windows</name>
+  <metadata>
+    <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+      <libosinfo:os id="http://microsoft.com/win/10"/>
+    </libosinfo:libosinfo>
+  </metadata>
+  <memory>4194304</memory>
+  <currentMemory>4194304</currentMemory>
+  <memoryBacking>
+    <hugepages>
+      <page size="2048" unit="KiB"/>
+    </hugepages>
+    <nosharepages/>
+    <source type="memfd"/>
+    <access mode="shared"/>
+    <allocation mode="immediate"/>
+  </memoryBacking>
+  <vcpu>2</vcpu>
+  <os>
+    <type arch="x86_64">hvm</type>
+    <boot dev="hd"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <vmport state="off"/>
+  </features>
+  <cpu mode="host-passthrough"/>
+  <clock offset="localtime">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <pm>
+    <suspend-to-mem enabled="yes"/>
+    <suspend-to-disk enabled="yes"/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="none" discard="unmap"/>
+      <source file="/var/lib/libvirt/images/windows.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+    </disk>
+    <interface type="network">
+      <source network="default"/>
+      <mac address="52:54:00:ab:cd:22"/>
+      <model type="virtio"/>
+    </interface>
+    <console type="pty"/>
+    <channel type="unix">
+      <source mode="bind"/>
+      <target type="virtio" name="org.qemu.guest_agent.0"/>
+    </channel>
+    <channel type="spicevmc">
+      <target type="virtio" name="com.redhat.spice.0"/>
+    </channel>
+    <input type="tablet" bus="usb"/>
+    <sound model="ich9"/>
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0" bus="0" slot="2" function="2"/>
+      </source>
+      <address type="pci" domain="0" bus="0" slot="2" function="0"/>
+    </hostdev>
+    <redirdev bus="usb" type="spicevmc"/>
+    <redirdev bus="usb" type="spicevmc"/>
+    <video>
+      <!-- blob='on' requires libvirt 9.2 and beyond, so add custom qemu cmdline below for now-->
+      <model type='virtio' heads='1' blob='on'/>
+      <driver name='qemu'/>
+    </video>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
+    <qemu:arg value="device.video0.blob=true"/>
+    <qemu:arg value="-display"/>
+    <qemu:arg value="gtk,gl=on"/>
+    <qemu:env name="DISPLAY" value=":0"/>
+  </qemu:commandline>
+</domain>
+

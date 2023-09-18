@@ -1,0 +1,113 @@
+<!--
+ Copyright (c) 2023 Intel Corporation.
+ All rights reserved.
+-->
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>ubuntu_rt</name>
+  <metadata>
+    <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+      <libosinfo:os id="http://ubuntu.com/ubuntu/22.04"/>
+    </libosinfo:libosinfo>
+  </metadata>
+  <memory>4194304</memory>
+  <currentMemory>4194304</currentMemory>
+  <memoryBacking>
+    <hugepages>
+      <page size="2048" unit="KiB"/>
+    </hugepages>
+    <nosharepages/>
+    <source type="memfd"/>
+    <access mode="shared"/>
+    <allocation mode="immediate"/>
+  </memoryBacking>
+  <vcpu placement='static'>2</vcpu>
+  <cputune>
+    <vcpupin vcpu='0' cpuset='2'/>
+    <vcpupin vcpu='1' cpuset='3'/>
+    <emulatorpin cpuset='0'/>
+  </cputune>
+  <os>
+    <type arch="x86_64" machine="q35">hvm</type>
+    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE_4M.fd</loader>
+    <nvram template="/usr/share/OVMF/OVMF_VARS_4M.fd"/>
+    <boot dev="hd"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <vmport state="off"/>
+  </features>
+  <cpu mode="host-passthrough"/>
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <pm>
+    <suspend-to-mem enabled="yes"/>
+    <suspend-to-disk enabled="yes"/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="none"/>
+      <source file="/var/lib/libvirt/images/ubuntu_rt.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+    </disk>
+    <controller type="usb" model="qemu-xhci" ports="15"/>
+    <controller type="pci" model="pcie-root"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <interface type="network">
+      <source network="default"/>
+      <mac address="52:54:00:ab:cd:44"/>
+      <model type="virtio"/>
+    </interface>
+    <console type="pty"/>
+    <channel type="unix">
+      <source mode="bind"/>
+      <target type="virtio" name="org.qemu.guest_agent.0"/>
+    </channel>
+    <channel type="spicevmc">
+      <target type="virtio" name="com.redhat.spice.0"/>
+    </channel>
+    <input type="tablet" bus="usb"/>
+    <sound model="ich9"/>
+    <hostdev mode="subsystem" type="pci" managed="yes">
+      <source>
+        <address domain="0" bus="0" slot="2" function="1"/>
+      </source>
+      <address type="pci" domain="0" bus="0" slot="2" function="0"/>
+    </hostdev>
+    <redirdev bus="usb" type="spicevmc"/>
+    <redirdev bus="usb" type="spicevmc"/>
+    <memballoon model="virtio"/>
+    <rng model="virtio">
+      <backend model="random">/dev/urandom</backend>
+    </rng>
+    <video>
+      <!-- blob='on' requires libvirt 9.2 and beyond, so add custom qemu cmdline below for now-->
+      <model type='virtio' heads='1' blob='on'/>
+      <driver name='qemu'/>
+    </video>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
+    <qemu:arg value="device.video0.blob=true"/>
+    <qemu:arg value="-display"/>
+    <qemu:arg value="gtk,gl=on"/>
+    <qemu:env name="DISPLAY" value=":0"/>
+  </qemu:commandline>  
+</domain>
