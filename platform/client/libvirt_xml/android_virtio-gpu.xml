@@ -1,0 +1,116 @@
+<!--
+ Copyright (c) 2023 Intel Corporation.
+ All rights reserved.
+-->
+<domain type="kvm" xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
+  <name>android</name>
+  <metadata>
+    <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
+      <libosinfo:os id="http://www.android.com/android-13/"/>
+    </libosinfo:libosinfo>
+  </metadata>
+  <memory unit='MiB'>4096</memory>
+  <currentMemory unit='MiB'>4096</currentMemory>
+  <vcpu>2</vcpu>
+  <os>
+    <type arch="x86_64" machine="q35">hvm</type>
+    <loader readonly="yes" type="pflash">/var/lib/libvirt/images/android/OVMF/OVMF_CODE.fd</loader>
+    <nvram template="/var/lib/libvirt/images/android/OVMF/OVMF_VARS.fd"/>
+    <boot dev="hd"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <vmport state="off"/>
+    <pmu state="off"/>
+    <ioapic driver='kvm'/>
+  </features>
+  <cpu mode="host-passthrough"  migratable="on">
+    <feature policy='disable' name='waitpkg'/>
+  </cpu>
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <pm>
+    <suspend-to-mem enabled="yes"/>
+    <suspend-to-disk enabled="no"/>
+  </pm>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <iommu model='intel'>
+      <driver caching_mode='on' iotlb='on'/>
+    </iommu>
+    <video>
+      <model type='virtio' heads='1' blob='off'/>
+    </video>
+    <controller type='virtio-serial' index='0' ports='16'>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x1' function='0x0'/>
+    </controller>
+    <channel type='unix'>
+      <source mode='bind' path='/var/lib/libvirt/images/android/rpmb_sock'/>
+      <target type='virtio' name='rpmb0' state='connected'/>
+      <alias name='rpmb-channel'/>
+      <address type='virtio-serial' controller='0' bus='0' port='1'/>
+    </channel>
+    <!-- TODO: use tpm model instead of hardcode in qemu:arg -->
+    <!--
+    <tpm model='tpm-crb'>
+      <backend type='emulator' version='2.0'>
+        <device path='/var/lib/libvirt/images/android/vtpm0/swtpm-sock'/>
+      </backend>
+    </tpm>
+    -->
+<!-- when libvirt runs VMs as root, not able to connect to pulseaudio server run in user mode
+    <sound model="ich6">
+      <codec type='duplex'/>
+      <audio id='1'/>
+    </sound>
+    <audio id='1' type='pulseaudio' timerPeriod='5000' serverName="/run/user/1000/pulse/native">
+      <input mixingEngine='yes' fixedSettings='no'/>
+      <output mixingEngine='yes' fixedSettings='no'/>
+    </audio>
+-->
+    <vsock model='virtio'>
+      <cid auto="yes"/>
+      <address type="pci" domain="0" bus="0" slot="0x10" function="0"/>
+    </vsock>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2" cache="none" discard='unmap' detect_zeroes='unmap'/>
+      <source file="/var/lib/libvirt/images/android/android.qcow2"/>
+      <target dev="vda" bus="virtio"/>
+    </disk>
+    <controller type="usb" model="qemu-xhci" ports="8"/>
+    <input type='mouse' bus='usb'/>
+    <input type='keyboard' bus='usb'/>
+    <interface type="network">
+      <source network="default"/>
+      <mac address="52:54:00:ab:cd:33"/>
+      <model type="e1000"/>
+      <address type="pci" domain="0" bus="0" slot="0x0A" function="0"/>
+    </interface>
+    <!-- For debugging only. Enabling serial console could impact performance.
+    <console type="pty">
+      <log file="/var/log/libvirt/qemu/android-serial0.log" append="off"/>
+    </console>
+    -->
+    <memballoon model="none"/>
+    <filesystem type='mount' accessmode='passthrough'>
+      <source dir='/var/lib/libvirt/images/android/aaf'/>
+      <target dir='aaf'/>
+      <address type='pci' domain='0x0000' bus='0x00' slot='0x03' function='0x0'/>
+    </filesystem>
+  </devices>
+  <qemu:commandline>
+    <qemu:arg value="-display"/>
+    <qemu:arg value="gtk,gl=on"/>
+    <qemu:env name='DISPLAY' value=':0'/>
+    <qemu:arg value='-chardev'/>
+    <qemu:arg value='socket,id=chrtpm,path=/var/lib/libvirt/images/android/vtpm0/swtpm-sock'/>
+    <qemu:arg value='-tpmdev'/>
+    <qemu:arg value='emulator,id=tpm0,chardev=chrtpm'/>
+    <qemu:arg value='-device'/>
+    <qemu:arg value='tpm-crb,tpmdev=tpm0'/>
+  </qemu:commandline>
+</domain>

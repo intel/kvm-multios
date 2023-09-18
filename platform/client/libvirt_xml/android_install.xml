@@ -1,0 +1,79 @@
+<!--
+ Copyright (c) 2023 Intel Corporation.
+ All rights reserved.
+-->
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+  <name>android_install</name>
+  <memory unit="MiB">2048</memory>
+  <currentMemory unit="MiB">2048</currentMemory>
+  <vcpu>1</vcpu>
+  <os>
+    <type arch="x86_64" machine="q35">hvm</type>
+    <loader readonly="yes" type="pflash">/var/lib/libvirt/images/android/OVMF/OVMF_CODE.fd</loader>
+    <nvram template="/var/lib/libvirt/images/android/OVMF/OVMF_VARS.fd"/>
+    <bootmenu enable="yes" timeout="5000"/>
+    <bios useserial="yes" rebootTimeout="0"/>
+  </os>
+  <features>
+    <acpi/>
+    <apic/>
+    <vmport state="off"/>
+    <pmu state="off"/>
+    <ioapic driver="kvm"/>
+  </features>
+  <cpu mode="host-passthrough"  migratable="on"/>
+  <clock offset="utc">
+    <timer name="rtc" tickpolicy="catchup"/>
+    <timer name="pit" tickpolicy="delay"/>
+    <timer name="hpet" present="no"/>
+  </clock>
+  <pm>
+    <suspend-to-mem enabled="no"/>
+    <suspend-to-disk enabled="no"/>
+  </pm>
+  <on_reboot>destroy</on_reboot>
+  <devices>
+    <emulator>/usr/bin/qemu-system-x86_64</emulator>
+    <tpm model="tpm-crb">
+      <backend type="emulator" version="2.0">
+        <device path="/var/lib/libvirt/images/android/vtpm0/swtpm-sock"/>
+      </backend>
+    </tpm>
+    <audio id="1" type="none"/>
+    <controller type="scsi" index="0" model="virtio-scsi">
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x08" function="0x0"/>
+    </controller>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="qcow2"/>
+      <source file="/var/lib/libvirt/images/android/android.qcow2"/>
+      <target dev="hda" bus="scsi"/>
+	  <boot order="2"/>
+    </disk>
+    <controller type="usb" model="qemu-xhci" ports="8">
+      <address type="pci" domain="0x0000" bus="0x00" slot="0x05" function="0x0"/>
+	</controller>
+    <disk type="file" device="disk">
+      <driver name="qemu" type="raw"/>
+      <source file="/var/lib/libvirt/images/android/flash.vfat"/>
+	  <target dev="sda" bus="usb"/>
+	  <boot order="1"/>
+    </disk>
+    <interface type="network">
+      <source network="default"/>
+      <mac address="52:54:00:ab:cd:33"/>
+      <model type="e1000"/>
+      <address type="pci" domain="0" bus="0" slot="0x0A" function="0"/>
+    </interface>
+    <console type="pty">
+      <log file="/var/log/libvirt/qemu/android-install-serial0.log" append="off"/>
+    </console>
+    <video>
+      <model type="none"/>
+    </video>
+    <memballoon model="none"/>
+  </devices>
+  <qemu:override>
+  </qemu:override>
+  <qemu:commandline>
+  </qemu:commandline>
+</domain>
