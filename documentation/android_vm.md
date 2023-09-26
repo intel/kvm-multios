@@ -51,7 +51,7 @@ Refer to Celadon development setup for instructions: https://projectceladon.gith
         change "John Doe" to your name
         change johndoe@example.com to your email
 
-    sudo apt install python-sixIf build machine network is behind proxy, also config proxy accordingly for git.
+    If build machine network is behind proxy, also config proxy accordingly for git.
 
             $ git config --global http.proxy http://proxyuser:proxypwd@proxy.server.com:8080
             $ git config --global https.proxy http://proxyuser:proxypwd@proxy.server.com:8080
@@ -59,6 +59,7 @@ Refer to Celadon development setup for instructions: https://projectceladon.gith
             Where:
             change proxyuser to your proxy user (if required)
             change proxypwd to your proxy password (if required)
+            If no proxy user/password is required, remove "proxyuser:proxypwd@" portion of url.
             change proxy.server.com to the URL of your proxy server
             change 8080 to the proxy port configured on your proxy server
 
