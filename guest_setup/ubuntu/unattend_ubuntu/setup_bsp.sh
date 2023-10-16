@@ -6,27 +6,44 @@
 set -Eeuo pipefail
 
 #---------      Global variable     -------------------
+# PPA url for Intel overlay installation
+# Add each required entry on new line
 PPA_URLS=(
     "https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia"
 )
-# corresponding GPG key for each PPA_URL entry
-# "auto" to auto get from ppa_url, "url of gpg key" or "force" to force trusted access without gpg key
+# corresponding GPG key to use for each PPA_URL entry above in same sequence.
+# If GPG key is not set correctly,
+# Set to either one of below options:
+#   To auto use GPG key found in PPA entry (check PPA repository has required key available), set to: "auto"
+#   To force download GPG key at stated url, set to: "url of gpg key file"
+#   To force trusted access without GPG key (for unsigned PPA only), set to: "force"
 PPA_GPGS=(
     "auto"
 )
-# corresponding use proxy as set in host env variable or not for each PPA_URL entry
-# "" for use proxy or "--no-proxy"
+# Set corresponding to use proxy as set in host env variable or not for each PPA_URL entry above in same sequence.
+# Set to either one of below options:
+#   To use auto proxy, set to: ""
+#   To not use proxy, set to: "--no-proxy"
 PPA_WGET_NO_PROXY=(
     ""
 )
-# additional apt proxy configuration required to access PPA urls. One line per entry.
+# Set additional apt proxy configuration required to access PPA_URL entries set.
+# Set to either one of below options:
+#   For no proxy required for PPA access, set to: ""
+#   For proxy required (eg. using myproxyserver.com at mynetworkdomain.com), set to:
+#     'Acquire::https::proxy::myproxyserver.com "DIRECT";' 'Acquire::https::proxy::*.mynetworkdomain.com "DIRECT";'
+#     where
+#     Change myproxyserver.com to your proxy server
+#     Change mynetworkdomain.com to your network domain
 PPA_APT_CONF=(
     ""
 )
+# PPA APT repository pin and priority
+# Reference: https://wiki.debian.org/AptConfiguration#Always_prefer_packages_from_a_repository
 PPA_PIN="release o=intel-iot-linux-overlay"
 PPA_PIN_PRIORITY=2000
 
-# Add entry for each additional package to install
+# Add entry for each additional package to install into guest VM
 PACKAGES_ADD_INSTALL=(
     ""
 )
@@ -94,10 +111,11 @@ function install_kernel_from_ppa() {
 
     # Install Intel kernel overlay
     echo "kernel PPA version: $1"
-    sudo apt install -y linux-headers-$1 linux-image-$1 || return -1
+    sudo apt install -y --allow-downgrades linux-headers-$1 linux-image-$1 || return -1
 
     # Update boot menu to boot to the new kernel
-    sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $1'/" /etc/default/grub
+    local kernel_name=$(echo $1 | awk -F '=' '{print $1}')
+    sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $kernel_name'/" /etc/default/grub
     sudo update-grub
 
     $LOGD "${FUNCNAME[0]} end"
@@ -155,7 +173,7 @@ function setup_overlay_ppa() {
     done
 
     sudo apt update -y
-    sudo apt upgrade -y
+    sudo apt upgrade -y --allow-downgrades
 
     $LOGD "${FUNCNAME[0]} end"
 }

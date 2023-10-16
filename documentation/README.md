@@ -13,6 +13,8 @@
     1. [Android VM Image Creation](#android-vm-image-creation)
 1. [VM Definition](#vm-definition)
 1. [VM Management](#vm-management)
+    1. [VM vCPU Allocation](#vm-vcpu-allocation)
+    1. [VM Memory Allocation](#vm-memory-allocation)
     1. [VM Launch](#vm-launch)
     1. [VM Misc Operations](#vm-misc-operations)
     1. [VM Power Management](#vm-power-management)
@@ -101,25 +103,25 @@ For Intel internal only platforms, refer [here](intel_internal/platforms.md)
 | CentOS | centos |
 
 ## Guest OS libvirt Domain XML Naming Convention
-| XML filename | VM Operating System | display | GPU virtualization | OS boot (BIOS/UEFI) |
-| :-- | :-- | :-- | :-- | :-- |
-| ubuntu_vnc.xml | Ubuntu | VNC | None | UEFI | 
-| ubuntu_gvtd.xml | Ubuntu | Local Display | GVT-d in legacy mode | UEFI | 
-| ubuntu_sriov.xml | Ubuntu | Local Display | SR-IOV | UEFI | 
-| ubuntu_rt_vnc.xml | Ubuntu RT | VNC | None | UEFI |
-| ubuntu_rt_gvtd.xml | Ubuntu RT | Local Display | GVT-d in legacy mode | UEFI |
-| ubuntu_rt_sriov.xml | Ubuntu RT | Local Display | SR-IOV | UEFI |
-| windows_vnc_ovmf.xml | Ubuntu | VNC | None | UEFI | 
-| windows_gvtd_ovmf.xml | Ubuntu | Local Display | GVT-d in legacy mode| UEFI | 
-| windows_gvtd_upt_ovmf.xml | Ubuntu | VNC | GVT-d in UPT mode | UEFI | 
-| windows_gvtd_upt_seabios.xml | Ubuntu | VNC | GVT-d in UPT mode | BIOS | 
-| windows_sriov_ovmf.xml | Ubuntu | Local Display | SR-IOV | UEFI | 
-| windows_sriov_seabios.xml | Ubuntu | Local Display | SR-IOV | BIOS | 
-| android_virtio-gpu.xml | Android | Local Display | Virtio-GPU | UEFI | 
-| android_gvtd.xml | Android | Local Display | GVT-d in legacy mode | UEFI | 
-| android_sriov.xml | Android | Local Display | SR-IOV | UEFI | 
-| centos_vnc.xml | CentOS | VNC | None | UEFI | 
-| redhat_vnc.xml | Redhat | VNC | None | UEFI | 
+| XML filename | VM Operating System | display | GPU virtualization | OS boot (BIOS/UEFI) | default used in launch_multios.sh |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| ubuntu_vnc.xml | Ubuntu | VNC | None | UEFI | Yes |
+| ubuntu_gvtd.xml | Ubuntu | Local Display | GVT-d in legacy mode | UEFI | Yes |
+| ubuntu_sriov.xml | Ubuntu | Local Display | SR-IOV | UEFI | Yes |
+| ubuntu_rt_vnc.xml | Ubuntu RT | VNC | None | UEFI | Yes |
+| ubuntu_rt_gvtd.xml | Ubuntu RT | Local Display | GVT-d in legacy mode | UEFI | Yes |
+| ubuntu_rt_sriov.xml | Ubuntu RT | Local Display | SR-IOV | UEFI | Yes |
+| windows_vnc_ovmf.xml | Ubuntu | VNC | None | UEFI | Yes |
+| windows_gvtd_ovmf.xml | Ubuntu | Local Display | GVT-d in legacy mode| UEFI | Yes |
+| windows_gvtd_upt_ovmf.xml | Ubuntu | VNC | GVT-d in UPT mode | UEFI | No |
+| windows_gvtd_upt_seabios.xml | Ubuntu | VNC | GVT-d in UPT mode | BIOS | No |
+| windows_sriov_ovmf.xml | Ubuntu | Local Display | SR-IOV | UEFI | Yes |
+| windows_sriov_seabios.xml | Ubuntu | Local Display | SR-IOV | BIOS | No |
+| android_virtio-gpu.xml | Android | Local Display | Virtio-GPU | UEFI | Yes |
+| android_gvtd.xml | Android | Local Display | GVT-d in legacy mode | UEFI | Yes |
+| android_sriov.xml | Android | Local Display | SR-IOV | UEFI | Yes |
+| centos_vnc.xml | CentOS | VNC | None | UEFI | Yes |
+| redhat_vnc.xml | Redhat | VNC | None | UEFI | Yes |
 
 # Host Setup
 The Intel IOT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.
@@ -164,6 +166,43 @@ KVM MultiOS Portfolio release provides some ease of use scripts for managing one
 Standard libvirt virsh command options could also be used with each domain after start.
 
 ** Note: Ensure that host platform has been correctly configured for KVM MultiOS Portfolio as per [Host Setup](#host-setup) and guest VMs used are also installed/configured as per [Virtual Machine Image Creation](#virtual-machine-image-creation) before running any commands in this section.**
+
+## VM vCPU Allocation
+The default VM vCPU allocation could be changed permanently by modifying VM definition xml file to take effect on next launch of VM.
+
+### VM vCPU Allocation Change in XML Definition
+To do so, identify the XML file of the VM to be modified. Refer to [Guest OS libvirt Domain XML Naming Convention](#guest-os-libvirt-domain-xml-naming-convention)
+The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where xxxx is the identified XML filename and \<platform_name\> is as per [Platform Naming Convention](#platform-naming-convention) for the host platform.
+
+The number of vCPUs allocated to VM could be found in the \<vcpu\> element of XML file which could be modified accordingly to desired values.
+
+For example, the below shows 2 vCPU allocation for windows.
+
+        <name>windows</name>
+        ...
+        <vcpu>2</vcpu>
+        ...
+
+Reference: [Libvirt Domain XML format: CPU allocation](https://libvirt.org/formatdomain.html#cpu-allocation)
+
+## VM Memory Allocation
+The default VM memory size could be changed permanently by modifying VM definition xml file to take effect on next launch of VM.
+
+### VM Memory Allocation Change in XML Definition
+To do so, identify the XML file of the VM to be modified. Refer to [Guest OS libvirt Domain XML Naming Convention](#guest-os-libvirt-domain-xml-naming-convention)
+The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where xxxx is the identified XML filename and \<platform_name\> is as per [Platform Naming Convention](#platform-naming-convention) for the host platform.
+
+The memory allocated to VM could be found in the \<memory\> and \<currentMemory\> elements of XML file which could be modified accordingly to desired values. The unit is default to "KiB" for kibibytes (1024 bytes) unless otherwise specified.
+
+For example, the below shows 4GB allocation for windows.
+
+        <name>windows</name>
+        ...
+        <memory>4194304</memory>
+        <currentMemory>4194304</currentMemory>
+        ...
+
+Reference: [Libvirt Domain XML format: Memory allocation](https://libvirt.org/formatdomain.html#memory-allocation)
 
 ## VM Launch
 To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt toolkit on xxxx platform.
@@ -284,8 +323,8 @@ A successfully hibernated guest VM will be in "shut off" state as shown by "virs
 Individual guest VM domains could also be suspended/hibernated/resumed by below libvirt commands:
 | libvirt command | Operation |
 | :-- | :-- |
-| virsh dopmsuspend mem \<domain\>| Suspend selected domain. Command fails if suspend not supported by domain|
-| virsh suspend disk \<domain\>| Hibernate selected domain. Command fails if hibernation not supported by domain|
+| virsh dompmsuspend --target mem \<domain\>| Suspend selected domain. Command fails if suspend not supported by domain|
+| virsh dompmsuspend --target disk \<domain\>| Hibernate selected domain. Command fails if hibernation not supported by domain|
 | virsh dompmwakeup \<domain\>| Resume selected domain in pmsuspended state|
 
 ## Automatic VM Power Management During Host Power Management

@@ -232,11 +232,11 @@ function handle_arguments() {
           display="$1"
           if [[ "$1" == "sriov" ]]; then
             SRIOV_ENABLE="true"
-          elif [[ "$1" == "gvtd" ]]; then
+          else
             SRIOV_ENABLE="false"
           fi
           # Check if next argument is a valid domain
-          if [[ -z "$2" ]]; then
+          if [[ -z "${2+x}" || -z "$2" ]]; then
             log_error "Domain name missing after $1 option"
             print_help
             exit 1
@@ -246,6 +246,12 @@ function handle_arguments() {
             # Check if domain is supported
             if [[ ! "${!VM_DOMAIN[@]}" =~ "$1" ]]; then
               log_error "Domain $1 is not supported."
+              print_help
+              exit 1
+            fi
+            # No VNC support for Android
+            if [[ "$1" == "android" && "${display}" == "vnc" ]]; then
+              log_error "VNC for Android is not supported."
               print_help
               exit 1
             fi

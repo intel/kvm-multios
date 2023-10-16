@@ -262,54 +262,18 @@
           <WillReboot>Always</WillReboot>
         </RunSynchronousCommand>
 
-        <!-- Download graphics driver + Zero-Copy Driver -->
+        <!-- Setup for graphics driver + Zero-Copy Driver installation -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\ZCBuild_MSFT_Signed.zip' "%FILE_SERVER_URL%/ZCBuild_MSFT_Signed.zip"</Path>
-          <Description>Download Zero-Copy driver</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\gfx_zc_setup.ps1' "%FILE_SERVER_URL%/gfx_zc_setup.ps1"</Path>
+          <Description>Download GFX and Zero-copy setup script</Description>
           <WillReboot>OnRequest</WillReboot>
           <Order>20</Order>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\Driver-Release-64-bit.zip' "%FILE_SERVER_URL%/Driver-Release-64-bit.zip"</Path>
-          <Description>Download graphics driver</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\gfx_zc_setup.ps1"</Path>
+          <Description>Setup for GFX and Zero-copy driver install</Description>
           <WillReboot>OnRequest</WillReboot>
           <Order>21</Order>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command New-Item -Path 'C:\Temp' -Name 'ZCBuild_Install' -ItemType 'directory'</Path>
-          <Description>Create driver install directory folder</Description>
-          <WillReboot>OnRequest</WillReboot>
-          <Order>22</Order>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Expand-Archive -Path 'C:\Temp\ZCBuild_MSFT_Signed.zip' -DestinationPath 'C:\Temp\ZCBuild_Install' -Force</Path>
-          <Description>Unzip Zero-Copy driver</Description>
-          <Order>23</Order>
-          <WillReboot>OnRequest</WillReboot>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>powershell.exe -Command Get-ChildItem -Path 'C:\Temp\ZCBuild_Install'|Where-Object {$_.PSIsContainer -eq $True -and $_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'}|ForEach-Object {Rename-Item -Path "$_.FullName" -NewName 'ZCBuild_MSFT_Signed' -Force}</Path>
-          <Description>Rename Zero-Copy driver folder</Description>
-          <WillReboot>OnRequest</WillReboot>
-          <Order>24</Order>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Expand-Archive -Path 'C:\Temp\Driver-Release-64-bit.zip' -DestinationPath 'C:\Temp\GraphicsDriver' -Force</Path>
-          <Description>Unzip Graphics driver</Description>
-          <WillReboot>OnRequest</WillReboot>
-          <Order>25</Order>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\zc_install.ps1' "%FILE_SERVER_URL%/zc_install.ps1"</Path>
-          <Description>Download Zero-copy driver install script</Description>
-          <WillReboot>OnRequest</WillReboot>
-          <Order>27</Order>
-        </RunSynchronousCommand>
-        <RunSynchronousCommand wcm:action="add">
-          <Path>schtasks /create /tn "\Microsoft\Windows\RunZCDrvInstall\RunZCDrvInstall" /sc onstart /delay 0000:30 /rl highest /ru system /tr "powershell.exe -ExecutionPolicy Bypass -file C:\Temp\zc_install.ps1"</Path>
-          <Description>Schedule task for Zero-copy driver install</Description>
-          <Order>28</Order>
-          <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
 
         <RunSynchronousCommand wcm:action="add">

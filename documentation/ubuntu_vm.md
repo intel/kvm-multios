@@ -18,10 +18,10 @@ Obtain below required files are ready prior to running automated install:
 
 Host platform DUT setup:
 - Host platform is setup as per platform release BSP guide and booted accordingly.
-- Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
 - Host platform has network connection and Internet access and proxy variables (http_proxy, https_proxy, no_proxy) are set appropriately in /etc/environment if required for network access.
-- Host platform has Internet apt access. ie. "apt update" works.
+- Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
 - Host platform date/time is set up properly to current date/time.
+- Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
 
 ## Running Ubuntu 22.04 LTS Automated Install
 1. Check platform BSP user guide if Intel kernel overlay is available via Intel PPA release. This information could be obtained from DUT platform BSP guide or inferred from a host platform which has been setup as per platform BSP user guide.
@@ -38,8 +38,10 @@ Example of host with kernel installed locally via .deb files as per BSP guide:
         $ apt list --installed | grep linux-image-$(uname-a)
         linux-image-x.y.z-aaaa-bbbbb-ccccc/now x.y-aaa-bbb amd64 [installed,local]
 
-
-For Intel kernel overlay installed from Intel PPA release, kernel name would be per "x.y.z-intel" format where x.y.z is the platform required kernel version. Also, "local" would not be found in "apt list --installed" output.
+For Intel kernel overlay installed from Intel PPA release, kernel package name and version could be as per example below
+where
+x.y.z is the platform required kernel package and
+aabbccdd is the exact kernel package version required. Also, "local" would not be found in "apt list --installed" output.
 
 Example of host with kernel installed from Intel PPA release as per BSP guide:
         $ uname -r
@@ -67,29 +69,46 @@ Refer to the Ubuntu BSP release guide for the host hardware platform for steps o
 3. Ensure Ubuntu BSP installation PPA variables to be used in guest VM setup is set desired as per host platform Ubuntu BSP release guide.
    Edit the file ./guest_setup/<host_os>/unattend_ubuntu/setup_bsp.sh accordingly for the variables shown below according to platform hardware Ubuntu BSP release guide.
 
-        vi ./guest_setup/<host_os>/unattend_ubuntu/setup_bsp.sh
+        $ vi ./guest_setup/<host_os>/unattend_ubuntu/setup_bsp.sh
 
+        # PPA url for Intel overlay installation
+        # Add each required entry on new line
         PPA_URLS=(
             "https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia"
         )
-        # corresponding GPG key for each PPA_URL entry
-        # "auto" to auto get from ppa_url, "url of gpg key" or "force" to force trusted access without gpg key
+        # corresponding GPG key to use for each PPA_URL entry above in same sequence.
+        # If GPG key is not set correctly,
+        # Set to either one of below options:
+        #   To auto use GPG key found in PPA entry (check PPA repository has required key available), set to: "auto"
+        #   To force download GPG key at stated url, set to: "url of gpg key file"
+        #   To force trusted access without GPG key (for unsigned PPA only), set to: "force"
         PPA_GPGS=(
             "auto"
         )
-        # corresponding use proxy as set in host env variable or not for each PPA_URL entry
-        # "" for use proxy or "--no-proxy"
+        # Set corresponding to use proxy as set in host env variable or not for each PPA_URL entry above in same sequence.
+        # Set to either one of below options:
+        #   To use auto proxy, set to: ""
+        #   To not use proxy, set to: "--no-proxy"
         PPA_WGET_NO_PROXY=(
             ""
         )
-        # additional apt proxy configuration required to access PPA urls. One line per entry.
+        # Set additional apt proxy configuration required to access PPA_URL entries set.
+        # Set to either one of below options:
+        #   For no proxy required for PPA access, set to: ""
+        #   For proxy required (eg. using myproxyserver.com at mynetworkdomain.com), set to:
+        #     'Acquire::https::proxy::myproxyserver.com "DIRECT";' 'Acquire::https::proxy::*.mynetworkdomain.com "DIRECT";'
+        #     where
+        #     Change myproxyserver.com to your proxy server
+        #     Change mynetworkdomain.com to your network domain
         PPA_APT_CONF=(
             ""
         )
+        # PPA APT repository pin and priority required for Intel Overlay PPA
+        # Reference: https://wiki.debian.org/AptConfiguration#Always_prefer_packages_from_a_repository
         PPA_PIN="release o=intel-iot-linux-overlay"
         PPA_PIN_PRIORITY=2000
 
-4. If running behind proxy, ensure host platform machine running as VM host has proxy environment variables such as http_proxy/https_proxy/ftp_proxy/socks_server/no_proxy are set appropriately and reflected in bash environment before proceeding with next step.
+4. If running behind proxy, ensure host platform machine running as VM host has proxy environment variables such as http_proxy/https_proxy/ftp_proxy/socks_server/no_proxy set appropriately in /etc/environment and reflected in bash shell before proceeding with next step.
 
 5. Run below command to start Ubuntu/Ubuntu RT VM automated install from a terminal in host. Installed VM will be shutdown once installation is completed.
 
@@ -103,17 +122,20 @@ DO NOT interfere or use VM before setup script exits successfully.**
         ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --rt
 
         Command Reference:
-        Ubuntu_setup.sh [-h] [--force] [--viewer] [--rt]
+        Ubuntu_setup.sh [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-version] [--debug]
         Create Ubuntu vm required image to dest /var/lib/libvirt/images/ubuntu.qcow2
         Or create Ubuntu RT vm required image to dest /var/lib/libvirt/images/ubuntu_rt.qcow2
 
         Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb, linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.
         Install console log can be found at /var/log/libvirt/qemu/ubuntu_install.log
         Options:
-                -h        show this help message
-                --force   force clean if Ubuntu vm qcow file is already present
-                --viewer  show installation display
-                --rt      install Ubuntu RT
+            -h                          show this help message
+            --force                     force clean if Ubuntu vm qcow file is already present
+            --viewer                    show installation display
+            --rt                        install Ubuntu RT
+            --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
+            --force-kern-apt-version    force Ubuntu vm to install kernel from PPA with given version
+            --debug                     Do not remove temporary files. For debugging only.
 
     Above command starts Ubuntu/Ubuntu RT guest VM install from installer. Installation progress can be tracked in the following ways:
     - "--viewer" option which display the progress using virt-viewer
@@ -125,13 +147,19 @@ DO NOT interfere or use VM before setup script exits successfully.**
 6. Boot to newly installed Ubuntu VM as per [Launching Ubuntu/Ubuntu RT VM](#launching-ubuntuubuntu-rt-vm).
 
 # Manual Ubuntu/Ubuntu RT VM guest configuration (only required if image not created using automated installation)
-This step is only required if reusing an existing VM image previously already manually setup as per platform Intel Ubuntu BSP release, and still wish to configure VM for KVM MultiOS Portfolio release supported features.
+**Note: For reference . This section is not required when Ubuntu guest VM image was installed using KVM MultiOS Libvirt Portfolio release Ubuntu VM automated installation!"**
+
+If and only if when reusing an existing VM image previously manually setup as per platform Intel Ubuntu BSP release, but still wish to configure such guest VM image for KVM MultiOS Portfolio release supported features.
+
+Prerequisites:
+- Guest VM image format should be in QCOW2
+- Guest image file is named and located as per path set in <source file="..."> element of Ubuntu with VNC VM XML file.
 
 Steps:
-1. Boot guest VM  
+1. Boot guest VM
 
         ./platform/<plat>/launch_multios.sh -f -d ubuntu  
-    Run in terminal on host platform:  
+        Run in terminal on host platform:  
 
         virt-viewer -w --domain-name ubuntu
 

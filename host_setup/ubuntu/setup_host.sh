@@ -77,6 +77,7 @@ function host_update_cmdline() {
     local major_version
     local max_guc
     local cmdline
+    local intel_iommu_options="on,sm_on"
 
     # Workaround for MTL-P stepping below C0
     sudo apt install -y dmidecode
@@ -97,14 +98,14 @@ function host_update_cmdline() {
         max_guc=7
         cmds=("i915.force_probe=*"
               "udmabuf.list_limit=8192"
-              "intel_iommu=on"
+              "intel_iommu=$intel_iommu_options"
               "i915.enable_guc=(0x)?(0)*$max_guc"
               "mem_sleep_default=s2idle")
     else
         max_guc=3
         cmds=("i915.force_probe=*"
               "udmabuf.list_limit=8192"
-              "intel_iommu=on"
+              "intel_iommu=$intel_iommu_options"
               "i915.enable_guc=(0x)?(0)*$max_guc"
               "i915.max_vfs=(0x)?(0)*$max_vfs"
               "mem_sleep_default=s2idle")

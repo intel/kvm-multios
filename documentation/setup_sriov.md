@@ -1,7 +1,8 @@
 # Table of Contents
 1. [Host Hardware and OS Setup](#host-hardware-and-os-setup)
   1. [BIOS Setup](#bios-setup)
-  2. [Operating System Setup](#operating-system-setup)
+  1. [Prerequisites](#prerequisites)
+  1. [Running KVM MultiOS Host Setup](#running-kvm-multios-host-setup)
 
 This setup guide provide the procedures to configure the host and VMs for using GPU SR-IOV with KVM MultiOS Portfolio release.
 
@@ -11,9 +12,15 @@ Ensure the following options are enabled in the BIOS for Intel IOT host platform
 - Intel Virtualization Technology (VMX)
 - Intel VT for Directed I/O (VT-d)
 
-## Operating System Setup
-The guide assumes Intel IOT host platform used has first been setup for host operating system Intel BSP release. Refer to [platforms supported](platforms.md) for setup details) for respective platforms.
+## Prerequisites
+Host platform DUT setup:
+- Host platform have physical display monitor connection prior to installation run.
+- Host platform is setup as per platform release BSP guide and booted accordingly.
+- Host platform has network connection and Internet access and proxy variables (http_proxy, https_proxy, no_proxy) are set appropriately in /etc/environment if required for network access.
+- Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
+- Host platform date/time is set up properly to current date/time.
 
+## Running KVM MultiOS Host Setup
 1. Run KVM MultiOS Portfolio release host setup script to setup system for SR-IOV. System will rebooted at the end of script execution.
 
         ./host_setup/ubuntu/setup_host.sh -u GUI
