@@ -36,6 +36,9 @@ function pmsuspend_guests() {
         echo "Error: suspend target "$pmsuspend_target" is unsupported"
         return -1
     fi
+    if [[ $pmsuspend_target == "disk" ]]; then
+        max_timeout=300
+    fi
     list_domains_by_state "running" | while read DOMAIN; do
         local osname=$($VIRSH guestinfo $DOMAIN --os | grep os.name | awk '-F: ' '{ print $2 }')
         if [ -z "$osname" ]; then
@@ -45,6 +48,9 @@ function pmsuspend_guests() {
         if ! find_in_array "$osname" SUPPORTED_OS; then
             echo "Error: Domain $DOMAIN (OS name $osname) is not of supported OS type"
             return -1 
+        fi
+        if [[ $osname == "Microsoft Windows" && $pmsuspend_target == "mem" ]]; then
+            continue
         fi
         echo "Trigger $DOMAIN suspend to $pmsuspend_target..."
         $VIRSH dompmsuspend $DOMAIN $pmsuspend_target
@@ -60,7 +66,7 @@ function pmsuspend_guests() {
                 sleep 1
                 if [[ $loop -gt $max_timeout ]]; then
                     echo "timeout"
-                    break
+                    return -1
                 fi
             done
         fi
@@ -68,7 +74,7 @@ function pmsuspend_guests() {
 }
 
 function pmresume_guests() {
-    local max_timeout=10
+    local max_timeout=60
     local loop=0
     local checkstate="running"
     list_domains_by_state pmsuspended | while read DOMAIN; do

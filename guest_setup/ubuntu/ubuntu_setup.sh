@@ -15,11 +15,16 @@ UBUNTU_SEED_ISO=ubuntu-seed.iso
 
 # files required to be in unattend_ubuntu folder for installation
 REQUIRED_DEB_FILES=( "linux-headers.deb" "linux-image.deb" )
+declare -a TMP_FILES
+TMP_FILES=()
 
 FORCECLEAN=0
 VIEWER=0
 RT=0
 KERN_INSTALL_FROM_LOCAL=0
+FORCE_KERN_FROM_DEB=0
+FORCE_KERN_APT_VER=""
+SETUP_DEBUG=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
@@ -97,9 +102,9 @@ function install_dep() {
 
 function clean_ubuntu_images() {
   echo "Remove existing ubuntu image"
-  sudo virsh destroy $UBUNTU_DOMAIN_NAME &>/dev/null || :
+  virsh destroy $UBUNTU_DOMAIN_NAME &>/dev/null || :
   sleep 5
-  sudo virsh undefine $UBUNTU_DOMAIN_NAME --nvram &>/dev/null || :
+  virsh undefine $UBUNTU_DOMAIN_NAME --nvram &>/dev/null || :
   sudo rm -f ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME}
   sudo rm -f ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log
 
@@ -111,11 +116,21 @@ function clean_ubuntu_images() {
 }
 
 function is_host_kernel_local_install() {
-  local kern_ver=$(uname -r)
-  local kern_header_local=$(apt list --installed | grep linux-headers-$kern_ver | awk -F' ' '{print $4}'| grep "local")
-  local kern_image_local=$(apt list --installed | grep linux-image-$kern_ver | awk -F' ' '{print $4}'| grep "local")
+  if [[ $FORCE_KERN_FROM_DEB == "1" ]]; then
+    KERN_INSTALL_FROM_LOCAL=1
+    return
+  elif [[ -n $FORCE_KERN_APT_VER ]]; then
+    KERN_INSTALL_FROM_LOCAL=0
+    return
+  fi
 
-  if [[ ! -z "$kern_header_local" && ! -z "$kern_image_local" ]]; then
+  local kern_ver=$(uname -r)
+  local kern_header_ppa=$(apt list --installed | grep linux-headers-$kern_ver)
+  local kern_image_ppa=$(apt list --installed | grep linux-image-$kern_ver)
+  local kern_header_ppa_local=$(apt list --installed | grep linux-headers-$kern_ver | awk -F' ' '{print $4}'| grep "local")
+  local kern_image_ppa_local=$(apt list --installed | grep linux-image-$kern_ver | awk -F' ' '{print $4}'| grep "local")
+
+  if [[ -z "$kern_header_ppa" || -z "$kern_image_ppa" || ! -z "$kern_header_ppa_local" || ! -z "$kern_image_ppa_local" ]]; then
     KERN_INSTALL_FROM_LOCAL=1
   else
     KERN_INSTALL_FROM_LOCAL=0
@@ -153,6 +168,7 @@ function install_ubuntu() {
     rm -rf "$dest_tmp_path"
   fi
   mkdir -p "$dest_tmp_path"
+  TMP_FILES+=("$dest_tmp_path")
 
   copy_setup_files "$dest_tmp_path" || return -1
   run_file_server "$dest_tmp_path" $FILE_SERVER_IP $FILE_SERVER_PORT FILE_SERVER_DAEMON_PID || return -1
@@ -167,9 +183,16 @@ function install_ubuntu() {
   else
     sed -i "s|\$RT_SUPPORT||g" $scriptpath/auto-install-ubuntu-parsed.yaml
   fi
+
   # update for kernel overlay install via PPA vs local deb
   if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
-    sed -i "s|\$KERN_INSTALL_OPTION|-kp \"$(uname -r)\"|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+    local kernel_ver=$(uname -r)
+    if [[ -n $FORCE_KERN_APT_VER ]]; then
+      kernel_ver=$FORCE_KERN_APT_VER
+    else
+      kernel_ver="${kernel_ver}=$(apt list --installed | grep linux-image-$(uname -r) | awk '{print $2}')"
+    fi
+    sed -i "s|\$KERN_INSTALL_OPTION|-kp \"$kernel_ver\"|g" $scriptpath/auto-install-ubuntu-parsed.yaml
   else
     sed -i "/wget --no-proxy -O \/target\/tmp\/setup_bsp.sh \$FILE_SERVER_URL\/setup_bsp.sh/i \    - wget --no-proxy -O \/target\/linux-headers.deb \$FILE_SERVER_URL\/linux-headers.deb\n    - wget --no-proxy -O \/target\/linux-image.deb \$FILE_SERVER_URL\/linux-image.deb" $scriptpath/auto-install-ubuntu-parsed.yaml
     sed -i "s|\$KERN_INSTALL_OPTION|-k \'\/\'|g" $scriptpath/auto-install-ubuntu-parsed.yaml
@@ -228,16 +251,19 @@ function install_ubuntu() {
 }
 
 function show_help() {
-    printf "$(basename "${BASH_SOURCE[0]}") [-h] [--force] [--viewer] [--rt]\n"
+    printf "$(basename "${BASH_SOURCE[0]}") [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-version] [--debug]\n"
     printf "Create Ubuntu vm required image to dest ${LIBVIRT_DEFAULT_IMAGES_PATH}/ubuntu.qcow2\n"
     printf "Or create Ubuntu RT vm required image to dest ${LIBVIRT_DEFAULT_IMAGES_PATH}/ubuntu_rt.qcow2\n"
     printf "Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb,linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.\n"
     printf "Install console log can be found at ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log\n"
     printf "Options:\n"
-    printf "\t-h        show this help message\n"
-    printf "\t--force   force clean if Ubuntu vm qcow file is already present\n"
-    printf "\t--viewer  show installation display\n"
-    printf "\t--rt      install Ubuntu RT\n"
+    printf "\t-h                          show this help message\n"
+    printf "\t--force                     force clean if Ubuntu vm qcow file is already present\n"
+    printf "\t--viewer                    show installation display\n"
+    printf "\t--rt                        install Ubuntu RT\n"
+    printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
+    printf "\t--force-kern-apt-version    force Ubuntu vm to install kernel from PPA with given version\n"
+    printf "\t--debug                     Do not remove temporary files. For debugging only.\n"
 }
 
 function parse_arg() {
@@ -263,6 +289,19 @@ function parse_arg() {
                 REQUIRED_DEB_FILES=( "linux-headers-rt.deb" "linux-image-rt.deb" )
                 ;;
 
+            --force-kern-from-deb)
+                FORCE_KERN_FROM_DEB=1
+                ;;
+
+            --force-kern-apt-version)
+                FORCE_KERN_APT_VER=$2
+                shift
+                ;;
+
+            --debug)
+                SETUP_DEBUG=1
+                ;;
+
             -?*)
                 echo "Error: Invalid option $1"
                 show_help
@@ -278,24 +317,41 @@ function parse_arg() {
 }
 
 function cleanup () {
-    local dest_tmp_path=$(realpath "/tmp/${UBUNTU_DOMAIN_NAME}_install_tmp_files")
-    if [ -d "$dest_tmp_path" ]; then
-        rm -rf $dest_tmp_path
-    fi
+    for f in "${TMP_FILES[@]}"; do
+      if [[ $SETUP_DEBUG -ne 1 ]]; then
+        local fowner=$(ls -l $f | awk '{print $3}')
+        if [[ "$fowner" == "$USER" ]]; then
+            rm -rf $f
+        else
+            sudo rm -rf $f
+        fi
+      fi
+    done
     kill_by_pid $FILE_SERVER_DAEMON_PID
     local state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
     if [[ ! -z ${state+x} && "$state" == "running" ]]; then
         echo "Shutting down running domain $UBUNTU_DOMAIN_NAME"
-        sudo virsh shutdown $UBUNTU_DOMAIN_NAME
+        virsh shutdown $UBUNTU_DOMAIN_NAME
         sleep 10
-        sudo virsh destroy $UBUNTU_DOMAIN_NAME
+        state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
+        if [[ ! -z ${state+x} && "$state" == "running" ]]; then
+            virsh destroy $UBUNTU_DOMAIN_NAME
+        fi
+        virsh undefine --nvram $UBUNTU_DOMAIN_NAME
     fi
-    sudo virsh undefine --nvram $UBUNTU_DOMAIN_NAME || true
+    if [[ ! -z $(virsh list --name --all | grep -w $UBUNTU_DOMAIN_NAME) ]]; then
+        virsh undefine --nvram $UBUNTU_DOMAIN_NAME
+    fi
     kill_by_pid $VIEWER_DAEMON_PID
 }
 
 #-------------    main processes    -------------
 parse_arg "$@" || exit -1
+
+if [[ $FORCE_KERN_FROM_DEB == "1" && -n $FORCE_KERN_APT_VER ]]; then
+    echo "--force-kern-from-deb and --force-kern-apt-version cannot be used together"
+    exit
+fi
 
 trap 'cleanup' EXIT
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR

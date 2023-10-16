@@ -1,39 +1,46 @@
 # Table of Contents
 1. [Automated Windows VM Installation](#automated-windows-vm-installation)
     1. [Prerequisites](#prerequisites)
+        1. [NoPrompt Windows10 Installation ISO Creation](#noprompt-windows10-installation-iso-creation)
+        1. [Getting Ready for Automated Install](#getting-ready-for-automated-install)
     1. [Running Windows10 Automated Install](#running-windows10-automated-install)
+        1. [Automated SRIOV Install with WHQL Certified Graphics Driver](#automated-sriov-install-with-whql-certified-graphics-driver)
+        1. [Automated SRIOV Install with Intel Attest-signed Graphics Driver](#automated-sriov-install-with-intel-attest-signed-graphics-driver)
+        1. [Windows10 Non-SR-IOV Automated Install](#windows10-non-sr-iov-automated-install) 
 1. [Launching Windows VM](#launching-windows-vm)
 
 # Automated Windows VM Installation
 The automated Windows guest VM automated installation will perform the following:
-- install Windows from Windows installer iso.
+- install Windows from Windows installer iso (modified for No Prompt installation).
 - configure VM for KVM MultiOS Portfolio release supported features.
-- install SR-IOV ZeroCopy drivers.
+- install Windows GFX and SR-IOV ZeroCopy drivers for Intel GPU (if --no-sriov install option is not given).
 
-The created image is default able to work launching Windows VM with GPU SR-IOV virtualization.
+The created image is default able to work launching Windows VM with GPU SR-IOV virtualization (if --no-sriov install option is not given).
 
-Note: For using created image with GVT-d, user may need to re-run Intel graphics installer after launching Windows VM with GVT-d via Remote Desktop connection to the VM, then reboot VM to get physical display output with GVT-d.
+**
+Information:  
+For using created image with GVT-d, user may need to re-run Intel graphics installer after launching Windows VM with GVT-d via Remote Desktop connection to the VM, then reboot VM to get physical display output with GVT-d. **
 
 ## Prerequisites
 Required:
 - Windows noprompt installer iso file created in [NoPrompt Windows Installation ISO Creation](#noprompt-windows-installation-iso-creation)
-- Windows update OS patch msu file
-- Intel Graphics driver 64bit release zip archive for host platform
+- Windows update OS patch msu file as per host platform BSP release guide
+- Intel Graphics driver 64bit release 7z/zip archive for host platform
 - Intel Graphics SR-IOV ZeroCopy driver zip archive for host platform
 
 Host platform DUT setup:
-- Host platform have physical display monitor connection prior to installation run.
-- Host platform is setup as per platform release BSP guide and booted accordingly.
-- Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
+- Host platform have physical display monitor connection with working display prior to installation run (unless VNC only install option is desired).
+- Host platform is setup as per platform release BSP guide and booted accordingly to GUI desktop after login.
 - Host platform has network connection and Internet access and proxy variables (http_proxy, https_proxy, no_proxy) are set appropriately in /etc/environment if required for network access.
-- Host platform has Internet apt access. ie. "apt update" works.
+- Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
 - Host platform date/time is set up properly to current date/time.
+- Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
 
 ### NoPrompt Windows10 Installation ISO Creation
 Windows installation iso as downloaded from Windows direct is not suitable for unattended install as it requires human intervention to respond to a "Press Any Key To Boot From..." prompt from iso installation.
-To get around this, an noprompt Windows installation iso needs to be generated once from the actual installation iso provided by Windows download for unattended Windows installation.
+To get around this, an NoPrompt Windows installation iso needs to be generated once from the actual installation iso provided by Windows download for unattended Windows installation. The created NoPrompt iso could be reused for all subsequent unattended Windows VM creation from same Windows ISO.
 
-The generation of noprompt installation iso requires the use of a Windows machine with Windows ADK installed.
+The generation of NoPrompt installation iso requires the use of a Windows machine with Windows ADK installed.
 Reference: https://www.deploymentresearch.com/a-good-iso-file-is-a-quiet-iso-file
 
 1. Install [Windows ADK](https://learn.microsoft.com/en-us/windows-hardware/get-started/adk-install#choose-the-right-adk-for-your-scenario) in Windows machine according to version of Windows installation iso to be used.
@@ -52,7 +59,7 @@ Take note of ADK installation destination path for later use.
         ...
         $WinPE_InputISOfile = "C:\ISO\Zero Touch WinPE 10 x64.iso"
         $WinPE_OutputISOfile = "C:\ISO\Zero Touch WinPE 10 x64 - NoPrompt.iso"
-         
+
         $ADK_Path = "C:\Program Files (x86)\Windows Kits\10\Assessment and Deployment Kit"
 
 4. Open a PowerShell terminal in Windows machine and run CreateNoPromptISO.ps1 script
@@ -67,47 +74,78 @@ Take note of ADK installation destination path for later use.
 
 The noprompt installation iso will be generated at path specified by WinPE_OutputISOfile variable in CreateNoPromptISO.ps1 script. This can be used for all subsequent Windows unattended installations.
 
-## Running Windows10 Automated Install
+### Getting Ready for Automated Install
 1. Copy windows noprompt installer iso to the Intel host machine which is to run the guest VM.
 
-        sudo cp <windowsNoPrompt.iso> guest_setup/ubuntu/unattend_win10/windowsNoPrompt.iso
+        cp <windowsNoPrompt.iso> guest_setup/ubuntu/unattend_win10/windowsNoPrompt.iso
 
-2. Copy required installation files to guest_setup/ubuntu/unattend_win folder, renaming them as below.
+2. Copy required Windows update OS patch msu file to guest_setup/ubuntu/unattend_win folder, renaming as below.
 
         cp windows-kbxxxxxxx-x64_xxxxxxxxxxx.msu ./guest_setup/ubuntu/unattend_win10/windows-updates.msu
+
+3. Copy required Intel GPU GFX driver archive to guest_setup/ubuntu/unattend_win folder, ensure renaming as below.
+
         cp <Driver-Release-64-bit.zip> ./guest_setup/ubuntu/unattend_win10/Driver-Release-64-bit.zip
+        OR
+        cp <Driver-Release-64-bit.7z> ./guest_setup/ubuntu/unattend_win10/Driver-Release-64-bit.7z
+
+4. Copy required Intel GPU SR-IOV Zero-copy driver archive to guest_setup/ubuntu/unattend_win folder, renaming as below.
+
         cp <ZCBuild_xxxx_MSFT_Signed.zip> ./guest_setup/ubuntu/unattend_win10/ZCBuild_MSFT_Signed.zip
 
-3. Run below command to start Windows VM automated install from a terminal.
+Now system is ready to run Windows Automated install. Run Windows automated install as per following sections based on what type of VM support is desired and whether provided Intel GPU GFX driver used for installation is WHQL certifed or non-WHQL certified aka attest-signed.
 
+Refer to here for information on WHQL certified vs Intel attest-signed graphics driver: [What Is the Difference between WHQL and Non-WHQL Certified Graphics Drivers?](https://www.intel.com/content/www/us/en/support/articles/000093158/graphics.html#summary)
+
+## Running Windows10 Automated Install
 **Note: VM will restart multiple times and finally shutdown automatically after completion. Installation may take some time, please be patient. 
-As part of windows installation process VM will be restarted in SR-IOV mode for installation of SR-IOV required drivers in the background. At this stage VM will no longer have display on virt-viewer UI nor on VNC. Instead VM display could be found on host platform physical monitor.
+As part of windows installation process VM may be restarted in SR-IOV mode for installation of SR-IOV required drivers in the background. At this stage VM will no longer have display on virt-viewer UI nor on VNC. Instead VM display could be found on host platform physical monitor.
 DO NOT interfere or use VM before setup script exits successfully.**
+
+        Command Reference:
+        win10_setup.sh [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]
+        Create Windows vm required images and data to dest folder /var/lib/libvirt/images/windows.qcow2
+        Place required Windows installation files as listed below in guest_setup/ubuntu/unattend_win10 folder prior to running.
+        (windowsNoPrompt.iso4, windows-updates.msu4, ZCBuild_MSFT_Signed.zip4, Driver-Release-64-bit.[zip|7z])
+        Options:
+                -h                show this help message
+                -p                specific platform to setup for, eg. "-p client "
+                                  Accepted values:
+                                    client
+                                    server
+                --no-sriov        Non-SR-IOV windows install. No GFX/SRIOV support to be installed
+                --non-whql-gfx    GFX driver to be installed is non-WHQL signed but test signed
+                --force           force clean if windows vm qcow is already present
+                --viewer          show installation display
+                --debug           Do not remove temporary files. For debugging only.
+
+
+This command will start Windows guest VM install from Windows installer. Installation progress can be tracked in the following ways:
+- "--viewer" option which display VM on virt-viewer
+- via remote VNC viewer of your choice by connect to <VM_IP>:5902. VM ip address can be found using the command:
+    virsh domifaddr windows
+
+### Automated SRIOV Install with WHQL Certified Graphics Driver
+If platform Intel GPU driver available for platform is WHQL certified, run below command to start Windows VM automated install from a GUI terminal on host platform.
 
         ./guest_setup/ubuntu/win10_setup.sh -p client --force --viewer
 
-        Command Reference:
-        windows_setup.sh [-h] [-p] [--force] [--viewer]
-        Create Windows vm required images and data to dest folder /var/lib/libvirt/images/windows.qcow2
-        Place required Windows installation files as listed below in guest_setup/ubuntu/unattend_win folder prior to running.
-        (windowNoPrompt.iso, windows-updates.msu, ZCBuild_MSFT_Signed.zip, Driver-Release-64-bit.zip)
-        Options:
-                -h        show this help message
-                -p        specific platform to setup for, eg. "-p client"
-                          Accepted values:
-                            client
-                            server
-                --force   force clean if windows vm qcow is already present
-                --viewer  show installation display
 
-    This command will start Windows guest VM install from Windows installer. Installation progress can be tracked in the following ways:
-    - "--viewer" option which display VM on virt-viewer
-    - via remote VNC viewer of your choice by connect to <VM_IP>:5902. VM ip address can be found using the command:
-        sudo virsh domifaddr windows
+### Automated SRIOV Install with Intel Attest-signed Graphics Driver
+If platform Intel GPU driver available for platform is non-WHQL certified (Intel attest-signed driver), run below command to start Windows VM automated install from a GUI terminal on host platform.
+
+        ./guest_setup/ubuntu/win10_setup.sh -p client --non-whql-gfx --force --viewer
+
+
+### Windows10 Non-SR-IOV Automated Install 
+For Windows guest VM without Intel GPU SR-IOV drivers, run below command to start Windows VM automated install from a terminal.
+
+        ./guest_setup/ubuntu/win10_setup.sh -p client --no-sriov --force --viewer
+
 
 # Launching Windows VM
 Windows VM can be run with different display support as per below examples.
-Refer to [here](README.md#vm-management) more details on VM managment.
+Refer to [here](README.md#vm-management) for more details on VM managment.
 
 <table>
     <tr><th align="center">Example</th><th>Description</th></tr>

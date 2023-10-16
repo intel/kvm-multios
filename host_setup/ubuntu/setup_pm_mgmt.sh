@@ -188,7 +188,7 @@ ExecStart=$dest_script_path/libvirt-guests-sleep-dep.sh pre suspend
 ExecStop=$dest_script_path/libvirt-guests-sleep-dep.sh post suspend ; $dest_script_path/libvirt-guests-sleep.sh --resume
 
 [Install]
-WantedBy=suspend.target
+RequiredBy=suspend.target systemd-suspend.service
 EOF
 
     tee libvirt-guests-hibernate.service &>/dev/null <<EOF
@@ -209,7 +209,7 @@ ExecStart=$dest_script_path/libvirt-guests-sleep-dep.sh pre hibernate
 ExecStop=$dest_script_path/libvirt-guests-sleep-dep.sh post hibernate
 
 [Install]
-WantedBy=hibernate.target
+RequiredBy=hibernate.target systemd-hibernate.service
 EOF
     sudo cp $libvirt_script_path/libvirt-guests-sleep.sh $dest_script_path/
     sudo chmod +x $dest_script_path/libvirt-guests-sleep.sh

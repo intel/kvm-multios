@@ -1,7 +1,8 @@
 # Table of Contents
 1. [Host Hardware and OS Setup](#host-hardware-and-os-setup)
   1. [BIOS Setup](#bios-setup)
-  1. [Operating System Setup](#operating-system-setup)
+  1. [Prerequisites](#prerequisites)
+  1. [Running KVM MultiOS Host Setup](#running-kvm-multios-host-setup)
   1. [Build OVMF binaries for Windows GVT-d](#build-ovmf-binaries-for-windows-gvt-d)
 1. [Virtual Machine Additional Setup for GVT-d](#virtual-machine-additional-setup-for-gvt-d)
 
@@ -13,7 +14,15 @@ Ensure the following options are enabled in the BIOS
 - Intel Virtualization Technology (VMX)
 - Intel VT for Directed I/O (VT-d)
 
-## Operating System Setup
+## Prerequisites
+Host platform DUT setup:
+- Host platform have physical display monitor connection prior to installation run.
+- Host platform is setup as per platform release BSP guide and booted accordingly.
+- Host platform has network connection and Internet access and proxy variables (http_proxy, https_proxy, no_proxy) are set appropriately in /etc/environment if required for network access.
+- Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
+- Host platform date/time is set up properly to current date/time.
+
+## Running KVM MultiOS Host Setup
 1. Run host setup script to setup system for GVT-d. System will rebooted at the end of script execution.
 
         ./host_setup/ubuntu/setup_host.sh -u headless

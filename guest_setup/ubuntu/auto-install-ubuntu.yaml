@@ -89,6 +89,7 @@ autoinstall:
     - >-
       printf "network:\n  version: 2\n  renderer: NetworkManager"
       > /target/etc/netplan/01-network-manager-all.yaml
+    - curtin in-target -- systemctl disable systemd-networkd
 
     # Remove default filesystem and related tools not used with the suggested
     # 'direct' storage layout.  These may yet be required if different

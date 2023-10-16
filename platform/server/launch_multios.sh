@@ -93,7 +93,7 @@ function handle_arguments() {
         ;;
       -d)
         # Check if next argument is a valid domain
-        if [[ -z "$2" ]]; then
+        if [[ -z "${2+x}" || -z "$2" ]]; then
           log_error "Domain name missing after $1 option"
           print_help
           exit 1
@@ -112,12 +112,12 @@ function handle_arguments() {
           ;;
       -p)
         # Check if next argument is a valid domain
-        domain=$2
-        if [[ -z $domain ]]; then
+        if [[ -z "${2+x}" || -z "$2" ]]; then
           log_error "Domain name missing after $1 option."
           print_help
           exit 1
         fi
+        domain=$2
         # Check if domain is supported
         if [[ ! "${!VM_DOMAIN[@]}" =~ "$domain" ]]; then
           log_error "Domain $domain is not supported."
