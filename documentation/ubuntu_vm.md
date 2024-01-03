@@ -118,11 +118,27 @@ DO NOT interfere or use VM before setup script exits successfully.**
         # To install Ubuntu VM
         ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer
 
-        # To install Ubuntu RT VM
+        # To install Ubuntu RT VM (RT VM functionality is only applicable if running on RT host)
         ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --rt
 
+        # To install Ubuntu VM kernel by local deb file instead of install kernel from Intel PPA (kernel image deb files available at guest_setup/<host_os>/unattend_ubuntu folder)
+        # Required for non-RT VM: linux-headers.deb,linux-image.deb in guest_setup/<host_os>/unattend_ubuntu folder
+        # Required for RT VM (--rt option): linux-headers-rt.deb,linux-image-rt.deb in guest_setup/<host_os>/unattend_ubuntu folder
+        ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --force-kern-from-deb
+
+        # To install Ubuntu non-RT VM on Ubuntu RT host with kernel installed from Intel PPA (assuming available)
+        ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --force-kern-apt-ver <non-rt kernel version>=<specific package version>
+        # Assumming RT host installed PPA kernel version 6.5rt-intel=231018t123235z-r1 with corresponding non-RT PPA kernel version 6.5-intel=231018t123235z-r1, then command to use would be:
+        ./guest_setup/ubuntu/ubuntu_setup.sh --force --viewer --force-kern-apt-ver 6.5-intel=231018t123235z-r1
+
+**Note: Unless --force-xxx options are used, the setup process would auto detect based on host installation the following for guest setup:<\br>
+    - guest VM kernel is to be installed from PPA or from local debs<\br>
+    - guest VM kernel specific version to be installed if from PPA<\br>
+    - guest VM Intel overlay linux-firmware package version to be installed from PPA.<\br>
+    Only use --force-xxx options judiciously.**
+
         Command Reference:
-        Ubuntu_setup.sh [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-version] [--debug]
+        Ubuntu_setup.sh [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]
         Create Ubuntu vm required image to dest /var/lib/libvirt/images/ubuntu.qcow2
         Or create Ubuntu RT vm required image to dest /var/lib/libvirt/images/ubuntu_rt.qcow2
 
@@ -134,7 +150,8 @@ DO NOT interfere or use VM before setup script exits successfully.**
             --viewer                    show installation display
             --rt                        install Ubuntu RT
             --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
-            --force-kern-apt-version    force Ubuntu vm to install kernel from PPA with given version
+            --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version
+            --force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware from PPA with given version
             --debug                     Do not remove temporary files. For debugging only.
 
     Above command starts Ubuntu/Ubuntu RT guest VM install from installer. Installation progress can be tracked in the following ways:

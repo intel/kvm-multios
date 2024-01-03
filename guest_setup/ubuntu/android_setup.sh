@@ -6,6 +6,7 @@
 
 set -Eeuo pipefail
 
+#---------      Global variable     -------------------
 LIBVIRT_DEFAULT_IMAGES_PATH=/var/lib/libvirt/images
 RELFILE_OUT=$(realpath -L ./caas-releasefiles)
 RELFILE=""
@@ -19,6 +20,33 @@ DUPXML=0
 PLATFORM_NAME=""
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
+
+#---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
 
 function check_host_distribution() {
     local dist=$(lsb_release -d)
@@ -45,6 +73,7 @@ function print_info() {
 
 function setup_relfiles_path() {
 
+    check_file_valid_nonzero $1
     local rel_file=$(realpath -L $1)
 
     if [[ -f $rel_file  ]]; then
@@ -168,6 +197,7 @@ function install_dep () {
 
 function setup_zip_flashfiles_path() {
 
+    check_file_valid_nonzero $1
     local zip_file=$(realpath -L $1)
     local zip_test=$(file $zip_file | grep -i "Zip archive data")
 
@@ -667,7 +697,7 @@ function parse_arg() {
         case $1 in
             -h|-\?|--help)
                 show_help
-                exit
+                exit 0
                 ;;
 
             -n)
@@ -721,7 +751,7 @@ function parse_arg() {
                 return -1
                 ;;
             *)
-                echo "unknown option: $1"
+                echo "Error: Unknown option: $1"
                 return -1
                 ;;
         esac
@@ -782,4 +812,4 @@ install_android_vm $LIBVIRT_DOMAIN_NAME $PLATFORM_NAME || exit -1
 update_launch_multios  $LIBVIRT_DOMAIN_NAME $PLATFORM_NAME || exit -1
 
 echo "$(basename "${BASH_SOURCE[0]}") done"
-exit
+exit 0

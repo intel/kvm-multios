@@ -9,16 +9,58 @@ set -Eeuo pipefail
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
 
-LOG_FILE=${LOG_FILE:="host_setup_ubuntu.log"}
+LOG_FILE=${LOG_FILE:="/tmp/host_setup_ubuntu.log"}
 #---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink." | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory" | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized" | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
 declare -F "log_func" >/dev/null || log_func() {
     declare -F "$1" >/dev/null
     if [ $? -eq 0 ]; then
         start=`date +%s`
         echo -e "$(date)   start:   \t$1" >> $LOG_FILE
         $@
+        ec=$?
         end=`date +%s`
         echo -e "$(date)   end ($((end-start))s):\t$1" >> $LOG_FILE
+        return $ec
     else
         echo "Error: $1 is not a function"
         exit -1
@@ -91,7 +133,7 @@ function setup_swapfile() {
 
             if [ -f "$swapfile" ]; then
                 # disable swapfile
-                sudo swapoff "$swapfile"
+                sudo swapoff -a
                 sudo rm "$swapfile"
             fi
 
@@ -106,11 +148,12 @@ function setup_swapfile() {
             sudo swapon "$swapfile"
         else
             echo "Error: not enough free disk space for swapfile"
-            exit
+            exit -1
         fi
     fi
 
     # add swapfile to /etc/fstab if needed
+    check_file_valid_nonzero "/etc/fstab"
     if ! grep -q "$swapfile" "/etc/fstab"; then
         echo "$swapfile       none            swap    sw              0       0" | sudo tee -a /etc/fstab &>/dev/null
     fi
@@ -126,6 +169,7 @@ function setup_swapfile() {
     local cmds=("resume=UUID=$swap_uuid"
                 "resume_offset=$swap_file_offset")
     local cmdline
+    check_file_valid_nonzero "/etc/default/grub"
     cmdline=$(sed -n -e "/.*\(GRUB_CMDLINE_LINUX=\).*/p" /etc/default/grub)
     cmdline=$(awk -F '"' '{ print $2 }' <<< $cmdline)
 
@@ -150,6 +194,10 @@ function setup_swapfile() {
     fi
 
     # set resume overide
+    check_dir_valid "/etc/initramfs-tools/conf.d"
+    if [[ -f "/etc/initramfs-tools/conf.d/resume" ]]; then
+        check_non_symlink "/etc/initramfs-tools/conf.d/resume"
+    fi
     if ! grep -Fq "resume=UUID=$swap_uuid" /etc/initramfs-tools/conf.d/resume; then
         echo "resume=UUID=$swap_uuid" | sudo tee /etc/initramfs-tools/conf.d/resume
         sudo update-initramfs -u -k all
@@ -159,7 +207,7 @@ function setup_swapfile() {
 }
 
 #-------------    main processes    -------------
-trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
+trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' ERR
 
 # Setup swapfile to allow for hibernate
 log_func setup_swapfile || exit -1

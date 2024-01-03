@@ -52,6 +52,7 @@ NO_BSP_INSTALL=0
 KERN_PATH=""
 KERN_INSTALL_FROM_PPA=0
 KERN_PPA_VER=""
+LINUX_FW_PPA_VER=""
 RT=0
 
 script=$(realpath "${BASH_SOURCE[0]}")
@@ -61,6 +62,32 @@ LOGD="logger -t $LOGTAG"
 LOGE="logger -s -t $LOGTAG"
 
 #---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
 function check_url() {
     local url=$1
 
@@ -78,10 +105,11 @@ function check_url() {
 
 function install_kernel_from_deb() {
     $LOGD "${FUNCNAME[0]} begin"
-    if [ -z $1 ]; then
+    if [ -z "${1+x}" || -z $1 ]; then
         $LOGE "Error: empty path to kernel debs"
         return -1
     fi
+    check_file_valid_nonzero $1
     local path=$(realpath $1)
     if [ ! -d $path ]; then
         $LOGE "Error: invalid path to linux-header and linux-image debs given.($path)"
@@ -183,12 +211,18 @@ function install_userspace_pkgs() {
 
     # bsp packages as per Intel bsp overlay release
     local overlay_packages=(
-    vim ocl-icd-libopencl1 curl openssh-server net-tools gir1.2-gst-plugins-bad-1.0 gir1.2-gst-plugins-base-1.0 gir1.2-gstreamer-1.0 gir1.2-gst-rtsp-server-1.0 gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-opencv gstreamer1.0-plugins-bad gstreamer1.0-plugins-bad-apps gstreamer1.0-plugins-base gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-pulseaudio gstreamer1.0-qt5 gstreamer1.0-rtsp gstreamer1.0-tools gstreamer1.0-vaapi gstreamer1.0-wpe gstreamer1.0-x intel-media-va-driver-non-free jhi jhi-tests itt-dev itt-staticdev libmfx1 libmfx-dev libmfx-tools libd3dadapter9-mesa libd3dadapter9-mesa-dev libdrm-amdgpu1 libdrm-common libdrm-dev libdrm-intel1 libdrm-nouveau2 libdrm-radeon1 libdrm-tests libdrm2 libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri libgl1-mesa-glx libglapi-mesa libgles2-mesa libgles2-mesa-dev libglx-mesa0 libgstrtspserver-1.0-dev libgstrtspserver-1.0-0 libgstreamer-gl1.0-0 libgstreamer-opencv1.0-0 libgstreamer-plugins-bad1.0-0 libgstreamer-plugins-bad1.0-dev libgstreamer-plugins-base1.0-0 libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-0 libgstreamer-plugins-good1.0-dev libgstreamer1.0-0 libgstreamer1.0-dev libigdgmm-dev libigdgmm12 libigfxcmrt-dev libigfxcmrt7 libmfx-gen1.2 libosmesa6 libosmesa6-dev libtpms-dev libtpms0 libva-dev libva-drm2 libva-glx2 libva-wayland2 libva-x11-2 libva2 libwayland-bin libwayland-client0 libwayland-cursor0 libwayland-dev libwayland-doc libwayland-egl-backend-dev libwayland-egl1 libwayland-egl1-mesa libwayland-server0 libweston-9-0 libweston-9-dev libxatracker-dev libxatracker2 linux-firmware mesa-common-dev mesa-utils mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers libvpl-dev libmfx-gen-dev onevpl-tools ovmf ovmf-ia32 qemu qemu-efi qemu-block-extra qemu-guest-agent qemu-system qemu-system-arm qemu-system-common qemu-system-data qemu-system-gui qemu-system-mips qemu-system-misc qemu-system-ppc qemu-system-s390x qemu-system-sparc qemu-system-x86 qemu-system-x86-microvm qemu-user qemu-user-binfmt qemu-utils va-driver-all vainfo weston xserver-xorg-core libvirt0 libvirt-clients libvirt-daemon libvirt-daemon-config-network libvirt-daemon-config-nwfilter libvirt-daemon-driver-lxc libvirt-daemon-driver-qemu libvirt-daemon-driver-storage-gluster libvirt-daemon-driver-storage-iscsi-direct libvirt-daemon-driver-storage-rbd libvirt-daemon-driver-storage-zfs libvirt-daemon-driver-vbox libvirt-daemon-driver-xen libvirt-daemon-system libvirt-daemon-system-systemd libvirt-dev libvirt-doc libvirt-login-shell libvirt-sanlock libvirt-wireshark libnss-libvirt swtpm swtpm-tools bmap-tools adb autoconf automake libtool cmake g++ gcc git intel-gpu-tools libssl3 libssl-dev make mosquitto mosquitto-clients build-essential apt-transport-https default-jre docker-compose ffmpeg git-lfs gnuplot lbzip2 libglew-dev libglm-dev libsdl2-dev mc openssl pciutils python3-pandas python3-pip python3-seaborn terminator vim wmctrl wayland-protocols gdbserver ethtool iperf3 msr-tools powertop linuxptp lsscsi tpm2-tools tpm2-abrmd binutils cifs-utils i2c-tools xdotool gnupg lsb-release intel-igc-core intel-igc-opencl intel-opencl-icd intel-level-zero-gpu ethtool iproute2 socat virt-viewer spice-client-gtk
+    vim ocl-icd-libopencl1 curl openssh-server net-tools gir1.2-gst-plugins-bad-1.0 gir1.2-gst-plugins-base-1.0 gir1.2-gstreamer-1.0 gir1.2-gst-rtsp-server-1.0 gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-opencv gstreamer1.0-plugins-bad gstreamer1.0-plugins-bad-apps gstreamer1.0-plugins-base gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-pulseaudio gstreamer1.0-qt5 gstreamer1.0-rtsp gstreamer1.0-tools gstreamer1.0-vaapi gstreamer1.0-wpe gstreamer1.0-x intel-media-va-driver-non-free jhi jhi-tests itt-dev itt-staticdev libmfx1 libmfx-dev libmfx-tools libd3dadapter9-mesa libd3dadapter9-mesa-dev libdrm-amdgpu1 libdrm-common libdrm-dev libdrm-intel1 libdrm-nouveau2 libdrm-radeon1 libdrm-tests libdrm2 libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri libgl1-mesa-glx libglapi-mesa libgles2-mesa libgles2-mesa-dev libglx-mesa0 libgstrtspserver-1.0-dev libgstrtspserver-1.0-0 libgstreamer-gl1.0-0 libgstreamer-opencv1.0-0 libgstreamer-plugins-bad1.0-0 libgstreamer-plugins-bad1.0-dev libgstreamer-plugins-base1.0-0 libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-0 libgstreamer-plugins-good1.0-dev libgstreamer1.0-0 libgstreamer1.0-dev libigdgmm-dev libigdgmm12 libigfxcmrt-dev libigfxcmrt7 libmfx-gen1.2 libosmesa6 libosmesa6-dev libtpms-dev libtpms0 libva-dev libva-drm2 libva-glx2 libva-wayland2 libva-x11-2 libva2 libwayland-bin libwayland-client0 libwayland-cursor0 libwayland-dev libwayland-doc libwayland-egl-backend-dev libwayland-egl1 libwayland-egl1-mesa libwayland-server0 libweston-9-0 libweston-9-dev libxatracker-dev libxatracker2 mesa-common-dev mesa-utils mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers libvpl-dev libmfx-gen-dev onevpl-tools ovmf ovmf-ia32 qemu qemu-efi qemu-block-extra qemu-guest-agent qemu-system qemu-system-arm qemu-system-common qemu-system-data qemu-system-gui qemu-system-mips qemu-system-misc qemu-system-ppc qemu-system-s390x qemu-system-sparc qemu-system-x86 qemu-system-x86-microvm qemu-user qemu-user-binfmt qemu-utils va-driver-all vainfo weston xserver-xorg-core libvirt0 libvirt-clients libvirt-daemon libvirt-daemon-config-network libvirt-daemon-config-nwfilter libvirt-daemon-driver-lxc libvirt-daemon-driver-qemu libvirt-daemon-driver-storage-gluster libvirt-daemon-driver-storage-iscsi-direct libvirt-daemon-driver-storage-rbd libvirt-daemon-driver-storage-zfs libvirt-daemon-driver-vbox libvirt-daemon-driver-xen libvirt-daemon-system libvirt-daemon-system-systemd libvirt-dev libvirt-doc libvirt-login-shell libvirt-sanlock libvirt-wireshark libnss-libvirt swtpm swtpm-tools bmap-tools adb autoconf automake libtool cmake g++ gcc git intel-gpu-tools libssl3 libssl-dev make mosquitto mosquitto-clients build-essential apt-transport-https default-jre docker-compose ffmpeg git-lfs gnuplot lbzip2 libglew-dev libglm-dev libsdl2-dev mc openssl pciutils python3-pandas python3-pip python3-seaborn terminator vim wmctrl wayland-protocols gdbserver ethtool iperf3 msr-tools powertop linuxptp lsscsi tpm2-tools tpm2-abrmd binutils cifs-utils i2c-tools xdotool gnupg lsb-release intel-igc-core intel-igc-opencl intel-opencl-icd intel-level-zero-gpu ethtool iproute2 socat virt-viewer spice-client-gtk
     )
+    if [[ -n $LINUX_FW_PPA_VER ]]; then
+        overlay_packages+=("linux-firmware=$LINUX_FW_PPA_VER")
+    else
+        overlay_packages+=("linux-firmware")
+    fi
 
     # install bsp overlay packages
     for package in "${overlay_packages[@]}"; do
         if [[ ! -z ${package+x} && ! -z $package ]]; then
+            echo "Installing overlay package: $package"
             sudo apt install -y --allow-downgrades $package
         fi
     done
@@ -196,6 +230,7 @@ function install_userspace_pkgs() {
     # other non overlay packages
     for package in "${PACKAGES_ADD_INSTALL[@]}"; do
         if [[ ! -z ${package+x} && ! -z $package ]]; then
+            echo "Installing package: $package"
             sudo apt install -y --allow-downgrades $package
         fi
     done
@@ -335,11 +370,12 @@ function update_ubuntu_cfg() {
 }
 
 function show_help() {
-    printf "$(basename "${BASH_SOURCE[0]}") [-k | -kp] [--no-install-bsp] [--rt]\n"
+    printf "$(basename "${BASH_SOURCE[0]}") [-k kern_deb_path | -kp kern_ver] [-fw fw_ver] [--no-install-bsp] [--rt]\n"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t-k\tpath to location of bsp kernel files linux-headers.deb and linux-image.deb\n"
     printf "\t-kp\tversion string of kernel overlay to select from Intel PPA. Eg \"6.3-intel\"\n"
+    printf "\t-fw\tversion string of linux-firmware overlay to select from Intel PPA. Eg \"20220329.git681281e4-0ubuntu3.17-1ppa1~jammy3\"\n"
     printf "\t--rt\tinstall for Ubuntu RT version\n"
     printf "\t--no-bsp-install\tDo not preform bsp overlay related install(kernel and userspace)\n"
 }
@@ -349,7 +385,7 @@ function parse_arg() {
         case $1 in
             -h|-\?|--help)
                 show_help
-                exit
+                exit 0
                 ;;
 
             -k)
@@ -361,6 +397,11 @@ function parse_arg() {
             -kp)
                 KERN_INSTALL_FROM_PPA=1
                 KERN_PPA_VER=$2
+                shift
+                ;;
+
+            -fw)
+                LINUX_FW_PPA_VER=$2
                 shift
                 ;;
 

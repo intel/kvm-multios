@@ -148,7 +148,7 @@ autoinstall:
     # customization. Deploy this postinstall.sh script on the webserver.
     - wget --no-proxy -O /target/tmp/setup_bsp.sh $FILE_SERVER_URL/setup_bsp.sh
     - curtin in-target -- chmod +x /tmp/setup_bsp.sh
-    - curtin in-target -- bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $RT_SUPPORT
+    - curtin in-target -- bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT
     - wget --no-proxy -O /target/usr/local/bin/setup_swap.sh $FILE_SERVER_URL/setup_swap.sh
     - curtin in-target -- chmod +x /usr/local/bin/setup_swap.sh
     - curtin in-target -- bash /usr/local/bin/setup_swap.sh
@@ -157,11 +157,11 @@ autoinstall:
     - curtin in-target -- bash /tmp/setup_pm_mgmt.sh
     - rm /target/tmp/setup_bsp.sh
     - rm /target/tmp/setup_pm_mgmt.sh
-    - cp /var/log/syslog /tmp/syslog_setup
+    - cp /var/log/syslog /target/root/syslog_setup
 
   # back up setup log on error
   error-commands:
-    - cp /var/log/syslog /tmp/syslog_setup
+    - cp /var/log/syslog /target/root/syslog_setup
 
   # Additional cloud-init configuration affecting the target
   # system can be supplied underneath a user-data section inside of
@@ -171,6 +171,6 @@ autoinstall:
     # gnome-initial-setup will prompt for user creation on first boot.  
     users: ['']
     runcmd:
-      - cp /var/log/syslog /tmp/syslog_setup_cont
+      - cp /var/log/syslog /target/root/syslog_setup_cont
       # shutdown after install
       - shutdown

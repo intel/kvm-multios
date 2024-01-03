@@ -30,6 +30,7 @@ function pmsuspend_guests() {
     local loop=0
     declare -A endstates
     local endstates=( [mem]="pmsuspended" [disk]="shut" )
+    declare -A waiting_list
 
     checkstate=${endstates[$pmsuspend_target]}
     if [ -z "$checkstate" ]; then
@@ -39,7 +40,8 @@ function pmsuspend_guests() {
     if [[ $pmsuspend_target == "disk" ]]; then
         max_timeout=300
     fi
-    list_domains_by_state "running" | while read DOMAIN; do
+    running_domains=($(list_domains_by_state "running"))
+    for DOMAIN in ${running_domains[@]}; do
         local osname=$($VIRSH guestinfo $DOMAIN --os | grep os.name | awk '-F: ' '{ print $2 }')
         if [ -z "$osname" ]; then
             echo "Error: Check if VM $DOMAIN supports or has qemu guest agent installed"
@@ -49,26 +51,51 @@ function pmsuspend_guests() {
             echo "Error: Domain $DOMAIN (OS name $osname) is not of supported OS type"
             return -1 
         fi
-        if [[ $osname == "Microsoft Windows" && $pmsuspend_target == "mem" ]]; then
-            continue
-        fi
         echo "Trigger $DOMAIN suspend to $pmsuspend_target..."
-        $VIRSH dompmsuspend $DOMAIN $pmsuspend_target
-        if [ $? -eq 0 ]; then
-            while true; do
-                loop=$((loop+1))
-                echo "$loop: Waiting for $DOMAIN to be in target state..."
-                domain_in_state=$(list_domains_by_state "$checkstate" | grep -w "$DOMAIN")
-                if [[ ! -z $domain_in_state ]]; then
-                    echo "done"
+        set +e
+        suspend_ret=$($VIRSH dompmsuspend $DOMAIN $pmsuspend_target 2>&1)
+        set -e
+        if [[ $suspend_ret =~ "successfully suspended" ]];then
+            echo $suspend_ret
+            waiting_list[$DOMAIN]="running"
+        else
+            if [[ $suspend_ret =~ "suspend-to-ram not supported by OS" ]]; then
+                echo "suspend-to-ram not supported by $DOMAIN"
+                continue
+            else
+                echo "$DOMAIN suspend to $pmsuspend_target fail"
+                return -1
+            fi
+        fi
+    done
+    set +u
+    running_vm_num=${#waiting_list[*]}
+    set -u
+    while [[ $running_vm_num -ne 0 ]]; do
+        loop=$((loop+1))
+        echo "$loop: Waiting for guest VM to be in target state..."
+        domain_in_state=($(list_domains_by_state "$checkstate"))
+        for i in ${!waiting_list[@]}; do
+            if [[ "${waiting_list[$i]}" == "suspended" ]]; then
+                continue
+            fi
+            suspend=0
+            for j in ${domain_in_state[@]}; do
+                if [[ "$i" == "$j" ]]; then
+                    suspend=1
                     break
                 fi
-                sleep 1
-                if [[ $loop -gt $max_timeout ]]; then
-                    echo "timeout"
-                    return -1
-                fi
             done
+            if [[ $suspend -eq 1 ]]; then
+                echo "$i done"
+                waiting_list[$i]="suspended"
+                running_vm_num=$((running_vm_num-1))
+            fi
+        done
+        sleep 1
+        if [[ $loop -gt $max_timeout ]]; then
+            echo "timeout"
+            return -1
         fi
     done
 }
@@ -118,7 +145,7 @@ function parse_arg() {
         case $1 in
             -h|-\?|--help)
                 show_help
-                exit
+                exit 0
                 ;;
 
             --suspend)

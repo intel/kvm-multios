@@ -79,7 +79,7 @@ fi
 sudo virsh net-define default_network.xml
 sudo virsh net-autostart default
 sudo virsh net-start default
-
+rm default_network.xml
 
 # Create qemu hook for port forwarding from host to VMs
 
@@ -175,6 +175,19 @@ sudo chmod +x /etc/libvirt/hooks/qemu
 
 sudo systemctl restart libvirtd
 
+# Add user running host setup to group libvirt
+username=""
+if [[ -z ${SUDO_USER+x} || -z $SUDO_USER ]]; then
+    echo "Add $USER to group libvirt."
+	username=$USER
+else
+    echo "Add $SUDO_USER to group libvirt."
+	username=$SUDO_USER
+fi
+if [[ ! -z $username ]]; then
+	sudo usermod -a -G libvirt $username
+fi
+
 # Setup new directory for larger storage pool
 
 # Create the directory if it doesn't exist
@@ -183,16 +196,16 @@ if [ ! -d "/home/user/vm_images" ]; then
 fi
 
 # Create a new storage pool with the desired settings
-mypool_defined=$(sudo virsh pool-list | grep mypool)
+mypool_defined=$(virsh pool-list | grep mypool)
 if [[ -z "$mypool_defined" ]]; then
   # Stop the default storage pool
-  sudo virsh pool-destroy default || :
+  virsh pool-destroy default || :
   # Remove the default storage pool configuration
-  sudo virsh pool-undefine default || :
-  sudo virsh pool-define-as mypool dir - - - - "/home/user/vm_images"
-  sudo virsh pool-autostart mypool
-  sudo virsh pool-build mypool
-  sudo virsh pool-start mypool
+  virsh pool-undefine default || :
+  virsh pool-define-as mypool dir - - - - "/home/user/vm_images"
+  virsh pool-autostart mypool
+  virsh pool-build mypool
+  virsh pool-start mypool
 else
   echo "mypool already created"
 fi
