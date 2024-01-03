@@ -5,6 +5,7 @@
 
 set -Eeuo pipefail
 
+#---------      Global variable     -------------------
 LIBVIRT_DEFAULT_IMAGES_PATH=/var/lib/libvirt/images
 OVMF_DEFAULT_PATH=/usr/share/OVMF
 WIN_DOMAIN_NAME=windows
@@ -35,6 +36,47 @@ FILE_SERVER_PORT=8002
 
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
+
+#---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
 
 function run_file_server() {
     local folder=$1
@@ -90,6 +132,7 @@ function check_prerequisites() {
          return -1
        fi
     else
+      check_file_valid_nonzero "$fileserverdir/$file"
       local rfile=$(realpath $fileserverdir/$file)
       if [ ! -f $rfile ]; then
         echo "Error: Missing $file in $fileserverdir required for installation!"
@@ -101,6 +144,7 @@ function check_prerequisites() {
 
 function convert_drv_pkg_7z_to_zip() {
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
+  check_dir_valid "$scriptpath/$WIN_UNATTEND_FOLDER"
   local fname="Driver-Release-64-bit"
   local nfile=$(find $fileserverdir -regex "$fileserverdir/Driver-Release-64-bit\.\(zip\|7z\)" | wc -l )
   declare -a afiles
@@ -112,6 +156,7 @@ function convert_drv_pkg_7z_to_zip() {
   fi
 
   for afile in "${afiles[@]}"; do
+    check_file_valid_nonzero $afile
     local rfile=$(realpath $afile)
     local ftype=$(file -b $rfile | awk -F',' '{print $1}')
 
@@ -157,6 +202,7 @@ function install_windows() {
   mkdir -p "$dest_tmp_path"
   TMP_FILES+=("$dest_tmp_path")
 
+  check_dir_valid $fileserverdir
   if [[ $SETUP_NO_SRIOV -eq 1 ]]; then
     echo "Exit 0" > $fileserverdir/gfx_zc_setup.ps1
   else
@@ -215,7 +261,14 @@ if (\$LastExitCode -ne 0) {
 }
 \$s='Schedule task for GFX and Zero-copy driver install'
 Write-Output \$s
-\$p=schtasks.exe /create /tn '\Microsoft\Windows\RunZCDrvInstall\RunZCDrvInstall' /sc onstart /delay 0000:30 /rl highest /ru system /tr "powershell.exe -ExecutionPolicy Bypass -file \$tempdir\zc_install.ps1"
+\$taskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy ByPass -File ""\$tempdir\zc_install.ps1"""
+\$taskTrigger = New-ScheduledTaskTrigger -AtStartup
+\$taskName = "\Microsoft\Windows\RunZCDrvInstall\RunZCDrvInstall"
+\$taskDescription = "RunZCDrvInstall"
+\$taskPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -RunLevel Highest
+\$taskSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries
+\$taskTrigger.delay = 'PT30S'
+Register-ScheduledTask -TaskName \$taskName -Action \$taskAction -Trigger \$taskTrigger -Description \$taskDescription -Principal \$taskPrincipal -Settings \$taskSettings
 if (\$LastExitCode -ne 0) {
   Write-Error "Error: \$s failed with exit code \$LastExitCode."
   Exit \$LastExitCode
@@ -278,6 +331,72 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
             Exit \$p.ExitCode
         }
 
+        Write-Output "Disable driver updates for GPU"
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        # Set variables to indicate value and key to set
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
+        \$Name = 'DenyDeviceIDs'
+        \$Value = '1'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force 
+        if (\$? -ne \$True) {
+            Throw "Write \$RegistryPath\\\\\$Name key failed"
+        }
+        \$Name = 'DenyDeviceIDsRetroactive'
+        \$Value = '1'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+          New-Item -Path \$RegistryPath -Force | Out-Null
+        }
+        New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force 
+        if (\$? -ne \$True) {
+            Throw "Write \$RegistryPath\\\\\$Name key failed"
+        }
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        \$devidfull = (Get-PnpDevice -PresentOnly | Where { \$_.Class -like 'Display' -and \$_.InstanceId -like 'PCI\VEN_8086*' }).DeviceID
+        \$strmatch = 'PCI\\\\VEN_8086&DEV_[A-Za-z0-9]{4}&SUBSYS_[A-Za-z0-9]{8}'
+        \$deviddeny = ''
+        If (\$devidfull -match \$strmatch -eq \$False) {
+            Throw "Did not find Intel Video controller deviceID \$devidfull matching \$strmatch"
+        }
+        \$deviddeny = \$matches[0]
+        for(\$x=1; \$x -lt 10; \$x=\$x+1) {
+            \$Name = \$x
+            \$value1 = (Get-ItemProperty \$RegistryPath -ErrorAction SilentlyContinue).\$Name
+            If ((\$value1 -eq \$null) -or (\$value1.Length -eq 0)) {
+                New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$deviddeny -PropertyType String -Force
+                if (\$? -ne \$True) {
+                    Throw "Write \$RegistryPath\\\\\$Name key failed"
+                }
+                break
+            } else {
+                If ((\$value1.Length -ne 0) -and (\$value1 -like \$deviddeny)) {
+                    # already exists
+                    break
+                }
+                continue
+            }
+        }
+
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
         Set-Location -Path "\$tempdir\ZCBuild_Install\ZCBuild_MSFT_Signed"
         Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
@@ -324,6 +443,72 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
             Exit \$LastExitCode
         }
 
+        Write-Output "Disable driver updates for GPU"
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        # Set variables to indicate value and key to set
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions'
+        \$Name = 'DenyDeviceIDs'
+        \$Value = '1'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force 
+        if (\$? -ne \$True) {
+            Throw "Write \$RegistryPath\\\\\$Name key failed"
+        }
+        \$Name = 'DenyDeviceIDsRetroactive'
+        \$Value = '1'
+        # Create the key if it does not exist
+        If (-NOT (Test-Path \$RegistryPath)) {
+          New-Item -Path \$RegistryPath -Force | Out-Null
+        }
+        New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force 
+        if (\$? -ne \$True) {
+            Throw "Write \$RegistryPath\\\\\$Name key failed"
+        }
+        \$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\DeviceInstall\Restrictions\DenyDeviceIDs'
+        If (-NOT (Test-Path \$RegistryPath)) {
+            New-Item -Path \$RegistryPath -Force | Out-Null
+            if (\$? -ne \$True) {
+                Throw "Create \$RegistryPath failed"
+            }
+        }
+        \$devidfull = (Get-PnpDevice -PresentOnly | Where { \$_.Class -like 'Display' -and \$_.InstanceId -like 'PCI\VEN_8086*' }).DeviceID
+        \$strmatch = 'PCI\\\\VEN_8086&DEV_[A-Za-z0-9]{4}&SUBSYS_[A-Za-z0-9]{8}'
+        \$deviddeny = ''
+        If (\$devidfull -match \$strmatch -eq \$False) {
+            Throw "Did not find Intel Video controller deviceID \$devidfull matching \$strmatch"
+        }
+        \$deviddeny = \$matches[0]
+        for(\$x=1; \$x -lt 10; \$x=\$x+1) {
+            \$Name = \$x
+            \$value1 = (Get-ItemProperty \$RegistryPath -ErrorAction SilentlyContinue).\$Name
+            If ((\$value1 -eq \$null) -or (\$value1.Length -eq 0)) {
+                New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$deviddeny -PropertyType String -Force
+                if (\$? -ne \$True) {
+                    Throw "Write \$RegistryPath\\\\\$Name key failed"
+                }
+                break
+            } else {
+                If ((\$value1.Length -ne 0) -and (\$value1 -like \$deviddeny)) {
+                    # already exists
+                    break
+                }
+                continue
+            }
+        }
+
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
         Set-Location -Path "\$tempdir\ZCBuild_Install\ZCBuild_MSFT_Signed"
         Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
@@ -351,6 +536,7 @@ EOF
   fi
   TMP_FILES+=("$(realpath $fileserverdir/gfx_zc_setup.ps1)")
 
+  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"
   cp "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml" $dest_tmp_path/
   sed -i "s|%FILE_SERVER_URL%|$file_server_url|g" $dest_tmp_path/autounattend.xml
 
@@ -362,6 +548,8 @@ EOF
         echo "Error: wget ${WIN_VIRTIO_URL} failure!"
         return -1
     fi
+  else
+    check_file_valid_nonzero "/tmp/${WIN_VIRTIO_ISO}"
   fi
 
   mkisofs -o /tmp/${WIN_UNATTEND_ISO} -J -r $dest_tmp_path || return -1
@@ -429,7 +617,7 @@ EOF
 
       if [ $? -eq 0 ]; then
         local count=0
-        local maxcount=30
+        local maxcount=90
         while [[ count -lt $maxcount ]]; do
           echo "$(date): $count: waiting for installation to complete and shutdown VM..."
           local state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
@@ -440,7 +628,7 @@ EOF
             break
           fi
           count=$((count+1))
-          if [[ $count -gt $maxcount ]]; then
+          if [[ $count -ge $maxcount ]]; then
             echo "$(date): Error: timed out waiting for SRIOV Zero-copy driver install to complete"
             return -1
           fi
@@ -517,7 +705,7 @@ function parse_arg() {
         case $1 in
             -h|-\?|--help)
                 show_help
-                exit
+                exit 0
                 ;;
 
             -p)
@@ -551,7 +739,7 @@ function parse_arg() {
                 return -1
                 ;;
             *)
-                echo "unknown option: $1"
+                echo "Error: Unknown option: $1"
                 return -1
                 ;;
         esac
@@ -593,7 +781,6 @@ function cleanup () {
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit -1
-trap 'cleanup' EXIT
 
 if [[ $FORCECLEAN == "1" ]]; then
     clean_windows_images || exit -1
@@ -602,14 +789,16 @@ fi
 if [[ -z ${PLATFORM_NAME+x} || -z "$PLATFORM_NAME" ]]; then
 	echo "Error: valid platform name required"
     show_help
-    exit
+    exit -1
 fi
 
 if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}" ]]; then
     echo "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME} present"
     echo "Use --force option to force clean and re-install windows"
-    exit
+    exit -1
 fi
+
+trap 'cleanup' EXIT
 
 install_windows || exit -1
 

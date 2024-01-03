@@ -62,16 +62,15 @@
       </backend>
     </tpm>
     -->
-<!-- when libvirt runs VMs as root, not able to connect to pulseaudio server run in user mode
-    <sound model="ich6">
-      <codec type='duplex'/>
-      <audio id='1'/>
+    <sound model="ich9">
+      <codec type="duplex"/>
+      <audio id="1"/>
+      <alias name='sound0'/>
     </sound>
-    <audio id='1' type='pulseaudio' timerPeriod='5000' serverName="/run/user/1000/pulse/native">
-      <input mixingEngine='yes' fixedSettings='no'/>
-      <output mixingEngine='yes' fixedSettings='no'/>
+    <audio id="1" type="pulseaudio" timerPeriod="5000" serverName="unix:/tmp/pulseaudio-socket">
+      <input mixingEngine="yes" fixedSettings="no"/>
+      <output mixingEngine="yes" fixedSettings="no"/>
     </audio>
--->
     <vsock model='virtio'>
       <cid auto="yes"/>
       <address type="pci" domain="0" bus="0" slot="0x10" function="0"/>

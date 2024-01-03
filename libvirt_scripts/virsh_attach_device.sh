@@ -4,16 +4,13 @@
 # All rights reserved.
 
 set -Eeo pipefail
-trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-VM=$1
-INTERFACE=$2
-DEVICE_NAME=$3
-if [[ -z "$4" ]]; then
-  DEVICE_NUMBER=1
-else
-  DEVICE_NUMBER=$4
-fi
+#---------      Global variable     -------------------
+VM=""
+INTERFACE=""
+DEVICE_NAME=""
+DEVICE_NUMBER=0
+NR_DEVICE=""
 USB_VENDOR_ID=""
 USB_PRODUCT_ID=""
 
@@ -21,24 +18,28 @@ PCI_BUS=""
 PCI_SLOT=""
 PCI_FUNC=""
 
-if [[ -z "$VM" || -z "$INTERFACE" || -z "$DEVICE_NAME" ]]; then
-  echo "input $VM $INTERFACE $DEVICE_NAME 0"
-  echo "Usage: ./virsh_attach_device.sh [vm_name] [pci/usb] [device_name] [device_number, optional, default first device found]"
-  echo "e.g"
-  echo "    ./virsh_attach_device.sh Ubuntu usb mouse"
-  echo "    ./virsh_attach_device.sh Ubuntu usb keyboard"
-  echo "    ./virsh_attach_device.sh Ubuntu usb bluetooth"
-  echo "    ./virsh_attach_device.sh Ubuntu pci wi-fi"
-  echo "    ./virsh_attach_device.sh Ubuntu_RT1 pci i225 1"
-  echo "    ./virsh_attach_device.sh Ubuntu_RT2 pci i225 2"
-  exit 0
-fi
-
-NR_DEVICE="NR==$DEVICE_NUMBER"
+#---------      Functions    -------------------
+function show_help() {
+  printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-p <domain> --usb|--pci <device> (<number>)]\n\n"
+  printf "Options:\n"
+  printf "  -h,--help          Show the help message and exit\n"
+  printf "  -p <domain>        Name of the VM domain for device passthrough\n"
+  printf "    --usb | --pci    Options of interface (eg. --usb or --pci)\n"
+  printf "    <device>         Name of the device (eg. mouse, keyboard, bluetooth, etc)\n"
+  printf "    (<number>)       Optional, specify the 'N'th device found in the device list of 'lsusb' or 'lspci'\n"
+  printf "                     by default is the first device found\n"
+  printf "\n"
+  printf "e.g\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu --usb mouse\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu --usb keyboard\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu --usb bluetooth\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu --pci wi-fi\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu_rt1 --pci i225 1\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu_rt2 --pci i225 2\n"
+}
 
 function attach_usb() {
-
-cat<<EOF | tee usb.xml
+  cat<<EOF | tee usb.xml
 <hostdev mode="subsystem" type="usb" managed="yes">
   <source>
     <vendor id="0x$USB_VENDOR_ID"/>
@@ -52,43 +53,104 @@ EOF
 
 function attach_pci() {
 
-#check devices belong to same iommu group
-pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_${PCI_BUS}_${PCI_SLOT}_${PCI_FUNC} | grep address)
-readarray pci_array <<< $pci_iommu
+  #check devices belong to same iommu group
+  pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_${PCI_BUS}_${PCI_SLOT}_${PCI_FUNC} | grep address)
+  readarray pci_array <<< $pci_iommu
 
-for pci in "${pci_array[@]}";do
-cat<<EOF | tee pci.xml
+  for pci in "${pci_array[@]}";do
+    cat<<EOF | tee pci.xml
 <hostdev mode="subsystem" type="pci" managed="yes">
   <source>
   $pci
   </source>
 </hostdev>
 EOF
-
-  sudo virsh attach-device $VM pci.xml --current
-done
+    sudo virsh attach-device $VM pci.xml --current
+ done
 }
 
-if [[ -z $(sudo virsh list --all | grep $VM) ]]; then
-  echo "$VM not defined"
-  exit 0
-fi
+function parse_arg() {
+  if [[ $# -eq 0 ]]; then
+    log_error "NO input argument found"
+    show_help
+    exit -1
+  fi
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      -h|--help)
+        show_help
+        exit 0
+        ;;
 
-if [[ "pci" == "$INTERFACE" ]]; then
+      -p)
+        # Check if next argument is a valid domain
+        if [[ -z "${2+x}" || -z "$2" ]]; then
+          log_error "Domain name missing after $1 option"
+          show_help
+          exit -1
+        fi
+        VM=$2
+        # Check if domain is supported
+        if [[ -z $(sudo virsh list --all | grep $VM) ]]; then
+          log_error "$VM is not defined"
+          show_help
+          exit -1
+        fi
+        shift 2
+        if [[ $1 == "--usb" || $1 == "--pci" ]]; then
+          if [[ -z $2 || $2 == -* ]]; then
+              log_error "Missing device name after $1"
+              show_help
+              exit -1
+          fi
+          INTERFACE=$1
+          DEVICE_NAME=$2
+          if [[ -z $3 || $3 == -* ]]; then
+              DEVICE_NUMBER=1
+          else
+              DEVICE_NUMBER=$3
+          fi
+          NR_DEVICE="NR==$DEVICE_NUMBER"
+	        shift 3
+        else
+          log_error "unknown device type"
+          show_help
+          exit -1
+        fi
+        ;;
+      -?*)
+        echo "Error: Invalid option $1"
+        show_help
+        return -1
+        ;;
+      *)
+        echo "Error: Unknown option: $1"
+        return -1
+        ;;
+    esac
+  done
+}
+
+#-------------    main processes    -------------
+trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
+
+parse_arg "$@" || exit -1
+
+if [[ "--pci" == "$INTERFACE" ]]; then
   DEVICE_FOUND=$(lspci -nn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk $NR_DEVICE)
   if [[ -z "$DEVICE_FOUND" ]]; then
     echo "No device $DEVICE_NAME found"
-    exit 0
+    exit -1
   fi
   PCI_BUS=$(echo $DEVICE_FOUND | cut -d':' -f1)
   PCI_SLOT=$(echo $DEVICE_FOUND | cut -d':' -f2 | cut -d '.' -f1)
   PCI_FUNC=$(echo $DEVICE_FOUND | cut -d':' -f2 | cut -d '.' -f2)
   attach_pci
-elif [[ "usb" == "$INTERFACE" ]]; then
+elif [[ "--usb" == "$INTERFACE" ]]; then
   DEVICE_FOUND=$(lsusb | grep -i $DEVICE_NAME | awk $NR_DEVICE | grep -o "ID ....:....")
   if [[ -z "$DEVICE_FOUND" ]]; then
     echo "No device $DEVICE_NAME found"
-    exit 0
+    exit -1
   fi
   USB_VENDOR_ID=$(echo $DEVICE_FOUND | cut -d' ' -f2 | cut -d':' -f1)
   USB_PRODUCT_ID=$(echo $DEVICE_FOUND | cut -d' ' -f2 | cut -d':' -f2)
@@ -96,4 +158,5 @@ elif [[ "usb" == "$INTERFACE" ]]; then
 else
   echo "Not supported interface $INTERFACE"
 fi
+exit 0
 

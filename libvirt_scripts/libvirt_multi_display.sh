@@ -13,7 +13,6 @@ GUEST_DISPLAY_MIN=1
 GUEST_MAX_OUTPUTS=1
 GUEST_CONNECTORS=""
 
-
 #---------      Functions    -------------------
 function edit_xml() {
 
@@ -26,13 +25,15 @@ function edit_xml() {
     #    <qemu:arg value='gtk,gl=on'/>
     #  </qemu:commandline>
     # will be convert to: "-set device.video0.blob=true -display gtk,gl=on"
-    qemu_arg=$(sudo virsh dumpxml $GUEST_DOMAIN | grep "qemu:arg" | grep -oP "'\K[^'/>]+" | tr '\n' ' ')
+    qemu_arg=$(sudo virsh dumpxml $GUEST_DOMAIN | grep "qemu:arg" | grep -P "'\K[^'/>]+" | tr '\n' ' ')
+    qemu_arg=$(echo "$qemu_arg" | sed -e 's/<//g' -e 's/qemu:arg value=//g' -e "s/'//g" -e 's/\/>//g')
 
     if [[ "$qemu_arg" =~ "-display gtk,gl=on" ]]; then
       qemu_arg=$(sed "s/-display gtk,gl=on\S*/$GUEST_DISP_TYPE/" <<< $qemu_arg)
     else
       qemu_arg+=" $GUEST_DISP_TYPE"
     fi
+    
     sudo virt-xml $GUEST_DOMAIN -q --edit --video model.heads=$GUEST_MAX_OUTPUTS
     sudo virt-xml $GUEST_DOMAIN -q --edit --qemu-commandline clearxml=yes
     sudo virt-xml $GUEST_DOMAIN -q --edit --qemu-commandline args="$qemu_arg"
@@ -85,7 +86,7 @@ function parse_arg() {
         case $1 in
             -h|-\?|--help)
                 show_help
-                exit
+                exit 0
                 ;;
 
             --output)
@@ -93,7 +94,7 @@ function parse_arg() {
                 GUEST_MAX_OUTPUTS=$2
                 if [ $GUEST_MAX_OUTPUTS -lt $GUEST_DISPLAY_MIN ] || [ $GUEST_MAX_OUTPUTS -gt $GUEST_DISPLAY_MAX ]; then
                     echo "$1 exceed limit, must be between $GUEST_DISPLAY_MIN to $GUEST_DISPLAY_MAX!"
-                    exit
+                    exit -1
                 fi
                 shift
                 ;;

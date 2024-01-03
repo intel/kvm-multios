@@ -6,8 +6,39 @@
 set -Eeuo pipefail
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
+#---------      Global variable     -------------------
 WORK_DIR=$(pwd)
 LIBVIRT_DEFAULT_IMAGES_PATH="/var/lib/libvirt/images"
+
+#---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+#-------------    main processes    -------------
+check_dir_valid "$LIBVIRT_DEFAULT_IMAGES_PATH"
 
 [ -d $WORK_DIR/edk2 ] && rm -rf $WORK_DIR/edk2
 
@@ -37,3 +68,5 @@ sudo cp Build/OvmfX64/DEBUG_GCC5/FV/OVMF.fd $LIBVIRT_DEFAULT_IMAGES_PATH/OVMF_4M
 
 # Clean up leftovers
 rm -rf $WORK_DIR/edk2
+
+echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""

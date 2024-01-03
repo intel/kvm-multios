@@ -79,7 +79,15 @@
       <target type="virtio" name="com.redhat.spice.0"/>
     </channel>
     <input type="tablet" bus="usb"/>
-    <sound model="ich9"/>
+    <sound model="ich9">
+      <codec type="duplex"/>
+      <audio id="1"/>
+      <alias name='sound0'/>
+    </sound>
+    <audio id="1" type="pulseaudio" timerPeriod="5000" serverName="unix:/tmp/pulseaudio-socket">
+      <input mixingEngine="yes" fixedSettings="no"/>
+      <output mixingEngine="yes" fixedSettings="no"/>
+    </audio>
     <hostdev mode="subsystem" type="pci" managed="yes">
       <source>
         <address domain="0" bus="0" slot="2" function="1"/>

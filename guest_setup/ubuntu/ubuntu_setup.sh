@@ -5,6 +5,7 @@
 
 set -Eeuo pipefail
 
+#---------      Global variable     -------------------
 LIBVIRT_DEFAULT_IMAGES_PATH="/var/lib/libvirt/images"
 OVMF_DEFAULT_PATH=/usr/share/OVMF
 LIBVIRT_DEFAULT_LOG_PATH="/var/log/libvirt/qemu"
@@ -24,12 +25,54 @@ RT=0
 KERN_INSTALL_FROM_LOCAL=0
 FORCE_KERN_FROM_DEB=0
 FORCE_KERN_APT_VER=""
+FORCE_LINUX_FW_APT_VER=""
 SETUP_DEBUG=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
 FILE_SERVER_IP="192.168.122.1"
 FILE_SERVER_PORT=8000
+
+#---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
 
 function copy_setup_files() {
     # copy required files for use in guest
@@ -50,19 +93,23 @@ function copy_setup_files() {
         echo "Dest location to copy setup required files is not a directory"
         return -1
     fi
+    check_dir_valid $dest_path
 
     for script in ${host_scripts[@]}; do
+        check_file_valid_nonzero "$host_scriptpath/$script"
         cp -a $host_scriptpath/$script $dest_path/
     done
 
     local guest_files=()
     readarray -d '' guest_files < <(find "$guest_scriptpath/" -maxdepth 1 -mindepth 1 -type f -not -name "linux-image*.deb" -not -name "linux-headers*.deb")
     for file in ${guest_files[@]}; do
+        check_file_valid_nonzero $file
         cp -a $file $dest_path/
     done
 
     for file in ${REQUIRED_DEB_FILES[@]}; do
         dfile=$(echo "$file" | sed -r 's/-rt//')
+        check_file_valid_nonzero $guest_scriptpath/$file
         cp -a $guest_scriptpath/$file $dest_path/$dfile
     done
 
@@ -137,6 +184,38 @@ function is_host_kernel_local_install() {
   fi
 }
 
+function download_ubuntu_iso() {
+  local maxcount=10
+  local count=0
+
+  if [[ -z ${1+x} || -z $1 ]]; then
+    echo "Error: no dest tmp path provided"
+    return -1
+  fi
+  local dest_tmp_path=$1
+  while [[ $count -lt $maxcount ]]; do
+    count=$((count+1))
+    echo "$count: Download Ubuntu 22.04 iso"
+    #sudo wget -O ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO} https://releases.ubuntu.com/22.04.2/ubuntu-22.04.2-live-server-amd64.iso
+    
+    wget -O $dest_tmp_path/${UBUNTU_INSTALLER_ISO} 'https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso' || return -1
+    wget -O $dest_tmp_path/SHA256SUMS https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS || return -1
+    local isochksum=$(sha256sum $dest_tmp_path/${UBUNTU_INSTALLER_ISO} | awk '{print $1}')
+    local verifychksum=$(cat $dest_tmp_path/SHA256SUMS | grep ubuntu-22.04-live-server-amd64+intel-iot.iso | awk '{print $1}')
+    if [[ "$isochksum" == "$verifychksum" ]]; then
+      # downloaded iso is okay.
+      echo "Verified Ubuntu iso checksum as expected: $isochksum"
+      sudo mv $dest_tmp_path/${UBUNTU_INSTALLER_ISO} ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}
+      sudo chown root:root ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}
+      break
+    fi
+  done
+  if [[ $count -ge $maxcount ]]; then
+    return -1
+  fi
+  return 0
+}
+
 function install_ubuntu() {
   local script=$(realpath "${BASH_SOURCE[0]}")
   local scriptpath=$(dirname "$script")
@@ -157,18 +236,16 @@ function install_ubuntu() {
 	fi
   done
 
-  if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
-    echo "Download Ubuntu 22.04.2 iso"
-    #sudo wget -O ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO} https://releases.ubuntu.com/22.04.2/ubuntu-22.04.2-live-server-amd64.iso
-    sudo wget -O ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO} https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso
-  fi
-
   install_dep || return -1
   if [[ -d "$dest_tmp_path" ]]; then
     rm -rf "$dest_tmp_path"
   fi
   mkdir -p "$dest_tmp_path"
   TMP_FILES+=("$dest_tmp_path")
+
+  if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
+    download_ubuntu_iso "$dest_tmp_path" || return -1
+  fi
 
   copy_setup_files "$dest_tmp_path" || return -1
   run_file_server "$dest_tmp_path" $FILE_SERVER_IP $FILE_SERVER_PORT FILE_SERVER_DAEMON_PID || return -1
@@ -192,11 +269,22 @@ function install_ubuntu() {
     else
       kernel_ver="${kernel_ver}=$(apt list --installed | grep linux-image-$(uname -r) | awk '{print $2}')"
     fi
-    sed -i "s|\$KERN_INSTALL_OPTION|-kp \"$kernel_ver\"|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+    sed -i "s|\$KERN_INSTALL_OPTION|-kp \'$kernel_ver\'|g" $scriptpath/auto-install-ubuntu-parsed.yaml
   else
     sed -i "/wget --no-proxy -O \/target\/tmp\/setup_bsp.sh \$FILE_SERVER_URL\/setup_bsp.sh/i \    - wget --no-proxy -O \/target\/linux-headers.deb \$FILE_SERVER_URL\/linux-headers.deb\n    - wget --no-proxy -O \/target\/linux-image.deb \$FILE_SERVER_URL\/linux-image.deb" $scriptpath/auto-install-ubuntu-parsed.yaml
     sed -i "s|\$KERN_INSTALL_OPTION|-k \'\/\'|g" $scriptpath/auto-install-ubuntu-parsed.yaml
   fi
+
+  # update for linux-firmware overlay package install via PPA version
+  if [[ -n $FORCE_LINUX_FW_APT_VER ]]; then
+    # use forced version
+    local linux_fw_ver="$FORCE_LINUX_FW_APT_VER"
+  else
+    # use version detected from host
+    local linux_fw_ver="$(apt list --installed | grep linux-firmware | awk '{print $2}')"
+  fi
+  sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$linux_fw_ver\'|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   sed -i "s|\$FILE_SERVER_URL|$file_server_url|g" $scriptpath/auto-install-ubuntu-parsed.yaml
   sudo cloud-localds -v $dest_tmp_path/${UBUNTU_SEED_ISO} $scriptpath/auto-install-ubuntu-parsed.yaml meta-data
@@ -251,7 +339,7 @@ function install_ubuntu() {
 }
 
 function show_help() {
-    printf "$(basename "${BASH_SOURCE[0]}") [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-version] [--debug]\n"
+    printf "$(basename "${BASH_SOURCE[0]}") [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]\n"
     printf "Create Ubuntu vm required image to dest ${LIBVIRT_DEFAULT_IMAGES_PATH}/ubuntu.qcow2\n"
     printf "Or create Ubuntu RT vm required image to dest ${LIBVIRT_DEFAULT_IMAGES_PATH}/ubuntu_rt.qcow2\n"
     printf "Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb,linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.\n"
@@ -262,7 +350,8 @@ function show_help() {
     printf "\t--viewer                    show installation display\n"
     printf "\t--rt                        install Ubuntu RT\n"
     printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
-    printf "\t--force-kern-apt-version    force Ubuntu vm to install kernel from PPA with given version\n"
+    printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
+    printf "\t--force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware pkg from PPA with given version\n"
     printf "\t--debug                     Do not remove temporary files. For debugging only.\n"
 }
 
@@ -293,8 +382,13 @@ function parse_arg() {
                 FORCE_KERN_FROM_DEB=1
                 ;;
 
-            --force-kern-apt-version)
+            --force-kern-apt-ver)
                 FORCE_KERN_APT_VER=$2
+                shift
+                ;;
+
+            --force-linux-fw-apt-ver)
+                FORCE_LINUX_FW_APT_VER=$2
                 shift
                 ;;
 
@@ -308,7 +402,7 @@ function parse_arg() {
                 return -1
                 ;;
             *)
-                echo "unknown option: $1"
+                echo "Error: Unknown option: $1"
                 return -1
                 ;;
         esac
@@ -346,15 +440,13 @@ function cleanup () {
 }
 
 #-------------    main processes    -------------
-parse_arg "$@" || exit -1
+trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
+parse_arg "$@" || exit -1
 if [[ $FORCE_KERN_FROM_DEB == "1" && -n $FORCE_KERN_APT_VER ]]; then
     echo "--force-kern-from-deb and --force-kern-apt-version cannot be used together"
-    exit
+    exit -1
 fi
-
-trap 'cleanup' EXIT
-trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 if [[ $FORCECLEAN == "1" ]]; then
     clean_ubuntu_images || exit -1
@@ -363,8 +455,9 @@ fi
 if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME}" ]]; then
     echo "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME} present"
     echo "Use --force option to force clean and re-install ubuntu"
-    exit
+    exit -1
 fi
+trap 'cleanup' EXIT
 
 install_ubuntu || exit -1
 

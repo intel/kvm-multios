@@ -11,16 +11,58 @@ reboot_timeout=10
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
 
-LOG_FILE="host_setup_ubuntu.log"
+LOG_FILE="/tmp/host_setup_ubuntu.log"
 PLATFORM_NAME=""
 #---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink." | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+export -f check_non_symlink
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory" | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+export -f check_dir_valid
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized" | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+export -f check_file_valid_nonzero
 
 function check_os() {
     # Check OS
     local version=`cat /proc/version`
     if [[ ! $version =~ "Ubuntu" ]]; then
         echo "Error: Only Ubuntu is supported" | tee -a $LOG_FILE
-        exit
+        exit -1
     fi
 
     # Check Ubuntu version
@@ -29,7 +71,7 @@ function check_os() {
     if [[ $cur_version != $req_version ]]; then
         echo "Error: Ubuntu $cur_version is not supported" | tee -a $LOG_FILE
         echo "Error: Please use Ubuntu $req_version" | tee -a $LOG_FILE
-        exit
+        exit -1
     fi
 }
 
@@ -60,6 +102,7 @@ function host_disable_auto_upgrade() {
                          "APT::Periodic::AutocleanInterval")
 
     # Disable auto upgrade
+    check_dir_valid "/etc/apt/apt.conf.d"
     for config in ${auto_upgrade_config[@]}; do
         if [[ ! `cat /etc/apt/apt.conf.d/20auto-upgrades` =~ "$config" ]]; then
             echo -e "$config \"0\";" | sudo tee -a /etc/apt/apt.conf.d/20auto-upgrades
@@ -111,6 +154,7 @@ function host_update_cmdline() {
               "mem_sleep_default=s2idle")
     fi
 
+    check_file_valid_nonzero "/etc/default/grub"
     cmdline=$(sed -n -e "/.*\(GRUB_CMDLINE_LINUX=\).*/p" /etc/default/grub)
     cmdline=$(awk -F '"' '{print $2}' <<< $cmdline)
 
@@ -140,6 +184,7 @@ function host_update_cmdline() {
 
 function host_customise_ubuntu() {
     # Switch to Xorg
+    check_file_valid_nonzero "/etc/gdm3/custom.conf"
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
 
     if ! grep -Fq 'kernel.printk = 7 4 1 7' /etc/sysctl.d/99-kernel-printk.conf; then
@@ -149,6 +194,7 @@ function host_customise_ubuntu() {
         echo 'kernel.dmesg_restrict = 0' | sudo tee -a /etc/sysctl.d/99-kernel-printk.conf
     fi
 
+    check_dir_valid "/etc/profile.d"
     if [[ ! -f /etc/profile.d/mesa_driver.sh ]]; then
         sudo tee /etc/profile.d/mesa_driver.sh &>/dev/null <<EOF
 if dmesg | grep -q "SR-IOV VF"; then
@@ -172,8 +218,34 @@ EOF
         sudo -Hu "$user" env "${environment[@]}" gsettings set org.gnome.desktop.screensaver ubuntu-lock-on-suspend 'false'
     fi
 
+    check_file_valid_nonzero "/etc/profile.d/mesa_driver.sh"
     if ! grep -Fq 'source /etc/profile.d/mesa_driver.sh' /etc/bash.bashrc; then
         echo 'source /etc/profile.d/mesa_driver.sh' | sudo tee -a /etc/bash.bashrc
+    fi
+    reboot_required=1
+}
+
+function host_set_pulseaudio() {
+    if grep -qF "load-module module-native-protocol-unix" /etc/pulse/default.pa; then
+        # Check if "auth-anonymous=1" is included in the line
+        if grep -qF "auth-anonymous=1 socket=/tmp/pulseaudio-socket" /etc/pulse/default.pa; then
+            echo "auth-anonymous=1 socket=/tmp/pulseaudio-socket is already included in load-module module-native-protocol-unix."
+        else
+            # Append "auth-anonymous=1 socket=/tmp/pulseaudio-socket" to the line
+            sudo sed -i "\|load-module module-native-protocol-unix| s/\$/ auth-anonymous=1 socket=\\/tmp\\/pulseaudio-socket/" /etc/pulse/default.pa
+            echo "auth-anonymous=1 socket=/tmp/pulseaudio-socket appended to load-module module-native-protocol-unix."
+        fi
+    else
+        echo "load-module module-native-protocol-unix not found in /etc/pulse/default.pa."
+    fi
+
+    # Check if the default pulseaudio server already exists in the file client.conf
+    if grep -qF "default-server = unix:/tmp/pulseaudio-socket" "/etc/pulse/client.conf"; then
+        echo "default pulseaudio server already exists in /etc/pulse/client.conf. Nothing to do."
+    else
+        # Add the default pulseaudio server define to the file client.conf
+        echo "default-server = unix:/tmp/pulseaudio-socket" | sudo tee -a "/etc/pulse/client.conf" >/dev/null
+        echo "default pulseaudio server added to /etc/pulse/client.conf."
     fi
     reboot_required=1
 }
@@ -213,6 +285,7 @@ function host_invoke_platform_setup() {
         platpath=$(realpath "$platpath")
         platscripts=( $(find "$platpath" -maxdepth 1 -mindepth 1 -type f -name "setup_*.sh") )
         for s in ${platscripts[@]}; do
+            check_file_valid_nonzero "$s"
             rscriptpath=$(realpath $s)
             echo "Invoking $platform script $s"
             source $rscriptpath
@@ -227,12 +300,15 @@ function log_func() {
         start=`date +%s`
         echo -e "$(date)   start:   \t$1" >> $LOG_FILE
         $@
+        ec=$?
         end=`date +%s`
         echo -e "$(date)   end ($((end-start))s):\t$1" >> $LOG_FILE
+        return $ec
     else
         echo "Error: $1 is not a function"
         exit -1
     fi
+    return -1
 }
 export -f log_func
 
@@ -308,28 +384,32 @@ function parse_arg() {
 }
 
 #-------------    main processes    -------------
-trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
+trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit -1
 
 log_clean
-log_func check_os
+log_func check_os || exit -1
 
 #if [ -z $PLATFORM_NAME ]; then
 #    show_help && exit -1
 #fi
 
 # Generic host setup
-log_func host_disable_auto_upgrade
-log_func host_update_cmdline
-log_func host_customise_ubuntu
+log_func host_disable_auto_upgrade || exit -1
+log_func host_update_cmdline || exit -1
+log_func host_customise_ubuntu || exit -1
+log_func host_set_pulseaudio || exit -1
+
 
 # Platform specific host setup
 # invoke platform/<plat>/host_setup/<os>/setup_xxxx.sh scripts
 #log_func host_invoke_platform_setup $PLATFORM_NAME
 
 # Others
+echo "Setting up libvirt"
 source "$scriptpath/setup_libvirt.sh"
+echo "Setting up for power management"
 source "$scriptpath/setup_swap.sh"
 source "$scriptpath/setup_pm_mgmt.sh"
 

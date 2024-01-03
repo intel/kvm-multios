@@ -86,6 +86,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 ## Platform Naming Convention
 | Supported Intel IOT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
+| Amston Lake | client
 | Meteor Lake | client
 | Alder Lake | client
 | Raptor Lake PS | client
@@ -269,6 +270,7 @@ Follow the command below to get names of hardware display ports **connected** on
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci network controller 2</td><td>To force launch all guest VMs and passthrough the 2nd PCI Network Controller in lspci list to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs and passthrough the device(s) in the XML file to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors HDMI-1,DP-1 --fullscreen --show-fps</td><td>To force launch windows guest VM with SR-IOV display on 2 physical displays HDMI and DP with full screen mode and fps shows on primary display</td></tr>
 </table>
 

@@ -4,11 +4,56 @@
 # All rights reserved.
 
 set -Eeuo pipefail
-trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
+trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' ERR
 
+#---------      Global variable     -------------------
+
+#---------      Functions    -------------------
+declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
+    if [[ $# -eq 1 ]]; then
+        if [[ -L "$1" ]]; then
+            echo "Error: $1 is a symlink."
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            echo "Error: $dpath invalid directory"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_nonzero() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        fpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+            echo "Error: $fpath invalid/zero sized"
+            exit -1
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+#-------------    main processes    -------------
 # Update /etc/libvirt/qemu.conf
 
 UPDATE_FILE="/etc/libvirt/qemu.conf"
+check_file_valid_nonzero $UPDATE_FILE
 UPDATE_LINE="security_default_confined = 0"
 if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
   sudo sed -i "s/^#security_default_confined.*/$UPDATE_LINE/g" $UPDATE_FILE
@@ -47,6 +92,7 @@ fi
 # Update /etc/sysctl.conf
 
 UPDATE_FILE="/etc/sysctl.conf"
+check_file_valid_nonzero $UPDATE_FILE
 UPDATE_LINE="net.bridge.bridge-nf-call-iptables=0"
 if [[ "$UPDATE_LINE" != $(cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
   echo $UPDATE_LINE | sudo tee -a $UPDATE_FILE
@@ -89,7 +135,7 @@ fi
 sudo virsh net-define default_network.xml
 sudo virsh net-autostart default
 sudo virsh net-start default
-
+rm default_network.xml
 
 # a hook-helper for libvirt which allows easier per-VM hooks.
 # usually /etc/libvirt/libvirt/hooks/qemu.d/vm_name/hook_name/state_name/
@@ -189,6 +235,7 @@ EOF
 sudo mv qemu /etc/libvirt/hooks/qemu
 sudo chmod +x /etc/libvirt/hooks/qemu
 sudo mkdir -p /etc/libvirt/hooks/qemu.d
+check_dir_valid "/etc/libvirt/hooks/qemu.d"
 
 sudo systemctl restart libvirtd
 
@@ -209,6 +256,7 @@ if [[ ! -z $username ]]; then
 fi
 
 # Allow ipv4 forwarding for host/vm ssh
+check_file_valid_nonzero "/etc/sysctl.conf"
 sudo sed -i "s/\#net.ipv4.ip_forward=1/net.ipv4.ip_forward=1/g" /etc/sysctl.conf
 sudo sysctl -p
 
@@ -219,6 +267,7 @@ scriptpath=$(dirname "$script")
 platpaths=( $(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d) )
 for p in "${platpaths[@]}"; do
     platscript=$(find "$p" -maxdepth 1 -mindepth 1 -type f -name "launch_multios.sh")
+    check_file_valid_nonzero "$platscript"
     platscript=$(realpath "$platscript")
 	if ! grep -Fqs "$platscript" /etc/sudoers.d/multios-sudo; then
 		sudo tee -a /etc/sudoers.d/multios-sudo &>/dev/null <<EOF
@@ -227,3 +276,5 @@ EOF
 	fi
 done
 sudo chmod 440 /etc/sudoers.d/multios-sudo
+
+echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
