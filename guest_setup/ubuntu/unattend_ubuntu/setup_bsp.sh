@@ -65,11 +65,11 @@ LOGE="logger -s -t $LOGTAG"
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
-            echo "Error: $1 is a symlink."
+            $LOGE "Error: $1 is a symlink."
             exit -1
         fi
     else
-        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
         exit -1
     fi
 }
@@ -79,11 +79,25 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
         check_non_symlink "$1"
         fpath=$(realpath "$1")
         if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
-            echo "Error: $fpath invalid/zero sized"
+            $LOGE "Error: $fpath invalid/zero sized"
             exit -1
         fi
     else
-        echo "Error: Invalid param to ${FUNCNAME[0]}"
+        $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
+        exit -1
+    fi
+}
+
+declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
+    if [[ $# -eq 1 ]]; then
+        check_non_symlink "$1"
+        dpath=$(realpath "$1")
+        if [[ $? -ne 0 || ! -d $dpath ]]; then
+            $LOGE "Error: $dpath invalid directory" | tee -a $LOG_FILE
+            exit -1
+        fi
+    else
+        $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
         exit -1
     fi
 }
@@ -105,20 +119,22 @@ function check_url() {
 
 function install_kernel_from_deb() {
     $LOGD "${FUNCNAME[0]} begin"
-    if [ -z "${1+x}" || -z $1 ]; then
+    if [[ -z "${1+x}" || -z $1 ]]; then
         $LOGE "Error: empty path to kernel debs"
         return -1
     fi
-    check_file_valid_nonzero $1
     local path=$(realpath $1)
     if [ ! -d $path ]; then
         $LOGE "Error: invalid path to linux-header and linux-image debs given.($path)"
         return -1
     fi
+    check_dir_valid $1
     if [[ ! -f $path/linux-headers.deb || ! -f $path/linux-image.deb ]]; then
         $LOGE "Error: linux-headers.deb or linux-image.deb missing from ($path)"
         return -1
     fi
+    check_file_valid_nonzero $path/linux-headers.deb
+    check_file_valid_nonzero $path/linux-image.deb
     # Install Intel kernel overlay
     sudo dpkg -i $path/linux-headers.deb $path/linux-image.deb
 
