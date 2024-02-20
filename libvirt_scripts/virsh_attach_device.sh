@@ -18,6 +18,8 @@ PCI_BUS=""
 PCI_SLOT=""
 PCI_FUNC=""
 
+RAM_PCI_DEV="RAM memory"
+
 #---------      Functions    -------------------
 function show_help() {
   printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-p <domain> --usb|--pci <device> (<number>)]\n\n"
@@ -52,12 +54,17 @@ EOF
 }
 
 function attach_pci() {
-
   #check devices belong to same iommu group
   pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_${PCI_BUS}_${PCI_SLOT}_${PCI_FUNC} | grep address)
   readarray pci_array <<< $pci_iommu
 
   for pci in "${pci_array[@]}";do
+    local pci_bus=$(echo $pci | sed "s/.*domain='0x\([^']\+\)'.*bus='0x\([^']\+\)'.*slot='0x\([^']\+\)'.*function='0x\([^']\+\)'.*/\1:\2:\3.\4/")
+    if [[ $(lspci -s $pci_bus) =~ $RAM_PCI_DEV ]]; then
+      echo "Find ram memory: $pci_bus. Skip this device"
+      continue;
+    fi
+
     cat<<EOF | tee pci.xml
 <hostdev mode="subsystem" type="pci" managed="yes">
   <source>

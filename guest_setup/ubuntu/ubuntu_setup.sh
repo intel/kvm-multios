@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -32,6 +32,7 @@ VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
 FILE_SERVER_IP="192.168.122.1"
 FILE_SERVER_PORT=8000
+HOST_NC_DAEMON_PID=
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -127,11 +128,21 @@ function run_file_server() {
     local ip=$2
     local port=$3
     local -n pid=$4
-   
+
     cd $folder
     python3 -m http.server -b $ip $port &
     pid=$!
     cd -
+}
+
+function run_nc_server() {
+    local ip=$1
+    local port=$2
+    local out_file=$3
+    local -n pid=$4
+
+    nc -l -s $ip -p $port > $out_file &
+    pid=$!
 }
 
 function kill_by_pid() {
@@ -145,6 +156,8 @@ function kill_by_pid() {
 
 function install_dep() {
   sudo apt install -y cloud-image-utils virtinst virt-viewer
+  sudo apt install -y yamllint
+  sudo apt install -y coreutils
 }
 
 function clean_ubuntu_images() {
@@ -221,6 +234,15 @@ function install_ubuntu() {
   local scriptpath=$(dirname "$script")
   local dest_tmp_path=$(realpath "/tmp/${UBUNTU_DOMAIN_NAME}_install_tmp_files")
 
+  # install dependencies
+  install_dep || return -1
+
+  # check yaml file
+  if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" $scriptpath/auto-install-ubuntu.yaml; then
+    echo "Error: Yaml file $scriptpath/auto-install-ubuntu.yaml has formatting error!"
+    return -1
+  fi
+
   # Check Intel overlay kernel is installed locally
   is_host_kernel_local_install
 
@@ -229,14 +251,13 @@ function install_ubuntu() {
   fi
 
   for file in ${REQUIRED_DEB_FILES[@]}; do
-	local rfile=$(realpath $scriptpath/unattend_ubuntu/$file)
-	if [ ! -f $rfile ]; then
-		echo "Error: Missing $file in $scriptpath/unattend_ubuntu required for installation!"
-		return -1
-	fi
+    local rfile=$(realpath $scriptpath/unattend_ubuntu/$file)
+    if [ ! -f $rfile ]; then
+      echo "Error: Missing $file in $scriptpath/unattend_ubuntu required for installation!"
+      return -1
+    fi
   done
 
-  install_dep || return -1
   if [[ -d "$dest_tmp_path" ]]; then
     rm -rf "$dest_tmp_path"
   fi
@@ -249,6 +270,21 @@ function install_ubuntu() {
 
   copy_setup_files "$dest_tmp_path" || return -1
   run_file_server "$dest_tmp_path" $FILE_SERVER_IP $FILE_SERVER_PORT FILE_SERVER_DAEMON_PID || return -1
+
+  local host_nc_port
+  local max_shuf_tries=100
+  for i in {1..$max_shuf_tries}; do
+    host_nc_port=$(shuf -i 2000-65000 -n 1)
+    if ! ss -tl | grep $host_nc_port | grep LISTEN; then
+      break
+    fi
+  done
+  if ss -tl | grep $host_nc_port | grep LISTEN; then
+    echo "Error: Unable to get free tcp port after $max_shuf_tries tries!"
+    return -1
+  fi
+  local host_nc_file_out="$dest_tmp_path/nc_output.log"
+  run_nc_server $FILE_SERVER_IP $host_nc_port $host_nc_file_out HOST_NC_DAEMON_PID || return -1
 
   echo "Generate ubuntu-seed.iso"
   sudo rm -f meta-data
@@ -287,6 +323,10 @@ function install_ubuntu() {
 
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   sed -i "s|\$FILE_SERVER_URL|$file_server_url|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+
+  sed -i "s|\$HOST_SERVER_IP|$FILE_SERVER_IP|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+  sed -i "s|\$HOST_SERVER_NC_PORT|$host_nc_port|g" $scriptpath/auto-install-ubuntu-parsed.yaml
+
   sudo cloud-localds -v $dest_tmp_path/${UBUNTU_SEED_ISO} $scriptpath/auto-install-ubuntu-parsed.yaml meta-data
 
   echo "$(date): Start ubuntu guest creation and auto-installation"
@@ -314,6 +354,11 @@ function install_ubuntu() {
   --events on_poweroff=destroy \
   --wait=-1
 
+  if grep -Fq "ERROR" $host_nc_file_out; then
+    echo "Error: Ubuntu guest install failed. Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for details."
+    return -1
+  fi
+
   echo "$(date): Waiting for restarted guest to complete installation and shutdown"
   local state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
   local loop=1
@@ -324,7 +369,12 @@ function install_ubuntu() {
     while [[ count -lt $maxcount ]]; do
       state=$(virsh list --all | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
       if [[ ! -z ${state+x} && $state == "running" ]]; then
-        sleep 60
+        if grep -Fq "ERROR" $host_nc_file_out; then
+          echo "$(date): Error: Ubuntu guest install failed. Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for details."
+          return -1
+        else
+          sleep 60
+        fi
       else
         break
       fi
@@ -422,6 +472,7 @@ function cleanup () {
       fi
     done
     kill_by_pid $FILE_SERVER_DAEMON_PID
+    kill_by_pid $HOST_NC_DAEMON_PID
     local state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
     if [[ ! -z ${state+x} && "$state" == "running" ]]; then
         echo "Shutting down running domain $UBUNTU_DOMAIN_NAME"

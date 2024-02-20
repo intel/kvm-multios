@@ -126,10 +126,10 @@ EOF
 
 echo end of file
 
-if [ ! -z $(sudo virsh net-list --name | grep default) ]; then
+if [[ ! -z $(sudo virsh net-list --name | grep default) ]]; then
     sudo virsh net-destroy default
 fi
-if [ ! -z $(sudo virsh net-list --name --all | grep default) ]; then
+if [[ ! -z $(sudo virsh net-list --name --all | grep default) ]]; then
     sudo virsh net-undefine default
 fi
 sudo virsh net-define default_network.xml
@@ -142,30 +142,146 @@ rm default_network.xml
 # See: https://passthroughpo.st/simple-per-vm-libvirt-hooks-with-the-vfio-tools-hook-helper/
 wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/master/libvirt_hooks/qemu' -O qemu
 
-# Create qemu hook for port forwarding from host to VMs
+# Configure iGPU SRIOV VF in qemu hook
 tee -a qemu &>/dev/null <<EOF
 
-if [ "\${1}" = "ubuntu" ]; then
+VM_XML=\$(cat -)
+
+# Setup iGPU SRIOV VF
+if [[ "\${2}" == "prepare" ]]; then
+  sriov_vf_hex=\$(xmllint --xpath "string(//domain/devices/hostdev/source/address[@domain='0x0000' and @bus='0x00' and @slot='0x02']/@function)" - <<<"\$VM_XML" )
+  sriov_vf_num=\$((\$sriov_vf_hex))
+  if [[ \$sriov_vf_num -gt 0 ]]; then
+    sriov_vfs=\$(cat /sys/class/drm/card0/device/sriov_numvfs)
+    if [[ \$sriov_vfs -eq 0 ]]; then
+      totalvfs=\$(cat /sys/class/drm/card0/device/sriov_totalvfs)
+      vendor=\$(cat /sys/bus/pci/devices/0000:00:02.0/vendor)
+      device=\$(cat /sys/bus/pci/devices/0000:00:02.0/device)
+      modprobe i2c-algo-bit
+      modprobe video
+      echo '0' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
+      echo \$totalvfs | tee -a /sys/class/drm/card0/device/sriov_numvfs
+      echo '1' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
+      modprobe vfio-pci
+      echo "\$vendor \$device" | tee -a /sys/bus/pci/drivers/vfio-pci/new_id
+      vfschedexecq=25
+      vfschedtimeout=500000
+      iov_path="/sys/class/drm/card0/iov"
+      if [[ -d "/sys/class/drm/card0/prelim_iov" ]]; then
+        iov_path="/sys/class/drm/card0/prelim_iov"
+      fi
+      for (( i = 1; i <= \$totalvfs; i++ ))
+      do
+        if [[ -d "\${iov_path}/vf\$i/gt" ]]; then
+          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt/exec_quantum_ms
+          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt/preempt_timeout_us
+        fi
+        if [[ -d "\${iov_path}/vf\$i/gt0" ]]; then
+          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt0/exec_quantum_ms
+          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt0/preempt_timeout_us
+        fi
+        if [[ -d "\${iov_path}/vf\$i/gt1" ]]; then
+          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt1/exec_quantum_ms
+          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt1/preempt_timeout_us
+        fi
+      done
+    fi
+  fi
+fi
+EOF
+
+# Allocate hugepage on demand in qemu hook
+tee -a qemu &>/dev/null <<EOF
+
+# Allocate hugepage on demand
+if [[ "\${2}" == "prepare" ]]; then
+  memory_size=\$(echo /tmp/domain_xml | xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
+  hugepage_size=\$(xmllint --xpath "string(//domain/memoryBacking/hugepages/page/@size)" - <<<"\$VM_XML")
+  if [[ "\$hugepage_size" == "2048" ]]; then
+    required_hugepage_nr=\$((\$memory_size/2048))
+    free_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/free_hugepages)
+    if [[ \$required_hugepage_nr -gt \$free_hugepages ]]; then
+        current_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
+        new_hugepages=\$((required_hugepage_nr - free_hugepages + current_hugepages))
+        echo \$new_hugepages | tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages > /dev/null
+        # Check and wait for hugepages to be allocated
+        read_hugepages=0
+        count=0
+        compact_memory="false"
+        while [[ \$read_hugepages -ne \$new_hugepages ]]
+        do
+          if [[ \$((count++)) -ge 20 ]]; then
+            echo "Insufficient memory to allocate hugepages, current=\$read_hugepages required=\$new_hugepages" | systemd-cat -t libvirtd -p warning
+            compact_memory="true"
+            break
+          fi
+          sleep 0.5
+          read_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
+        done
+        if [[ "\$compact_memory" == "true" ]]; then
+          echo "Compact memory before re-try hugepages allocation" | systemd-cat -t libvirtd -p warning
+          echo 1 > /proc/sys/vm/compact_memory
+          sleep 5
+          echo \$new_hugepages | tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages > /dev/null
+          # Check and wait for hugepages to be allocated
+          read_hugepages=0
+          count=0
+          while [[ \$read_hugepages -ne \$new_hugepages ]]
+          do
+            if [[ \$((count++)) -ge 20 ]]; then
+                echo "Insufficient memory to allocate \$required_hugepage_nr hugepages" >&2
+                exit 1
+            fi
+            sleep 0.5
+            read_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
+          done
+        fi
+     fi
+  fi
+fi
+
+# Release hugepage on demand
+if [[ "\${2}" == "release" ]]; then
+  memory_size=\$(echo /tmp/domain_xml | xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
+  hugepage_size=\$(xmllint --xpath "string(//domain/memoryBacking/hugepages/page/@size)" - <<<"\$VM_XML")
+  if [[ "\$hugepage_size" == "2048" ]]; then
+    release_hugepage_nr=\$((\$memory_size/2048))
+    current_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
+    if [[ \$release_hugepage_nr -gt \$current_hugepages ]]; then
+      new_hugepages=0
+    else
+      new_hugepages=\$((current_hugepages - release_hugepage_nr))
+    fi
+    echo \$new_hugepages | tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages > /dev/null
+  fi
+fi
+EOF
+
+# Configure port forwarding from host to VMs in qemu hook
+tee -a qemu &>/dev/null <<EOF
+
+# Configure port forwarding from host to VMs
+if [[ "\${1}" == "ubuntu" ]]; then
  
   # Update the following variables to fit your setup
   GUEST_IP=192.168.122.11
   GUEST_PORT=22
   HOST_PORT=1111
  
-  if [ "\${2}" = "stopped" ] || [ "\${2}" = "reconnect" ]; then
+  if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
     /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
     /sbin/iptables -t nat -D PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -D OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
   fi
-  if [ "\${2}" = "start" ] || [ "\${2}" = "reconnect" ]; then
+  if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
     /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
     /sbin/iptables -t nat -I PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -I OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
   fi
 
-elif [ "\${1}" = "windows" ]; then
+elif [[ "\${1}" == "windows" ]]; then
  
   # Update the following variables to fit your setup
   GUEST_IP=192.168.122.22
@@ -173,13 +289,13 @@ elif [ "\${1}" = "windows" ]; then
   HOST_PORTS=([22]=2222 [3389]=3389)
  
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
-    if [ "\${2}" = "stopped" ] || [ "\${2}" = "reconnect" ]; then
+    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
       /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
       /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
     fi
-    if [ "\${2}" = "start" ] || [ "\${2}" = "reconnect" ]; then
+    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
       /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
       /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
@@ -187,7 +303,7 @@ elif [ "\${1}" = "windows" ]; then
     fi
   done
 
-elif [ "\${1}" = "android" ]; then
+elif [[ "\${1}" == "android" ]]; then
 
   # Update the following variables to fit your setup
   GUEST_IP=192.168.122.33
@@ -195,13 +311,13 @@ elif [ "\${1}" = "android" ]; then
   HOST_PORTS=([22]=3333 [5554]=5554 [5555]=5555)
 
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
-    if [ "\${2}" = "stopped" ] || [ "\${2}" = "reconnect" ]; then
+    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
       /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
       /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
     fi
-    if [ "\${2}" = "start" ] || [ "\${2}" = "reconnect" ]; then
+    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
       /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
       /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
       /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
@@ -209,20 +325,20 @@ elif [ "\${1}" = "android" ]; then
     fi
   done
 
-elif [ "\${1}" = "ubuntu_rt" ]; then
+elif [[ "\${1}" == "ubuntu_rt" ]]; then
 
   # Update the following variables to fit your setup
   GUEST_IP=192.168.122.44
   GUEST_PORT=22
   HOST_PORT=4444
 
-  if [ "\${2}" = "stopped" ] || [ "\${2}" = "reconnect" ]; then
+  if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
     /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
     /sbin/iptables -t nat -D PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -D OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
   fi
-  if [ "\${2}" = "start" ] || [ "\${2}" = "reconnect" ]; then
+  if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
     /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
     /sbin/iptables -t nat -I PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -I OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
