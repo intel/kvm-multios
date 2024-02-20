@@ -1,6 +1,6 @@
 #cloud-config
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 #
 # Reference from https://github.com/canonical/autoinstall-desktop/blob/main/autoinstall.yaml
@@ -159,16 +159,18 @@ autoinstall:
     - rm /target/tmp/setup_pm_mgmt.sh
     - cp /var/log/syslog /target/root/syslog_setup
 
-  # back up setup log on error
   error-commands:
-    - cp /var/log/syslog /target/root/syslog_setup
+    - cp /var/log/syslog /target/root/syslog_setup  # back up setup log in guest on error
+    - /usr/bin/tail -n 250 /var/log/syslog
+    - echo "ERROR" | nc -q1 $HOST_SERVER_IP $HOST_SERVER_NC_PORT
+    - shutdown
 
   # Additional cloud-init configuration affecting the target
   # system can be supplied underneath a user-data section inside of
   # autoinstall.
   user-data:
     # This inhibits user creation, which for Desktop images means that
-    # gnome-initial-setup will prompt for user creation on first boot.  
+    # gnome-initial-setup will prompt for user creation on first boot.
     users: ['']
     runcmd:
       - cp /var/log/syslog /target/root/syslog_setup_cont

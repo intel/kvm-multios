@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -28,6 +28,9 @@ PLATFORM_NAME=""
 SETUP_NO_SRIOV=0
 SETUP_NON_WHQL_GFX_DRV=0
 SETUP_DEBUG=0
+SETUP_DISABLE_SECURE_BOOT=0
+SETUP_ZC_GUI_INSTALLER=0
+SETUP_ZC_FILENAME=''
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
@@ -100,8 +103,16 @@ function kill_by_pid() {
 }
 
 function install_dep() {
-  sudo apt install -y virtinst
-  sudo apt install -y p7zip-full zip atool
+  which virt-install > /dev/null || sudo apt install -y virtinst
+  which arepack > /dev/null || sudo apt install -y p7zip-full zip atool
+  which mkisofs > /dev/null || sudo apt install -y mkisofs
+  which virt-viewer > /dev/null || sudo apt install -y virt-viewer
+  which unzip > /dev/null || sudo apt install -y unzip
+  which xmllint > /dev/null || sudo apt install -y libxml2-utils
+  which yamllint > /dev/null || sudo apt install -y yamllint
+  which cabextract > /dev/null || sudo apt install -y cabextract
+  which xmlstarlet > /dev/null || sudo apt install -y xmlstarlet
+  which yq > /dev/null || sudo snap install yq
 }
 
 function clean_windows_images() {
@@ -126,11 +137,24 @@ function check_prerequisites() {
 
   for file in ${REQUIRED_FILES[@]}; do
     if [[ "$file" == "Driver-Release-64-bit.[zip|7z]" ]]; then
-       local nfile=$(find $fileserverdir -regex "$fileserverdir/Driver-Release-64-bit\.\(zip\|7z\)" | wc -l )
-       if [[ $nfile -ne 1 ]]; then
-         echo "Error: Only one of $file in $fileserverdir allowed for installation!"
-         return -1
-       fi
+      local nfile=$(find $fileserverdir -regex "$fileserverdir/Driver-Release-64-bit\.\(zip\|7z\)" | wc -l )
+      if [[ $nfile -ne 1 ]]; then
+        echo "Error: Only one of $file in $fileserverdir allowed for installation!"
+        return -1
+      fi
+    elif [[ "$file" == "ZCBuild_MSFT_Signed.zip|ZC_Installer.zip" ]]; then
+      local nfile=$(find $fileserverdir -regex "$fileserverdir/ZCBuild_MSFT_Signed.zip" | wc -l )
+      local nfile1=$(find $fileserverdir -regex "$fileserverdir/ZC_Installer.zip" | wc -l )
+      if [[ $nfile -eq 0 && $nfile1 -eq 1 ]]; then
+        SETUP_ZC_GUI_INSTALLER=1
+        SETUP_ZC_FILENAME="ZC_Installer.zip"
+      elif [[ $nfile -eq 1 && $nfile1 -eq 0 ]]; then
+        SETUP_ZC_GUI_INSTALLER=0
+        SETUP_ZC_FILENAME="ZCBuild_MSFT_Signed.zip"
+      else
+        echo "Error: Only one of $file in $fileserverdir allowed for installation!"
+        return -1
+      fi
     else
       check_file_valid_nonzero "$fileserverdir/$file"
       local rfile=$(realpath $fileserverdir/$file)
@@ -180,13 +204,399 @@ function convert_drv_pkg_7z_to_zip() {
   return -1
 }
 
+function setup_additional_installs() {
+  declare -a installations
+  local cfgfile
+  local fileserverdir
+  local file_server_url
+  local xmlfile
+
+  if [[ -z "${1+x}" || -z "$1" ]]; then
+    echo "Invalid param. Installation yaml config file param expected."
+    return -1
+  fi
+  check_file_valid_nonzero "$1"
+  cfgfile=$(realpath "$1")
+  if [[ -z "${2+x}" || -z "$2" ]]; then
+    echo "Invalid param. file server directory path param expected."
+    return -1
+  fi
+  check_dir_valid "$2"
+  fileserverdir=$(realpath "$2")
+  if [[ -z "${3+x}" || -z "$3" ]]; then
+    echo "Invalid param. file server url param expected."
+    return -1
+  fi
+  file_server_url="$3"
+  if [[ -z "${4+x}" || -z "$4" ]]; then
+    echo "Invalid param. Autoattend xml file param expected."
+    return -1
+  fi
+  check_file_valid_nonzero "$4"
+  xmlfile=$(realpath "$4")
+  if ! xmllint --noout $xmlfile; then
+    echo "Error: XML file $xmlfile has formatting error!"
+    return -1
+  fi
+
+  readarray installations < <(yq e -o=j -I=0 '.installations[]' "$cfgfile")
+  if [[ ${#installations[@]} -ne 0 ]]; then
+    # sanity check configuation file
+    local -a names
+    local -a descs
+    local -a fnames
+    local -a urls
+    local -a itypes
+    local -a ifiles
+    local -a ioptions
+    local -a etestsigns
+    readarray names < <(yq e -o=j -I=0 '.installations[].name' "$cfgfile")
+    readarray descs < <(yq e -o=j -I=0 '.installations[].description' "$cfgfile")
+    readarray fnames < <(yq e -o=j -I=0 '.installations[].filename' "$cfgfile")
+    readarray urls < <(yq e -o=j -I=0 '.installations[].download_url' "$cfgfile")
+    readarray itypes < <(yq e -o=j -I=0 '.installations[].install_type' "$cfgfile")
+    readarray ifiles < <(yq e -o=j -I=0 '.installations[].install_file' "$cfgfile")
+    readarray ioptions < <(yq e -o=j -I=0 '.installations[].install_silent_option' "$cfgfile")
+    readarray etestsigns < <(yq e -o=j -I=0 '.installations[].enable_test_sign' "$cfgfile")
+    if [[ ${#names[@]} -ne ${#installations[@]} || ${#descs[@]} -ne ${#installations[@]} ||
+      ${#fnames[@]} -ne ${#installations[@]} || ${#urls[@]} -ne ${#installations[@]} ||
+      ${#itypes[@]} -ne ${#installations[@]} || ${#ifiles[@]} -ne ${#installations[@]} ||
+      ${#ioptions[@]} -ne ${#installations[@]} || ${#etestsigns[@]} -ne ${#installations[@]} ]]; then
+      echo "Missing fields for installations object found in $cfgfile."
+      return -1
+    fi
+  else
+    echo "No additional installations found in $cfgfile."
+    return 0
+  fi
+
+  local step_id=20      # should be after end of basic install step_ids
+  local step_id_max=80  # should be before start of SRIOV install step_ids
+  #for installation in "${installations[@]}"; do
+  #  echo $installation
+  #done
+  for installation in "${installations[@]}"; do
+    local name=$(echo "$installation" | yq e '.name' -)
+    local desc=$(echo "$installation" | yq e '.description' -)
+    local dl_url=$(echo "$installation" | yq e '.download_url' -)
+
+    echo "Setting up $name install for guest"
+    local fname=$(echo "$installation" | yq e '.filename' -)
+    check_non_symlink "$fileserverdir/$fname"
+    local fpath=$(realpath "$fileserverdir/$fname")
+    if [[ $? -ne 0 || ! -f "$fpath" || ! -s "$fpath" ]]; then
+      echo "$fpath not present/zero sized. Attempt to download from $dl_url"
+      curl --connect-timeout 10 --output $fileserverdir/$fname $dl_url
+      if [[ $? -ne 0 ]]; then
+        # attempt again with proxy enabled except for localhost
+        curl --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output $fileserverdir/$fname $dl_url
+        if [[ $? -ne 0 ]]; then
+          # attempt again without proxy
+          curl --noproxy '*' --connect-timeout 10 --output $fileserverdir/$fname $dl_url
+          if [[ $? -ne 0 ]]; then
+            echo "Unable download $dl_url. Check internet connection or $name additional installation configuration validity."
+            return -1
+          fi
+        fi
+      fi
+      TMP_FILES+=("$fileserverdir/$fname")
+    fi
+
+    # Check installation file
+    local iftype=$(echo "$installation" | yq e '.install_type' -)
+    local ifname=$(echo "$installation" | yq e '.install_file' -)
+    local itestsign=$(echo "$installation" | yq e '.enable_test_sign' -)
+    case "$itestsign" in
+      "yes" | "no")
+        ;;
+
+      -?*)
+        ;&
+      *)
+        echo 'enable_test_sign set to \"$itestsign\". Supported values: yes | no.'
+        return -1
+        ;;
+    esac
+
+    case "$iftype" in
+      "inf")
+        ifname_lin=$(echo "$ifname" | sed -r -e 's|\\|/|g')
+        if [[ "$(basename "$ifname_lin")" == "*.inf" ]]; then
+          if [[ "$itestsign" == "yes" ]]; then
+            echo "Only install_file=specified path_to\xxxx.inf install_file supported for test signing enabled."
+            return -1
+          fi
+          iftype="[.]inf"
+        fi
+        ;;
+      "msi" | "exe" | "cab")
+        if [[ "$itestsign" == "yes" ]]; then
+          echo "Only install_type=inf supported for test signing enabled."
+          return -1
+        fi
+        ;;
+
+      -?*)
+        ;&
+      *)
+        echo "install_type=\"$iftype\". Supported values: inf|exe|msi|cab."
+        return -1
+        ;;
+    esac
+
+    local ftype=$(file -r "$fpath")
+    if echo $ftype | grep -q "Zip archive data"; then
+      ftype="zip"
+      ifname_lin=$(echo "$ifname" | sed -r -e 's|\\|/|g')
+      ifname_win_esc=$(echo "$ifname" | sed -r -e 's|\\|\\\\|g')
+      echo $ifname_lin
+      if [[ "$iftype" == "[.]inf" ]]; then
+        if ! unzip -l "$fpath" | grep -e "$iftype"; then
+          echo "No $ifname found inside $fpath zip archive."
+          return -1
+        fi
+      else
+        found=$(unzip -l "$fpath" | grep -e "$ifname_win_esc" ||
+          unzip -l "$fpath" | grep -e "$ifname_lin")
+        if [[ $? -ne 0 ]]; then
+          echo "No "$ifname" found inside $fpath zip archive."
+          return -1
+        fi
+      fi
+    elif echo $ftype | grep -q "PE32+ executable (GUI) x86-64"; then
+      ftype="exe"
+      if [[ "$iftype" != "exe" ]]; then
+        echo "Only install_type=exe supported for executable file."
+        return -1
+      fi
+    elif echo $ftype | grep -q "Microsoft Cabinet archive data"; then
+      ftype="cab"
+      ifname_lin=$(echo "$ifname" | sed -r -e 's|\\|/|g')
+      ifname_win_esc=$(echo "$ifname" | sed -r -e 's|\\|\\\\|g')
+      echo $ifname_lin
+      if [[ "$iftype" == "msi" || "$iftype" == "exe" ]]; then
+        echo "install_type=msi|exe not supported for Cabinet archive file."
+        return -1
+      fi
+      if [[ "$iftype" == "[.]inf" || "$iftype" == "inf" ]]; then
+        if [[ "$iftype" == "[.]inf" ]]; then
+          if ! cabextract -l "$fpath" | grep -e "$iftype"; then
+            echo "No "$ifname" found inside $fpath cabinet archive."
+            return -1
+          fi
+        else
+          found=$(cabextract -l "$fpath" | grep -e "$ifname_win_esc" ||
+            cabextract -l "$fpath" | grep -e "$ifname_lin")
+          if [[ $? -ne 0 ]]; then
+            echo "No "$ifname" found inside $fpath cabinet archive."
+            return -1
+          fi
+        fi
+      fi
+    else
+      echo $(file -r "$fpath")
+      echo "Unsupported filename=\"$fname\". Supported file types: zip|cab|exe."
+      return -1
+    fi
+
+    if [[ -f "$fileserverdir/$name-install.ps1" ]]; then
+      echo "Name entry in $cfgfile must be unique!"
+      return -1
+    fi
+    tee "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$tempdir='C:\Temp'
+Start-Transcript -Path "\$tempdir\\$name-installation.txt" -Force -Append
+\$Host.UI.RawUI.WindowTitle = 'Setup for $name installation.'
+\$s="Downloading $name installation file"
+Write-Output "\$s"
+\$p=curl.exe -fSLo "\$tempdir\\$fname" "$file_server_url/$fname"
+if (\$LastExitCode -ne 0) {
+    Write-Error "Error: \$s failed with exit code \$LastExitCode."
+    Exit \$LASTEXITCODE
+}
+EOF
+
+    local ifpath="\$tempdir"
+    if [[ "$ftype" == "zip" ]]; then
+      ifpath="\$tempdir\\$name-installation"
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Expand $name zip archive file $fname"
+Write-Output "\$s"
+\$p=Expand-Archive -Path "\$tempdir\\$fname" -DestinationPath "$ifpath" -Force
+if (\$? -ne \$True) {
+    Throw "Error: \$s failed."
+}
+EOF
+    fi
+    if [[ "$ftype" == "cab" && "$iftype" != "cab" ]]; then
+      ifpath="\$tempdir\\$name-installation"
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Extract $name cabinet archive file $fname"
+Write-Output "\$s"
+ \$p=Start-Process cmd.exe -ArgumentList 'expand',"\`"\$tempdir\\$fname\`"",'-F:*',"\`"\$tempdir\\$name-installation\`"" -WorkingDirectory "\$tempdir\\$name-installation" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "Expand $name cabinet archive file $fname failure return \$(\$p.ExitCode)"
+    Exit \$LASTEXITCODE
+}
+EOF
+    fi
+
+    local icatfname="${ifname:0:-3}cat"
+    case "$itestsign" in
+      "yes")
+      SETUP_DISABLE_SECURE_BOOT=1
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+Write-Output 'Installing driver test sign certificate.'
+\$signature=Get-AuthenticodeSignature "\$tempdir\\$name-installation\\$icatfname"
+if (\$? -ne \$True) {
+    Throw "Get $ifname driver signature failed"
+}
+\$store=Get-Item -Path Cert:\LocalMachine\TrustedPublisher
+if (\$? -ne \$True) {
+    Throw "Get LocalMachine\TrustedPublisher cert path failed"
+}
+\$store.Open("ReadWrite")
+if (\$? -ne \$True) {
+    Throw "Open LocalMachine\TrustedPublisher cert path for readwrite failed"
+}
+\$store.Add(\$signature.SignerCertificate)
+if (\$? -ne \$True) {
+    Throw "Add $ifname driver signing cert failed"
+}
+\$store.Close()
+if (\$? -ne \$True) {
+    Throw "Close cert store failed"
+}
+Write-Output "Enable test signing"
+\$p=Start-Process bcdedit -ArgumentList "/set testsigning on" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "Enable test signing failure return \$(\$p.ExitCode)"
+    Exit \$LASTEXITCODE
+}
+EOF
+      ;;
+
+      "no")
+      ;;
+
+      -?*)
+        ;&
+      *)
+        echo 'Only "yes" | "no" accepted for enable_test_sign field.'
+        return -1
+        ;;
+    esac
+
+    if [[ "$iftype" == "inf" ]]; then
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Installing $name $ifname"
+Write-Output "\$s"
+\$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "pnputil install $name file $ifname failure return \$(\$p.ExitCode)"
+    Exit \$LASTEXITCODE
+}
+EOF
+    elif [[ "$iftype" == "[.]inf" ]]; then
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Installing $name $ifname"
+Write-Output "\$s"
+\$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install','/subdirs' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "pnputil install $name file $ifname failure return \$(\$p.ExitCode)"
+    Exit \$LASTEXITCODE
+}
+EOF
+    elif [[ "$iftype" == "msi" ]]; then
+      local ioption=$(echo "$installation" | yq e '.silent_install_option' -)
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Installing $name MSI $ifname"
+Write-Output "\$s"
+\$p=Start-Process msiexec.exe -ArgumentList '/i',"\`"$ifpath\\$ifname\`"","$ioption" -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "msiexec install $name file $ifname failure return \$(\$p.ExitCode)"
+    Exit \$LASTEXITCODE
+}
+EOF
+    elif [[ "$iftype" == "exe" ]]; then
+      local ioption=$(echo "$installation" | yq e '.silent_install_option' -)
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Installing $name exe $ifname"
+Write-Output "\$s"
+\$p=Start-Process "$ifpath\\$ifname" -ArgumentList "$ioption" -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+if (\$p.ExitCode -ne 0) {
+    Write-Error "Install $name exe file $ifname failure return \$(\$p.ExitCode)"
+    Exit $LASTEXITCODE
+}
+EOF
+    elif [[ "$iftype" == "cab" ]]; then
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+\$s="Installing $name cab $ifname"
+Write-Output "\$s"
+Add-WindowsPackage -Online -PackagePath:"$ifpath\\$ifname" -LogLevel 4 -ScratchDirectory "$ifpath"
+if (\$? -ne \$True) {
+    Throw "Error: \$s failed."
+}
+EOF
+    fi
+      tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
+Exit \$LASTEXITCODE
+EOF
+    TMP_FILES+=("$fileserverdir/$name-install.ps1")
+
+    xmlstarlet ed -L \
+      -s '/_:unattend/_:settings[@pass="auditUser"]/_:component/_:RunSynchronous' -t 'elem' -n 'RunSynchronousCommand' \
+      --var cmd1 '$prev' \
+      -s '/_:unattend/_:settings[@pass="auditUser"]/_:component/_:RunSynchronous' -t 'elem' -n 'RunSynchronousCommand' \
+      --var cmd2 '$prev' \
+      -i '$cmd1' -t 'attr' -n 'wcm:action' -v 'add' \
+      -s '$cmd1' -t 'elem' -n 'Path' -v "%SystemRoot%\\system32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\\$name-install.ps1' \"$file_server_url/$name-install.ps1\"" \
+      -s '$cmd1' -t 'elem' -n 'Description' -v "Download $desc install script" \
+      -s '$cmd1' -t 'elem' -n 'WillReboot' -v 'OnRequest' \
+      -s '$cmd1' -t 'elem' -n 'Order' -v "$((step_id++))" \
+      -i '$cmd2' -t 'attr' -n 'wcm:action' -v 'add' \
+      -s '$cmd2' -t 'elem' -n 'Path' -v "%SystemRoot%\\system32\\WindowsPowerShell\\v1.0\\powershell.exe -NoProfile -ExecutionPolicy Bypass -File \"C:\\Temp\\$name-install.ps1\"" \
+      -s '$cmd2' -t 'elem' -n 'Description' -v "Run $desc install script" \
+      -s '$cmd2' -t 'elem' -n 'WillReboot' -v 'OnRequest' \
+      -s '$cmd2' -t 'elem' -n 'Order' -v "$((step_id++))" \
+    $xmlfile
+  done
+
+  if ! xmllint --noout $xmlfile; then
+    echo "Error: XML file $xmlfile has formatting error after addition installs!"
+    return -1
+  fi
+}
+
 function install_windows() {
   local dest_tmp_path=$(realpath "/tmp/${WIN_DOMAIN_NAME}_install_tmp_files")
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
 
+  # install dependencies
+  install_dep || return -1
+
+  # check config files
+  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"
+  if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"; then
+    echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml has formatting error!"
+    return -1
+  fi
+  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"
+  if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"; then
+    echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml has formatting error!"
+    return -1
+  fi
+  if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
+    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"
+    if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"; then
+      echo "Error: Yaml file $scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml has formatting error!"
+      return -1
+    fi
+  fi
+
   if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
-    REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip")
+    REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip|ZC_Installer.zip")
     REQUIRED_FILES+=("Driver-Release-64-bit.[zip|7z]")
     if [[ $(xrandr -d :0 | grep -c "\bconnected\b") -lt 1 ]]; then
         echo "Error: Need at least 1 display connected for SR-IOV install."
@@ -195,7 +605,6 @@ function install_windows() {
   fi
   check_prerequisites || return -1
 
-  install_dep || return -1
   if [[ -d "$dest_tmp_path" ]]; then
     rm -rf "$dest_tmp_path"
   fi
@@ -217,34 +626,12 @@ if (\$LastExitCode -ne 0) {
   Write-Error "Error: \$s failed with exit code \$LastExitCode."
   Exit \$LastExitCode
 }
-\$s='Downloading Zero-copy driver'
+\$s='Downloading Zero-copy installation archive'
 Write-Output \$s
-\$p=curl.exe -fSLo "\$tempdir\ZCBuild_MSFT_Signed.zip" "$file_server_url/ZCBuild_MSFT_Signed.zip"
+\$p=curl.exe -fSLo "\$tempdir\\$SETUP_ZC_FILENAME" "$file_server_url/$SETUP_ZC_FILENAME"
 if (\$LastExitCode -ne 0) {
   Write-Error "Error: \$s failed with exit code \$LastExitCode."
   Exit \$LastExitCode
-}
-\$s='Create driver install directory folder'
-Write-Output \$s
-\$p=New-Item -Force -Path "\$tempdir" -Name 'ZCBuild_Install' -ItemType 'directory'
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
-}
-\$s='Unzip Zero-Copy driver'
-Write-Output \$s
-\$p=Expand-Archive -Path "\$tempdir\ZCBuild_MSFT_Signed.zip" -DestinationPath "\$tempdir\ZCBuild_Install" -Force
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
-}
-\$s='Rename Zero-Copy driver folder'
-Write-Output \$s
-\$zcname=Get-ChildItem -Path "\$tempdir\ZCBuild_Install"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'}
-if (\$? -ne \$True) {
-  Throw "Error: No Zero-copy driver folder found at \$tempdir\ZCBuild_Install."
-}
-\$p=Rename-Item -Path "\$tempdir\ZCBuild_Install\\\$zcname" -NewName 'ZCBuild_MSFT_Signed' -Force
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
 }
 \$s='Unzip Graphics driver'
 Write-Output \$s
@@ -252,6 +639,47 @@ Write-Output \$s
 if (\$? -ne \$True) {
   Throw "Error: \$s failed."
 }
+\$s='Create Zero-copy installation directory folder'
+Write-Output \$s
+\$p=New-Item -Force -Path "\$tempdir" -Name 'ZC_Install' -ItemType 'directory'
+if (\$? -ne \$True) {
+  Throw "Error: \$s failed."
+}
+\$s='Unzip Zero-Copy installation archive'
+Write-Output \$s
+\$p=Expand-Archive -Path "\$tempdir\\$SETUP_ZC_FILENAME" -DestinationPath "\$tempdir\ZC_Install" -Force
+if (\$? -ne \$True) {
+  Throw "Error: \$s failed."
+}
+EOF
+    if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
+      tee -a $fileserverdir/gfx_zc_setup.ps1 &>/dev/null <<EOF
+\$s='Rename Zero-Copy driver folder'
+Write-Output \$s
+\$zcname=Get-ChildItem -Path "\$tempdir\ZC_Install"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'}
+if (\$? -ne \$True) {
+  Throw "Error: No Zero-copy driver folder found at \$tempdir\ZC_Install."
+}
+\$p=Rename-Item -Path "\$tempdir\ZC_Install\\\$zcname" -NewName 'ZCBuild_MSFT_Signed' -Force
+if (\$? -ne \$True) {
+  Throw "Error: \$s failed."
+}
+EOF
+    else
+      tee -a $fileserverdir/gfx_zc_setup.ps1 &>/dev/null <<EOF
+\$s='Rename Zero-Copy installer folder'
+Write-Output \$s
+\$zcname=Get-ChildItem -Path "\$tempdir\ZC_Install"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZC_Installer_[0-9]+'}
+if (\$? -ne \$True) {
+  Throw "Error: No Zero-copy driver folder found at \$tempdir\ZC_Install."
+}
+\$p=Rename-Item -Path "\$tempdir\ZC_Install\\\$zcname" -NewName 'ZC_Installer' -Force
+if (\$? -ne \$True) {
+  Throw "Error: \$s failed."
+}
+EOF
+    fi
+    tee -a $fileserverdir/gfx_zc_setup.ps1 &>/dev/null <<EOF
 \$s='Download GFX and Zero-copy driver install script'
 Write-Output \$s
 \$p=curl.exe -fSLo "\$tempdir\zc_install.ps1" "$file_server_url/zc_install.ps1"
@@ -320,14 +748,14 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
         Write-Output 'Install Intel Graphics driver using pnputil'
         \$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\$tempdir\GraphicsDriver\iigd_dch.inf",'/install' -WorkingDirectory "\$tempdir\GraphicsDriver" -Wait -Verb RunAs -PassThru
         if (\$p.ExitCode -ne 0) {
-            Write-Error "pnputil install Graphics Driver iigd_dch.inf failure return \$p.ExitCode"
+            Write-Error "pnputil install Graphics Driver iigd_dch.inf failure return \$(\$p.ExitCode)"
             Exit \$p.ExitCode
         }
 
         Write-Output "Enable test signing"
         \$p=Start-Process bcdedit -ArgumentList "/set testsigning on" -Wait -Verb RunAs -PassThru
         if (\$p.ExitCode -ne 0) {
-            Write-Error "Enable test signing failure return \$p.ExitCode"
+            Write-Error "Enable test signing failure return \$(\$p.ExitCode)"
             Exit \$p.ExitCode
         }
 
@@ -396,9 +824,12 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
                 continue
             }
         }
+EOF
 
+      if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
+        tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
-        Set-Location -Path "\$tempdir\ZCBuild_Install\ZCBuild_MSFT_Signed"
+        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed"
         Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
@@ -416,6 +847,29 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
             Restart-Computer -Force
         }
         Exit \$LastExitCode
+EOF
+      else
+        tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
+        \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
+        Set-Location -Path "\$tempdir\ZC_Install\ZC_Installer"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer"
+        \$EAPBackup = \$ErrorActionPreference
+        \$ErrorActionPreference = 'Stop'
+        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -WorkingDirectory "\$tempdir\ZC_Install\ZC_Installer" -Wait -Verb RunAs -PassThru
+        if (\$p.ExitCode -ne 0) {
+          Write-Output "Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+          Exit \$p.ExitCode
+        }
+        \$ErrorActionPreference = \$EAPBackup
+        # check for installed driver and reboot in case zero-copy install did not reboot
+        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+            Write-Output "Force computer restart after Zero-copy driver install"
+            Restart-Computer -Force
+        }
+        Exit \$LastExitCode
+EOF
+      fi
+      tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
     }
 }
 EOF
@@ -508,9 +962,11 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
                 continue
             }
         }
-
+EOF
+      if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
+        tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
-        Set-Location -Path "\$tempdir\ZCBuild_Install\ZCBuild_MSFT_Signed"
+        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed"
         Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
@@ -528,6 +984,29 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
             Restart-Computer -Force
         }
         Exit \$LastExitCode
+EOF
+      else
+        tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
+        \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
+        Set-Location -Path "\$tempdir\ZC_Install\ZC_Installer"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer"
+        \$EAPBackup = \$ErrorActionPreference
+        \$ErrorActionPreference = 'Stop'
+        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -WorkingDirectory "\$tempdir\ZC_Install\ZC_Installer" -Wait -Verb RunAs -PassThru
+        if (\$p.ExitCode -ne 0) {
+          Write-Output "Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+          Exit \$p.ExitCode
+        }
+        \$ErrorActionPreference = \$EAPBackup
+        # check for installed driver and reboot in case zero-copy install did not reboot
+        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+            Write-Output "Force computer restart after Zero-copy driver install"
+            Restart-Computer -Force
+        }
+        Exit \$LastExitCode
+EOF
+      fi
+      tee -a $fileserverdir/zc_install.ps1 &>/dev/null <<EOF
     }
 }
 EOF
@@ -536,15 +1015,20 @@ EOF
   fi
   TMP_FILES+=("$(realpath $fileserverdir/gfx_zc_setup.ps1)")
 
-  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"
-  cp "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml" $dest_tmp_path/
+  cp "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml" "$dest_tmp_path/"
   sed -i "s|%FILE_SERVER_URL%|$file_server_url|g" $dest_tmp_path/autounattend.xml
+
+  # setup additional Windows guest installations
+  if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
+    setup_additional_installs "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" \
+      "$fileserverdir" "$file_server_url" "$dest_tmp_path/autounattend.xml" || return -1
+  fi
 
   if [[ ! -f "/tmp/${WIN_VIRTIO_ISO}" ]]; then
     echo "Download virtio-win iso"
     local is_200_okay=$(wget --server-response --content-on-error=off -O /tmp/${WIN_VIRTIO_ISO} ${WIN_VIRTIO_URL} 2>&1 | grep -c '200 OK')
     TMP_FILES+=("/tmp/${WIN_VIRTIO_ISO}")
-    if [[ $is_200_okay -ne 1 || ! -f /tmp/${WIN_VIRTIO_ISO} ]]; then
+    if [[ "$is_200_okay" -ne 1 || ! -f /tmp/${WIN_VIRTIO_ISO} ]]; then
         echo "Error: wget ${WIN_VIRTIO_URL} failure!"
         return -1
     fi
@@ -552,14 +1036,18 @@ EOF
     check_file_valid_nonzero "/tmp/${WIN_VIRTIO_ISO}"
   fi
 
-  mkisofs -o /tmp/${WIN_UNATTEND_ISO} -J -r $dest_tmp_path || return -1
+  mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return -1
   TMP_FILES+=("/tmp/${WIN_UNATTEND_ISO}")
 
   echo "$(date): Start windows guest creation and auto-installation"
-  run_file_server "$fileserverdir" $FILE_SERVER_IP $FILE_SERVER_PORT FILE_SERVER_DAEMON_PID || return -1
+  run_file_server "$fileserverdir" "$FILE_SERVER_IP" "$FILE_SERVER_PORT" FILE_SERVER_DAEMON_PID || return -1
   if [[ "$VIEWER" -eq "1" ]]; then
-    virt-viewer -w -r --domain-name ${WIN_DOMAIN_NAME} &
+    virt-viewer -w -r --domain-name "${WIN_DOMAIN_NAME}" &
     VIEWER_DAEMON_PID=$!
+  fi
+  local ovmf_option="$OVMF_DEFAULT_PATH/OVMF_VARS_4M.ms.fd"
+  if [[ $SETUP_DISABLE_SECURE_BOOT -eq 1 ]]; then
+    ovmf_option="$OVMF_DEFAULT_PATH/OVMF_VARS_4M.fd"
   fi
   virt-install \
   --name=${WIN_DOMAIN_NAME} \
@@ -574,7 +1062,7 @@ EOF
   --disk /tmp/${WIN_UNATTEND_ISO},device=cdrom \
   --disk path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME},format=qcow2,size=${WIN_DISK_SIZE},bus=virtio,cache=none \
   --os-variant win10 \
-  --boot loader=$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd,loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$OVMF_DEFAULT_PATH/OVMF_VARS_4M.ms.fd \
+  --boot loader=$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd,loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$ovmf_option \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
   --pm suspend_to_mem.enabled=off,suspend_to_disk.enabled=on \
   --features smm.state=on \
@@ -672,7 +1160,7 @@ function show_help() {
 	declare -a required_files_help
 	local required_files_help=( "${REQUIRED_FILES[@]}" )
 
-    required_files_help+=("ZCBuild_MSFT_Signed.zip")
+    required_files_help+=("ZCBuild_MSFT_Signed.zip|ZC_Installer.zip")
     required_files_help+=("Driver-Release-64-bit.[zip|7z]") 
     printf "$(basename "${BASH_SOURCE[0]}") [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]\n"
     printf "Create Windows vm required images and data to dest folder $LIBVIRT_DEFAULT_IMAGES_PATH/${WIN_DOMAIN_NAME}.qcow2\n"

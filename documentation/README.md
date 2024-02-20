@@ -19,6 +19,7 @@
     1. [VM Misc Operations](#vm-misc-operations)
     1. [VM Power Management](#vm-power-management)
     1. [Automatic VM Power Management During Host Power Management](#automatic-vm-power-management-during-host-power-management)
+    1. [VM Cloning](#vm-cloning)
 
 # Introduction
 This document contains setup and user guides for KVM (Kernel-based Virtual Machine) MultiOS Portfolio release.
@@ -209,7 +210,7 @@ Reference: [Libvirt Domain XML format: Memory allocation](https://libvirt.org/fo
 To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt toolkit on xxxx platform.
 **Note: refer to [Guest OS domain naming convention](#guest-os-domain-naming-convention) for domain
 
-        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <vnc|sriov|gvtd> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
+        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <vnc|sriov|gvtd> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p <domain> --tpm <type> (<model>) | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
 
 ### Launch_multios Script Options
 <table>
@@ -220,8 +221,9 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td>-d</td><td>&ltdomain&gt...&ltdomainN&gt</td><td>Name of all VM domain(s) to launch. Superset of domain(s) used with -p|-g options.</td></tr>
     <tr><td rowspan="3">-g</td><td>vnc &ltdomain&gt...&ltdomainN&gt</td><td>Use VNC for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Use SR-IOV for VM domains of names &ltdomain&gt...&ltdomainN&gt. Superset of domain(s) used with -m option.</td></tr>
     <tr><td>gvtd &ltdomain&gt</td><td>Use GVT-d for VM domain</td></tr>
-    <tr><td rowspan="3">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
+    <tr><td rowspan="4">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
+    <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt. Note: not supported on Android VM in this release</td></tr>
     <tr><td>&ltdomain&gt --xml &ltfile&gt</td><td>Passthrough device(s) in &ltfile&gt according to libvirt Domain XML format to VM of name &ltdomain&gt</td></tr>
     <tr><td rowspan="6">-m</td><td>&ltdomain&gt --output &ltN&gt</td><td>launch VM domain(s) use SR-IOV with number of output displays, N (range: 1-4)</td></tr>
     <tr><td>&ltdomain&gt --connectors &ltdisplay_port&gt </td><td>launch VM domain(s) on physical display connector per display output. See below for more details on acceptable values for &ltdisplay_port&gt.</td></tr>
@@ -268,9 +270,11 @@ Follow the command below to get names of hardware display ports **connected** on
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard</td><td>To force launch all guest VMs and passthrough USB Keyboard to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci wi-fi</td><td>To force launch all guest VMs and passthrough PCI WiFi to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci network controller 2</td><td>To force launch all guest VMs and passthrough the 2nd PCI Network Controller in lspci list to ubuntu guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --tpm passthrough crb</td><td>To force launch all guest VMs and passthrough TPM with crb model to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs and passthrough the device(s) in the XML file to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors HDMI-1,DP-1 --fullscreen --show-fps</td><td>To force launch windows guest VM with SR-IOV display on 2 physical displays HDMI and DP with full screen mode and fps shows on primary display</td></tr>
 </table>
 
@@ -337,3 +341,49 @@ Once host suspend/hibernate is initiated via systemctl command, all running VM w
 Upon host wake up from suspend, all previously suspended VMs will be automatically resumed.
 
 All successfully hibernated guest VM will be in "Shut off" state as shown by "virsh list" command. Such guests will automatically resume from hibernated state when restarted using launch_multios.sh as per [VM Launch](#vm-launch)
+
+## VM Cloning
+KVM MultiOS Portfolio release provides an ease of use script (./guest_setup/ubuntu/clone_guest.sh) to clone Ubuntu/Ubuntu-RT/Windows guest from an existing domain or XML file. The original guest image to be cloned must be available before using the script as per the installation procedure in [Ubuntu](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) and [Windows](windows_vm.md#automated-windows-vm-installation). In addition to the feature provided by [virt-clone](http://man.docs.sk/1/virt-clone.html), the script supports assignment of iGPU SRIOV VF used for cloned guest domain if iGPU VF is assigned in the source domain or XML file via auto or manual assignment.
+
+        Usage:
+        $ ./guest_setup/ubuntu/clone_guest.sh --help
+        clone_guest.sh [-h] [-s source_domain] [-x source_xml] [-n new_domain] [-p platform]
+        [--igpu_vf_auto start_vf_num] [--igpu_vf vf_num] [--igpu_vf_force vf_num] [--forceclean] [--forceclean_domain] [--preserve_data]
+        
+        Options:
+                -h                           Show this help message
+                -s source_domain             Source domain name to clone from, mutually exclusive with -x option
+                -x source_xml                Source XML to clone from, mutually exclusive with -o option
+                -n new_domain                New domain name
+                -p platform                  Specific platform to setup for, eg. "-p client "
+                                             Accepted values:
+                                             server
+                                             client
+                --igpu_vf_auto start_vf_num  Auto search for available vf, starting from start_vf_num to maximum available vf
+                --igpu_vf vf_num             Use vf_num for igpu sriov in the new domain only if vf_num has not been used in existing domains
+                --igpu_vf_force vf_num       Use vf_num for igpu sriov in the new domain, not considering if the vf_num has been used in existing domains
+                --forceclean                 Delete both new domain and image if already exists. Default not enabled, mutually exclusive with --preserve
+                --forceclean_domain          Delete only new domain if already exists. Default not enabled
+                --preserve_data              Preserve new domain image if already exists, create new one if not exist. Default not enabled
+        
+        Usage examples:
+        # Clone a new VM named ubuntu_x/windows_x from existing ubuntu/windows domain, auto adjust the iGPU VF to the next availability
+        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_x -p client
+        ./guest_setup/ubuntu/clone_guest.sh -s windows -n windows_x -p client
+
+        # Clone a new VM named ubuntu_x/windows_x from ubuntu_sriov.xml/windows_sriov_ovmf.xml, auto adjust the iGPU VF to the next availability
+        ./guest_setup/ubuntu/clone_guest.sh -x ubuntu_sriov.xml -n ubuntu_x -p client
+        ./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_x -p client
+
+        # Clone a new VM named ubuntu_x/windows_x from existing ubuntu/windows domain, specify the iGPU VF to be used in the new VM
+        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_x -p client --igpu_vf <vf_num>
+        ./guest_setup/ubuntu/clone_guest.sh -s windows -n windows_x -p client --igpu_vf <vf_num>
+
+New domain created will be automatically added to the platform launch_multios.sh and the domain xml saved in the libvirt_xml folder. The new domain can be launched via virsh or launch_multios.sh
+
+        # Launch ubuntu_x/windows_x via virsh
+        virsh start ubuntu_x
+        virsh start windows_x
+
+        # Launch both ubuntu/windows and ubuntu_x/windows_x via launch_multios.sh
+        ./platform/<plat>/launch_multios.sh -d ubuntu ubuntu_x windows windows_x -g sriov ubuntu ubuntu_x windows windows_x

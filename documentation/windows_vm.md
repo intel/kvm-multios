@@ -89,9 +89,34 @@ The noprompt installation iso will be generated at path specified by WinPE_Outpu
         OR
         cp <Driver-Release-64-bit.7z> ./guest_setup/ubuntu/unattend_win10/Driver-Release-64-bit.7z
 
-4. Copy required Intel GPU SR-IOV Zero-copy driver archive to guest_setup/ubuntu/unattend_win folder, renaming as below.
+4. Copy required Intel GPU SR-IOV Zero-copy driver build or installer archive to guest_setup/ubuntu/unattend_win folder, renaming as below.
 
         cp <ZCBuild_xxxx_MSFT_Signed.zip> ./guest_setup/ubuntu/unattend_win10/ZCBuild_MSFT_Signed.zip
+        OR
+        cp <ZC_Installer_xxxx.zip> ./guest_setup/ubuntu/unattend_win10/ZC_Installer.zip
+
+5. Configure any additional driver/windows installations by modifying ./guest_setup/ubuntu/unattend_win10/additional_installs.yaml.
+   Only installations which are capable of silent install without any user intervention required are supported for auto install.  
+   Additional_install.yaml file has the format as below. 
+
+        installations:
+          - name: # unique name for this installation in yaml
+            description: # description of installation
+            filename: # filename of file in guest_setup/ubuntu/unattend_win10 folder containing install file.  
+                      # If file is not present, attempt to download from download_url and rename as filename.
+                      # If download fails, auto install will be aborted.
+            download_url: # Empty string or download url to download installation file
+            install_type: # msi | exe | cab | inf
+            install_file: # path to installation msi/exe/cab/inf file(s) inside archive/folder to install with
+                          # If "path_to\*.inf" is used as file, all inf inside install_file path + subdirs will be installed
+            silent_install_option: # '' or options required to run silent installation as per installation guide
+            enable_test_sign: # yes | no.
+
+   Currently the default additional installations are provided for:
+   - Intel® Wireless Bluetooth® for IT Administrators version
+   - Intel® PROSet/Wireless Software and Drivers for IT Admins
+   - Intel® Ethernet Adapter Complete Driver Pack
+   If do not wish to have any of above additional installations, please remove accordingly in guest_setup/ubuntu/unattend_win10/additional_installs.yaml file prior to starting Windows Automated install.
 
 Now system is ready to run Windows Automated install. Run Windows automated install as per following sections based on what type of VM support is desired and whether provided Intel GPU GFX driver used for installation is WHQL certifed or non-WHQL certified aka attest-signed.
 

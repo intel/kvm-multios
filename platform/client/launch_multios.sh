@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -28,6 +28,9 @@ IMAGE_DIR="/var/lib/libvirt/images/"
 
 # Set passthrough script name
 PASSTHROUGH_SCRIPT="./libvirt_scripts/virsh_attach_device.sh"
+
+# Set tpm attach script name
+TPM_ATTACH_SCRIPT="./libvirt_scripts/libvirt_attach_tpm.sh"
 
 # Set multi display script name
 MULTI_DISPLAY_SCRIPT="./libvirt_scripts/libvirt_multi_display.sh"
@@ -84,8 +87,9 @@ function log_error() {
   echo ""
 }
 
+# Function to show help info
 function show_help() {
-  printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <vnc|sriov|gvtd> <domain>] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --xml <xml file>]\n"
+	printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <vnc|sriov|gvtd> <domain>] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                         Show the help message and exit\n"
@@ -99,6 +103,10 @@ function show_help() {
   printf "      <device>                      Name of the device (eg. mouse, keyboard, bluetooth, etc\n"
   printf "      (<number>)                    Optional, specify the 'N'th device found in the device list of 'lsusb' or 'lspci'\n"
   printf "                                    by default is the first device found\n"
+  printf "      --tpm                         Options of tpm device\n"
+  printf "      <type>                        Type of tpm backend (eg. passthrough)\n"
+  printf "      (<model>)                     Optional, specify the model of tpm (eg. crb or tis)\n"
+  printf "                                    by default is crb model\n"
   printf "  -p <domain> --xml <xml file>      Passthrough devices defined in an XML file\n"
   printf "  -m <domain>                       Name of the VM domain for multi display configuration\n"
   printf "Options for multi display:\n"
@@ -114,78 +122,7 @@ function show_help() {
   done
 }
 
-
-# Function to load SRIOV VF
-function load_sriov() {
-  export DISPLAY=:0
-  xhost +
-
-  NUMVFS=$1
-
-  vendor=$(cat /sys/bus/pci/devices/0000:00:02.0/vendor)
-  device=$(cat /sys/bus/pci/devices/0000:00:02.0/device)
-  sudo modprobe i2c-algo-bit
-  sudo modprobe video
-  echo '0' | sudo tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
-  echo $NUMVFS | sudo tee -a /sys/class/drm/card0/device/sriov_numvfs
-  echo '1' | sudo tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
-  sudo modprobe vfio-pci
-  echo "$vendor $device" | sudo tee -a /sys/bus/pci/drivers/vfio-pci/new_id || :
-
-  vfschedexecq=25
-  vfschedtimeout=500000
-
-  iov_path="/sys/class/drm/card0/iov"
-  if [[ -d "/sys/class/drm/card0/prelim_iov" ]]; then
-    iov_path="/sys/class/drm/card0/prelim_iov"
-  fi
-  local gt_name='gt0'
-  for (( i = 1; i <= $NUMVFS; i++ ))
-  do
-    if [[ -d "${iov_path}/vf$i/gt" ]]; then
-      gt_name="gt"
-    fi
-
-    echo $vfschedexecq | sudo tee -a ${iov_path}/vf$i/$gt_name/exec_quantum_ms
-    echo $vfschedtimeout | sudo tee -a ${iov_path}/vf$i/$gt_name/preempt_timeout_us
-    if [[ -d "/sys/class/drm/card0/gt/gt1" ]]; then
-      echo $vfschedexecq | sudo tee -a ${iov_path}/vf$i/gt1/exec_quantum_ms
-      echo $vfschedtimeout | sudo tee -a ${iov_path}/vf$i/gt1/preempt_timeout_us
-    fi
-  done
-}
-
-# Function to allocate/deallocate huge pages to meet the memory required by the guests
-function resize_huge_pages() {
-    required_hugepage_kb=$1
-    required_hugepage_nr=$(($required_hugepage_kb/2048))
-    free_hugepages=$(</sys/kernel/mm/hugepages/hugepages-2048kB/free_hugepages)
-    if [[ $required_hugepage_nr -gt $free_hugepages ]]; then
-        current_hugepages=$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
-        new_hugepages=$((required_hugepage_nr - free_hugepages + current_hugepages))
-        echo "Setting hugepages $new_hugepages"
-        echo $new_hugepages | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages > /dev/null
-        # Check and wait for hugepages to be allocated
-        local read_hugepages=0
-        local count=0
-        while [[ $((read_hugepages)) -ne $new_hugepages ]]
-        do
-            if [[ $((count++)) -ge 20 ]]; then
-                echo "Error: insufficient memory to allocate hugepages"
-                exit -1
-            fi
-            sleep 0.5
-            read_hugepages=$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
-        done
-    elif [[ $required_hugepage_nr -lt $free_hugepages ]]; then
-      # reduce the number of hugepages if not required
-      current_hugepages=$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
-      new_hugepages=$((current_hugepages - free_hugepages + required_hugepage_nr))
-        echo "Setting hugepages $new_hugepages"
-        echo $new_hugepages | sudo tee /sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages > /dev/null
-    fi
-}
-
+# Function to parse input arguments
 function parse_arg() {
   # Print help if no input argument found
   if [[ $# -eq 0 ]]; then
@@ -261,10 +198,12 @@ function parse_arg() {
               show_help
               exit -1
             fi
-            if [[ "$1" == "windows" ]]; then
-              VM_DOMAIN[$1]="${1}_${display}_${BIOS_WIN}.xml"
-            else
-              VM_DOMAIN[$1]="${1}_${display}.xml"
+            if [[ ! ${VM_DOMAIN[$1]} =~ ${display} ]]; then
+              if [[ "$1" == "windows" ]]; then
+                VM_DOMAIN[$1]="${1}_${display}_${BIOS_WIN}.xml"
+              else
+                VM_DOMAIN[$1]="${1}_${display}.xml"
+              fi
             fi
             shift
           done
@@ -291,7 +230,7 @@ function parse_arg() {
         shift 2
         devices=()
         # Check passthrough options
-        while [[ $# -gt 0 && ($1 == "--xml" || $1 == "--usb" || $1 == "--pci") ]]; do
+        while [[ $# -gt 0 && ($1 == "--xml" || $1 == "--usb" || $1 == "--pci" || $1 == "--tpm") ]]; do
           if [[ $1 == "--xml" ]]; then
             if [[ -z $2 || $2 == -* ]]; then
               log_error "Missing XML file name after --xml"
@@ -303,6 +242,19 @@ function parse_arg() {
           elif [[ $1 == "--usb" || $1 == "--pci" ]]; then
             if [[ -z $2 || $2 == -* ]]; then
               log_error "Missing device name after $1"
+              show_help
+              exit -1
+            fi
+            if [[ $# -lt 3 || -z $3 || $3 == -* ]]; then
+              devices+=("$1" "$2")
+              shift 2
+            else
+              devices+=("$1" "$2" "$3")
+              shift 3
+            fi
+          elif [[ $1 == "--tpm" ]]; then
+            if [[ -z $2 || $2 == -* ]]; then
+              log_error "Missing tpm passthrough parameters after $1"
               show_help
               exit -1
             fi
@@ -398,7 +350,7 @@ function check_domain() {
             ;;
           *)
             log_error "Invalid choice. Aborting launch of domain"
-            print_help
+            show_help
             exit -1
             ;;
         esac
@@ -458,19 +410,6 @@ function launch_domains() {
   for domain in "$@"; do
     check_domain "$domain"
   done
-
-  # reserve hugepages required for all domains
-  total_required_hugepage_kb=0
-  for domain in "$@"; do
-    check_file_valid_nonzero "$XML_DIR/${VM_DOMAIN[$domain]}"
-    hugepages_required=$(cat $XML_DIR/${VM_DOMAIN[$domain]} | grep \<memoryBacking\>) || :
-    if [[ ! -z "$hugepages_required" ]]; then
-      hugepage_memory_string=$(cat $XML_DIR/${VM_DOMAIN[$domain]} | grep -e "\<memory\>" -e "\<memory unit=.*\>")
-      hugepage_memory_kb=${hugepage_memory_string//[!0-9]/}
-      total_required_hugepage_kb=$((total_required_hugepage_kb + hugepage_memory_kb))
-    fi
-  done
-  resize_huge_pages $total_required_hugepage_kb
 
   for domain in "$@"; do
     # Define domain
@@ -556,6 +495,43 @@ function passthrough_devices() {
           $PASSTHROUGH_SCRIPT -p $domain $interface "$device_name" $device_number
           ;;
 
+        --tpm)
+          # TPM device passthrough
+          local tpm_backend_type="passthrough"
+          local tpm_model="crb"
+          local domain_xml_info=$(virsh dumpxml "$domain" 2>/dev/null)
+
+          if [ -z "$domain_xml_info" ]; then
+            echo "Error: Domain '$domain' does not exist or cannot be accessed."
+            exit 1
+          fi
+
+          # Process TPM device parameters
+          ((i+=1))
+          tpm_backend_type=${devices[$i]}
+          if [[ $tpm_backend_type != "passthrough" ]] || grep -q 'android' <<< "$domain_xml_info"; then
+            log_error "tpm backend type $tpm_backend_type is not supported for domain $domain"
+            show_help
+            exit -1
+          fi
+          ((i+=1))
+
+          # Process remaining parameters
+          if [[ $i -lt ${#devices[@]} && ${devices[$i]} != -* ]]; then
+            tpm_model=${devices[$i]}
+            if [[ $tpm_model != "tis" && $tpm_model != "crb" ]]; then
+              log_error "tpm passthrough model $tpm_model is invalid for domain $domain"
+              show_help
+              exit -1
+            fi
+          ((i+=1))
+          fi
+
+          # Perform TPM device passthrough
+          echo "Performing TPM device passthrough for domain $domain with type: $tpm_backend_type model: $tpm_model"
+          $TPM_ATTACH_SCRIPT -d $domain -type $tpm_backend_type -model $tpm_model
+          ;;
+
         *)
           log_error "Invalid passthrough device option: $option"
           show_help
@@ -574,9 +550,10 @@ function passthrough_devices() {
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit -1
-# Configure SRIOV if needed
+
 if [[ "$SRIOV_ENABLE" == "true" ]]; then
-  load_sriov $SRIOV_VF_NUM
+  export DISPLAY=:0
+  xhost +
 fi
 # Launch domain(s)
 launch_domains "${domains[@]}" || exit -1
