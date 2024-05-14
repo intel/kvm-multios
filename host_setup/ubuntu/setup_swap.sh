@@ -1,25 +1,25 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
 
 #---------      Global variable     -------------------
-script=$(realpath "${BASH_SOURCE[0]}")
-scriptpath=$(dirname "$script")
+#script=$(realpath "${BASH_SOURCE[0]}")
+#scriptpath=$(dirname "$script")
 
 LOG_FILE=${LOG_FILE:="/tmp/host_setup_ubuntu.log"}
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
-            echo "Error: $1 is a symlink." | tee -a $LOG_FILE
-            exit -1
+            echo "Error: $1 is a symlink." | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -27,13 +27,13 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         dpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -d $dpath ]]; then
-            echo "Error: $dpath invalid directory" | tee -a $LOG_FILE
-            exit -1
+        if [[ $? -ne 0 || ! -d "$dpath" ]]; then
+            echo "Error: $dpath invalid directory" | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -41,29 +41,29 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         fpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
-            echo "Error: $fpath invalid/zero sized" | tee -a $LOG_FILE
-            exit -1
+        if [[ $? -ne 0 || ! -f "$fpath" || ! -s "$fpath" ]]; then
+            echo "Error: $fpath invalid/zero sized" | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
 declare -F "log_func" >/dev/null || log_func() {
     declare -F "$1" >/dev/null
-    if [ $? -eq 0 ]; then
-        start=`date +%s`
-        echo -e "$(date)   start:   \t$1" >> $LOG_FILE
-        $@
+    if declare -F "$1" >/dev/null; then
+        start=$(date +%s)
+        echo -e "$(date)   start:   \t$1" >> "$LOG_FILE"
+        "$@"
         ec=$?
-        end=`date +%s`
-        echo -e "$(date)   end ($((end-start))s):\t$1" >> $LOG_FILE
+        end=$(date +%s)
+        echo -e "$(date)   end ($((end-start))s):\t$1" >> "$LOG_FILE"
         return $ec
     else
         echo "Error: $1 is not a function"
-        exit -1
+        exit 255
     fi
 }
 
@@ -71,7 +71,8 @@ function setup_swapfile() {
     # The swap size needs to be larger than the total size of RAM
 
     # check RAM size
-    local ram_total=$(free --giga | awk '{ if ($1 == "Mem:") { print $2 }}')
+    local ram_total
+    ram_total=$(free --giga | awk '{ if ($1 == "Mem:") { print $2 }}')
 
     # determine swap size needed
     # based on table from https://help.ubuntu.com/community/SwapFaq
@@ -105,13 +106,13 @@ function setup_swapfile() {
 
     for name in "${swapfile_names[@]}"; do
         if [ -f "$name" ]; then
-             swapfile=$name
+             swapfile="$name"
              break
         fi
     done
 
 
-    for ram_sz in $(for k in ${!swap_tbl[@]}; do echo $k; done | sort -n); do
+    for ram_sz in $(for k in "${!swap_tbl[@]}"; do echo "$k"; done | sort -n); do
         if [ "$ram_total" -le "$ram_sz" ]; then
             swapfile_req=${swap_tbl[$ram_sz]}
             break
@@ -128,7 +129,7 @@ function setup_swapfile() {
         # setup swapfile with required size
 
         # check free disk space
-        if [ $(df -h / | awk '{ if ($1 ~ "/dev") { print int($4) }}') -gt $swapfile_req ]; then
+        if [ "$(df -h / | awk '{ if ($1 ~ "/dev") { print int($4) }}')" -gt "$swapfile_req" ]; then
             echo "Setting up swapfile with size ${swapfile_req}G"
 
             if [ -f "$swapfile" ]; then
@@ -138,7 +139,7 @@ function setup_swapfile() {
             fi
 
             # allocate swapfile
-            sudo fallocate -l ${swapfile_req}G "$swapfile"
+            sudo fallocate -l "${swapfile_req}"G "$swapfile"
             sudo chmod 600 "$swapfile"
 
             # create swapfile
@@ -148,7 +149,7 @@ function setup_swapfile() {
             sudo swapon "$swapfile"
         else
             echo "Error: not enough free disk space for swapfile"
-            exit -1
+            exit 255
         fi
     fi
 
@@ -171,19 +172,19 @@ function setup_swapfile() {
     local cmdline
     check_file_valid_nonzero "/etc/default/grub"
     cmdline=$(sed -n -e "/.*\(GRUB_CMDLINE_LINUX=\).*/p" /etc/default/grub)
-    cmdline=$(awk -F '"' '{ print $2 }' <<< $cmdline)
+    cmdline=$(awk -F '"' '{ print $2 }' <<< "$cmdline")
 
     for cmd in "${cmds[@]}"; do
         if ! grep -q "$cmd" <<< "$cmdline"; then
             if [[ $cmd == "resume=UUID=$swap_uuid" ]]; then
-                cmdline=$(sed -r -e "s/\<resume=UUID=[A-Za-z0-9\-]*\>//g" <<< $cmdline)
+                cmdline=$(sed -r -e "s/\<resume=UUID=[A-Za-z0-9\-]*\>//g" <<< "$cmdline")
                 cmd="resume=UUID=$swap_uuid"
             fi
             if [[ "$cmd" == "resume_offset=$swap_file_offset" ]]; then
-                cmdline=$(sed -r -e "s/\<resume_offset=[0-9]*\>//g" <<< $cmdline)
+                cmdline=$(sed -r -e "s/\<resume_offset=[0-9]*\>//g" <<< "$cmdline")
                 cmd="resume_offset=$swap_file_offset"
             fi
-            cmdline=$(echo "$cmdline" "$cmd")
+            cmdline="$cmdline $cmd"
             updated=1
         fi
     done
@@ -204,12 +205,13 @@ function setup_swapfile() {
     fi
 
     reboot_required=1
+    export reboot_required
 }
 
 #-------------    main processes    -------------
 trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' ERR
 
 # Setup swapfile to allow for hibernate
-log_func setup_swapfile || exit -1
+log_func setup_swapfile || exit 255
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

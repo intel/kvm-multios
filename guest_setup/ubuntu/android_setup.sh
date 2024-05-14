@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 #
 
@@ -26,11 +26,11 @@ declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
             echo "Error: $1 is a symlink."
-            exit -1
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -40,20 +40,21 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
         fpath=$(realpath "$1")
         if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
             echo "Error: $fpath invalid/zero sized"
-            exit -1
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
 function check_host_distribution() {
-    local dist=$(lsb_release -d)
+    local dist
+    dist=$(lsb_release -d)
 
     if [[ ! $dist =~ "Ubuntu" ]]; then
         echo "Error: only Ubuntu is supported!"
-        return -1
+        return 255
     fi
 }
 
@@ -73,14 +74,15 @@ function print_info() {
 
 function setup_relfiles_path() {
 
-    check_file_valid_nonzero $1
-    local rel_file=$(realpath -L $1)
+    check_file_valid_nonzero "$1"
+    local rel_file
+    rel_file=$(realpath -L "$1")
 
-    if [[ -f $rel_file  ]]; then
+    if [[ -f "$rel_file" ]]; then
         RELFILE=$rel_file
     else
         echo "Error: Invalid releasefiles archive provided."
-        return -1
+        return 255
     fi
 
     return 0
@@ -88,29 +90,30 @@ function setup_relfiles_path() {
 
 function uncompress_relfiles() {
 
-    if [ ! -z $RELFILE ]; then
-        if [[ -d $RELFILE_OUT ]]; then
+    if [ -n "$RELFILE" ]; then
+        if [[ -d "$RELFILE_OUT" ]]; then
             echo "Removing existing $RELFILE_OUT"
-            sudo rm -rf $RELFILE_OUT
+            sudo rm -rf "$RELFILE_OUT"
         fi
-        mkdir -p $RELFILE_OUT
+        mkdir -p "$RELFILE_OUT"
         echo "Uncompressing $RELFILE to $RELFILE_OUT"
-        tar -xvf $RELFILE -C $RELFILE_OUT >& /dev/null
+        tar -xvf "$RELFILE" -C "$RELFILE_OUT" >& /dev/null
     fi
 
     return 0
 }
 
 function install_dep () {
-    local working_dir=$(pwd)
+    local working_dir
+    working_dir=$(pwd)
     local target_qemu_version="7.1.0"
 
-    if [[ ! -d $RELFILE_OUT  || ! -f "$RELFILE_OUT/scripts/setup_host.sh" ]]; then
+    if [[ ! -d "$RELFILE_OUT"  || ! -f "$RELFILE_OUT/scripts/setup_host.sh" ]]; then
         echo "Error: expected Celadon installation folder/files not found!"
-        return -1
+        return 255
     fi 
     
-    cd $RELFILE_OUT
+    cd "$RELFILE_OUT"
     cat /dev/null > /tmp/setup_host.sh
     sed -n -e '/show_help/,$!p' ./scripts/setup_host.sh > /tmp/setup_host.sh
     echo "Ensure using QEMU $target_qemu_version..."
@@ -144,11 +147,12 @@ function install_dep () {
     fi
     chmod +x /tmp/setup_host.sh
 
+    # shellcheck source=/dev/null
     source /tmp/setup_host.sh
-    if [[ $ENABLE_QEMU_FROM_SRC -eq "1" ]]; then
-        if [[ -z $(echo $QEMU_REL | grep $target_qemu_version) ]]; then
+    if [[ "$ENABLE_QEMU_FROM_SRC" -eq "1" ]]; then
+        if echo "$QEMU_REL" | grep -q "$target_qemu_version"; then
             echo "Incorrect QEMU version selected for install."
-            return -1
+            return 255
         fi
     fi
 
@@ -156,120 +160,122 @@ function install_dep () {
     sudo apt update
 
     echo "Installing Celadon VM dependencies"
-    check_os || return -1
-    check_network || return -1
-    check_kernel_version || return -1
+    check_os || return 255
+    check_network || return 255
+    check_kernel_version || return 255
 
-    ubu_changes_require || return -1
+    ubu_changes_require || return 255
     if [[ $ENABLE_QEMU_FROM_SRC -eq "1" ]]; then
-        ubu_install_qemu_gvt || return -1
+        ubu_install_qemu_gvt || return 255
         installed_qemu_version=$(qemu-system-x86_64 -version | grep "$target_qemu_version")
         if [[ -z $installed_qemu_version ]]; then
             echo "Error: expected qemu-system-x86_64 version not present after install"
-            return -1
+            return 255
         fi
     fi
-	set +u
-    ubu_build_ovmf_gvt || return -1
-	set -u
-    edk2_build_fv=$RELFILE_OUT/edk2/Build/OvmfX64/DEBUG_GCC5/FV
-    echo $edk2_build_fv
-    if [[ ! -f $edk2_build_fv/OVMF_CODE.fd || ! -f $edk2_build_fv/OVMF_VARS.fd ]]; then
+    set +u
+    ubu_build_ovmf_gvt || return 255
+    set -u
+    edk2_build_fv="$RELFILE_OUT"/edk2/Build/OvmfX64/DEBUG_GCC5/FV
+    echo "$edk2_build_fv"
+    if [[ ! -f "$edk2_build_fv/OVMF_CODE.fd" || ! -f $edk2_build_fv/OVMF_VARS.fd ]]; then
         echo "Error: expected OVMF files not present after install"    
-        return -1
+        return 255
     fi
 
-    prepare_required_scripts || return -1
+    prepare_required_scripts || return 255
 
     # check rpmb_dev is able to run
-    if [[ ! -z $($RELFILE_OUT/scripts/rpmb_dev 2>&1 | grep 'libcrypto.so.1.1') ]]; then
+    # shellcheck disable=2143
+    if [[ -n $("$RELFILE_OUT/scripts/rpmb_dev" 2>&1 | grep 'libcrypto.so.1.1') ]]; then
         # Note: Not required for latest CIV_13
         sudo add-apt-repository -y 'deb http://security.ubuntu.com/ubuntu focal-security main'
         sudo apt install -y libssl1.1
         sudo add-apt-repository -y --remove 'deb http://security.ubuntu.com/ubuntu focal-security main'
     fi
 
-    ubu_update_bt_fw || return -1
+    ubu_update_bt_fw || return 255
 
-    cd $working_dir
+    cd "$working_dir"
     return 0
 }
 
 function setup_zip_flashfiles_path() {
 
-    check_file_valid_nonzero $1
-    local zip_file=$(realpath -L $1)
-    local zip_test=$(file $zip_file | grep -i "Zip archive data")
+    check_file_valid_nonzero "$1"
+    local zip_file
+    zip_file=$(realpath -L "$1")
+    local zip_test
+    zip_test=$(file "$zip_file" | grep -i "Zip archive data")
 
-    if [[ $zip_test != "" ]]; then
+    if [[ "$zip_test" != "" ]]; then
         echo "Checking $1 is valid flashfiles archive..."
-        unzip -tq $zip_file
-        if [[ $? -ne 0 ]]; then
+        if ! unzip -tq "$zip_file"; then
             echo "Error: Invalid zip archive provided: $1"
-            return -1
+            return 255
         fi
-        local boot_img=$(unzip -l $zip_file | grep boot.img)
-        if [[ -z $boot_img ]]; then
+        local boot_img
+        boot_img=$(unzip -l "$zip_file" | grep boot.img)
+        if [[ -z "$boot_img" ]]; then
             echo "Error: No boot.img found in provide zip archive $1"
-            return -1
+            return 255
         fi
-        FLASHFILES_ZIP=$zip_file
+        FLASHFILES_ZIP="$zip_file"
     else
         echo "Error: Invalid flashfiles zip archive provided $1"
-        return -1
+        return 255
     fi
 
     return 0
 }
 
 function setup_android_images() {
-    if [[ -z ${LIBVIRT_DOMAIN_NAME+x} || -z $LIBVIRT_DOMAIN_NAME || -z ${FLASHFILES_ZIP+x} || -z $FLASHFILES_ZIP ]]; then
+    if [[ -z "${LIBVIRT_DOMAIN_NAME+x}" || -z "$LIBVIRT_DOMAIN_NAME" || -z "${FLASHFILES_ZIP+x}" || -z "$FLASHFILES_ZIP" ]]; then
         echo "Error: Missing required arguments."
-        return -1
+        return 255
     fi
-    if [[ ! -f $RELFILE_OUT/scripts/rpmb_dev ]]; then
+    if [[ ! -f "$RELFILE_OUT/scripts/rpmb_dev" ]]; then
         echo "Error: Missing rpmb_dev in releasefiles decompress dest folder: $RELFILE_OUT"
-        return -1
+        return 255
     fi
 
     # setup per vm hook 
-    if [[ -z ${SYSCONFDIR+x} || -z $SYSCONFDIR ]]; then
-        hook_path=/etc/libvirt/hooks
+    if [[ -z "${SYSCONFDIR+x}" || -z "$SYSCONFDIR" ]]; then
+        hook_path="/etc/libvirt/hooks"
     else
-        hook_path=$SYSCONFDIR/libvirt/hooks
+        hook_path="$SYSCONFDIR/libvirt/hooks"
     fi
-    if [[ ! -d $hook_path/qemu.d ]]; then
-        sudo mkdir -p $hook_path/qemu.d
+    if [[ ! -d "$hook_path/qemu.d" ]]; then
+        sudo mkdir -p "$hook_path/qemu.d"
     fi
 
-    local folder_path=$LIBVIRT_DEFAULT_IMAGES_PATH/$LIBVIRT_DOMAIN_NAME
-    local tmp_folder_path=/tmp/libvirt-img-$LIBVIRT_DOMAIN_NAME
+    local folder_path="$LIBVIRT_DEFAULT_IMAGES_PATH/$LIBVIRT_DOMAIN_NAME"
+    local tmp_folder_path="/tmp/libvirt-img-$LIBVIRT_DOMAIN_NAME"
     local flashfiles=$FLASHFILES_ZIP
-    local decompress=$tmp_folder_path/flashfiles_decompress
+    local decompress="$tmp_folder_path/flashfiles_decompress"
 
-    if [[ -d $folder_path && $FORCECLEAN == "1" ]]; then
+    if [[ -d "$folder_path" && "$FORCECLEAN" == "1" ]]; then
         echo "Force removing dest folder $folder_path..."
-        sudo rm -rf $folder_path
+        sudo rm -rf "$folder_path"
     fi
-    if [[ -d $hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME && $FORCECLEAN == "1" ]]; then
+    if [[ -d "$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME" && $FORCECLEAN == "1" ]]; then
         echo "Force removing dest vm hooks folder $hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME..."
-        sudo rm -rf $hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME
+        sudo rm -rf "$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME"
     fi
-    if [[ ! -d $tmp_folder_path ]]; then
-        mkdir -p $tmp_folder_path
+    if [[ ! -d "$tmp_folder_path" ]]; then
+        mkdir -p "$tmp_folder_path"
     fi
     echo "Create VM qcow2 image..."
-    if [[ -f $tmp_folder_path/android.qcow2 ]]; then
-        rm $tmp_folder_path/android.qcow2
+    if [[ -f "$tmp_folder_path/android.qcow2" ]]; then
+        rm "$tmp_folder_path/android.qcow2"
     fi
-    qemu-img create -f qcow2 $tmp_folder_path/android.qcow2 40G
-    if [[ $? -ne 0 ]]; then
+    if ! qemu-img create -f qcow2 "$tmp_folder_path/android.qcow2" 40G; then
         echo "Error: Unable to create qcow2 image."
-        return -1
+        return 255
     fi
 
-    if [[ ! -d $tmp_folder_path/vtpm0 ]]; then
-        mkdir -p $tmp_folder_path/vtpm0
+    if [[ ! -d "$tmp_folder_path/vtpm0" ]]; then
+        mkdir -p "$tmp_folder_path/vtpm0"
     fi
     # update appamor rules to vtpm0 folder
     if ! grep -Fq "owner $folder_path/vtpm0/* rwk," /etc/apparmor.d/usr.bin.swtpm; then
@@ -278,22 +284,22 @@ function setup_android_images() {
         sudo apparmor_parser -r /etc/apparmor.d/usr.bin.swtpm
     fi
 
-    if [[ ! -d $tmp_folder_path/aaf ]]; then
-        mkdir -p $tmp_folder_path/aaf
+    if [[ ! -d "$tmp_folder_path/aaf" ]]; then
+        mkdir -p "$tmp_folder_path/aaf"
     fi
-    touch $tmp_folder_path/aaf/mixins.spec
-    if [ -z $(grep "suspend" $folder_path/aaf/mixins.spec) ]; then
-        echo "suspend:$ENABLE_SUSPEND" >> $tmp_folder_path/aaf/mixins.spec
+    touch "$tmp_folder_path/aaf/mixins.spec"
+    if grep -q "suspend" "$folder_path/aaf/mixins.spec"; then
+        echo "suspend:$ENABLE_SUSPEND" >> "$tmp_folder_path/aaf/mixins.spec"
     fi
 
     # copy rpmb_dev
-    if [[ ! -f $tmp_folder_path/rpmb_dev ]]; then
-        cp $RELFILE_OUT/scripts/rpmb_dev $tmp_folder_path/
+    if [[ ! -f "$tmp_folder_path/rpmb_dev" ]]; then
+        cp "$RELFILE_OUT/scripts/rpmb_dev" "$tmp_folder_path/"
     fi
 
     # Create per-VM CIV dependencies run script(s)
     # Begin civ dependency setup: rpmb_dev
-    tee $tmp_folder_path/run_civ_rpmb_dev.sh &>/dev/null <<EOF
+    tee "$tmp_folder_path/run_civ_rpmb_dev.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
 # Copyright (c) 2023 Intel Corporation.
@@ -340,8 +346,8 @@ EOF
 
     # create per-VM dependencies systemd service
     service_file=libvirt-$LIBVIRT_DOMAIN_NAME-rpmb-dev.service
-    cat /dev/null | sudo tee /etc/systemd/system/$service_file
-    sudo tee /etc/systemd/system/$service_file &>/dev/null <<EOF
+    sudo truncate -s 0 "/etc/systemd/system/$service_file"
+    sudo tee "/etc/systemd/system/$service_file" &>/dev/null <<EOF
 #
 # Copyright (c) 2023 Intel Corporation.
 # All rights reserved.
@@ -364,33 +370,33 @@ EOF
     sudo systemctl disable $service_file
 
     # Create per-VM hooks for dependency
-    per_vm_hook=$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin
-    sudo mkdir -p $per_vm_hook
-    sudo tee $per_vm_hook/civ_rpmb_dev.sh &>/dev/null <<EOF
+    per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin"
+    sudo mkdir -p "$per_vm_hook"
+    sudo tee "$per_vm_hook/civ_rpmb_dev.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 #
 systemctl start $service_file
 
 wait_cnt=0
-while [ -z \$(pgrep -f "\$folder_path/rpmb_dev") ]
+while [ -z \$(pgrep -f "$folder_path/rpmb_dev") ]
 do
   sleep 1
   (( wait_cnt++ ))
   if [ \$wait_cnt -ge 10 ]; then
     echo "E: Failed to setup virtual RPMB device!" >&2
-    exit -1
+    exit 255
   fi
 done
 EOF
-    sudo chmod +x $per_vm_hook/civ_rpmb_dev.sh
+    sudo chmod +x "$per_vm_hook/civ_rpmb_dev.sh"
 
     # Create per-VM hook for stop dependencies
-    per_vm_hook=$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/release/end
-    sudo mkdir -p $per_vm_hook
-    sudo tee $per_vm_hook/civ_rpmb_dev.sh &>/dev/null <<EOF
+    per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/release/end"
+    sudo mkdir -p "$per_vm_hook"
+    sudo tee "$per_vm_hook/civ_rpmb_dev.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
 # Copyright (c) 2023 Intel Corporation.
@@ -398,11 +404,11 @@ EOF
 #
 systemctl stop $service_file
 EOF
-    sudo chmod +x $per_vm_hook/civ_rpmb_dev.sh
+    sudo chmod +x "$per_vm_hook/civ_rpmb_dev.sh"
     # End civ dependency setup: rpmb_dev
 
     # Begin civ dependency setup: swtpm
-    tee $tmp_folder_path/run_civ_swtpm.sh &>/dev/null <<EOF
+    tee "$tmp_folder_path/run_civ_swtpm.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
 # Copyright (c) 2023 Intel Corporation.
@@ -423,8 +429,8 @@ setup_swtpm
 EOF
 
     service_file=libvirt-$LIBVIRT_DOMAIN_NAME-swtpm.service
-    cat /dev/null | sudo tee /etc/systemd/system/$service_file
-    sudo tee /etc/systemd/system/$service_file &>/dev/null <<EOF
+    sudo truncate -s 0 "/etc/systemd/system/$service_file"
+    sudo tee "/etc/systemd/system/$service_file" &>/dev/null <<EOF
 #
 # Copyright (c) 2023 Intel Corporation.
 # All rights reserved.
@@ -447,9 +453,9 @@ EOF
     sudo systemctl disable $service_file
 
     # Create per-VM hooks for dependency
-    per_vm_hook=$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin
-    sudo mkdir -p $per_vm_hook
-    sudo tee $per_vm_hook/civ_swtpm.sh &>/dev/null <<EOF
+    per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin"
+    sudo mkdir -p "$per_vm_hook"
+    sudo tee "$per_vm_hook/civ_swtpm.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
 # Copyright (c) 2023 Intel Corporation.
@@ -458,12 +464,12 @@ EOF
 systemctl start $service_file
 
 EOF
-    sudo chmod +x $per_vm_hook/civ_swtpm.sh
+    sudo chmod +x "$per_vm_hook/civ_swtpm.sh"
 
     # Create per-VM hook for stop dependencies
-    per_vm_hook=$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/release/end
-    sudo mkdir -p $per_vm_hook
-    sudo tee $per_vm_hook/civ_swtpm.sh &>/dev/null <<EOF
+    per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/release/end"
+    sudo mkdir -p "$per_vm_hook"
+    sudo tee "$per_vm_hook/civ_swtpm.sh" &>/dev/null <<EOF
 #!/usr/bin/env bash
 #
 # Copyright (c) 2023 Intel Corporation.
@@ -471,113 +477,123 @@ EOF
 #
 systemctl stop $service_file
 EOF
-    sudo chmod +x $per_vm_hook/civ_swtpm.sh
+    sudo chmod +x "$per_vm_hook/civ_swtpm.sh"
     # End civ dependency setup: swtpm
 
     # copy Celadon built OVMF_4M if any
-    edk2_build_fv=$RELFILE_OUT/edk2/Build/OvmfX64/DEBUG_GCC5/FV
-    if [[ -f $edk2_build_fv/OVMF_CODE.fd && \
-          -f $edk2_build_fv/OVMF_VARS.fd ]]; then
-        mkdir -p $tmp_folder_path/OVMF
-        cp $edk2_build_fv/OVMF_CODE.fd $edk2_build_fv/OVMF_VARS.fd $tmp_folder_path/OVMF/
+    edk2_build_fv="$RELFILE_OUT/edk2/Build/OvmfX64/DEBUG_GCC5/FV"
+    if [[ -f "$edk2_build_fv/OVMF_CODE.fd" && \
+          -f "$edk2_build_fv/OVMF_VARS.fd" ]]; then
+        mkdir -p "$tmp_folder_path/OVMF"
+        cp "$edk2_build_fv/OVMF_CODE.fd" "$edk2_build_fv/OVMF_VARS.fd" "$tmp_folder_path/OVMF/"
     else
         echo "No EDK2 build in releasefiles decompress dest folder: $RELFILE_OUT"
-        return -1
+        return 255
     fi
 
     if [[ -z $(which mcopy) ]]; then
         sudo apt install -y mtools
     fi
 
-    if [[ -d $decompress ]]; then
-        rm -rf $decompress
+    if [[ -d "$decompress" ]]; then
+        rm -rf "$decompress"
     fi
-    mkdir $decompress
-    unzip $flashfiles -d $decompress
-    if [[ $? -ne 0 ]]; then
+    mkdir "$decompress"
+    if ! unzip "$flashfiles" -d "$decompress"; then
         echo "Error: Unable to unzip flashfiles archive provided."
-        return -1
+        return 255
     fi
 
-    if [[ -f $decompress/boot.img ]]; then
+    if [[ -f "$decompress/boot.img" ]]; then
         G_size=$((1<<32))
-        for i in `ls $decompress`; do
-            size=$(stat -c %s "$decompress/"$i)
+        local -a decompress_files=()
+        mapfile -t decompress_files < <(find "$decompress" -maxdepth 1 -type f -printf "%f\n")
+        for i in "${decompress_files[@]}"; do
+            size=$(stat -c %s "$decompress/$i")
             if [[ $size -gt $G_size ]]; then
                 echo "Split $i due to its size bigger than 4G"
-                split --bytes=$((G_size-1)) --numeric-suffixes "$decompress/"$i "$decompress/"$i.part
-                rm "$decompress/"$i
+                split --bytes=$((G_size-1)) --numeric-suffixes "$decompress/$i" "$decompress/$i.part"
+                rm "$decompress/$i"
             fi
         done
 
-        dd if=/dev/zero of=$tmp_folder_path/flash.vfat bs=63M count=160
-        mkfs.vfat $tmp_folder_path/flash.vfat
-        mcopy -i $tmp_folder_path/flash.vfat $decompress/* ::
-
-        if [[ $? -ne 0 ]]; then
+        dd if=/dev/zero of="$tmp_folder_path/flash.vfat" bs=63M count=160
+        mkfs.vfat "$tmp_folder_path/flash.vfat"
+        if ! mcopy -i "$tmp_folder_path/flash.vfat" "$decompress"/* ::; then
             echo "Error: unable to create flash.vfat image."
-            return -1
+            return 255
         fi
         
     else
         echo "Error: no boot.img found in decompressed archive"
-        return -1
+        return 255
     fi
 
-    rm -rf $decompress
+    rm -rf "$decompress"
 
     # Copy created img folder to dest
-    sudo mkdir -p $folder_path
-    sudo cp -R $tmp_folder_path/* $folder_path/
-    rm -rf $tmp_folder_path
+    sudo mkdir -p "$folder_path"
+    sudo cp -R "$tmp_folder_path"/* "$folder_path/"
+    rm -rf "$tmp_folder_path"
 
     return 0
 }
 
 function create_android_vm_xml() {
-    if [[ "$#" -eq "2" && ! -z ${1+x} && ! -z "$1" && ! -z ${2+x} && ! -z "$2" ]]; then
+    if [[ "$#" -eq "2" && -n ${1+x} && -n "$1" && -n ${2+x} && -n "$2" ]]; then
         if [[ "$1" != "android" ]]; then
             echo "Creating Android VM XML..."
             local newdomain=$1
             local platform=$2
-            local xmlpath=$(realpath $scriptpath/../../platform/$platform/libvirt_xml)
-            local xmlfiles=$(find $xmlpath -iname "android_*.xml")
-            local max_vfs=$(</sys/bus/pci/devices/0000\:00\:02.0/sriov_totalvfs)
-            local used_vfs=()
-            if [[ ! -d $xmlpath ]]; then
+            local xmlpath
+            xmlpath=$(realpath "$scriptpath/../../platform/$platform/libvirt_xml")
+            local -a xmlfiles=()
+            mapfile -t xmlfiles < <(find "$xmlpath" -iname "android_*.xml")
+            local max_vfs
+            max_vfs=$(</sys/bus/pci/devices/0000:00:02.0/sriov_totalvfs)
+            local -a used_vfs=()
+            if [[ ! -d "$xmlpath" ]]; then
                 echo "Cannot find platform $platform libvirt_xml path $xmlpath!"
-                return -1
+                return 255
             fi
-            sriovxmlfiles=$(find $xmlpath -type f -iname \*_sriov.xml -exec grep -le 'id=\"http:\/\/www.android.com\/android-[0-9]*\/\"' {} \;)
-            for file in ${sriovxmlfiles}; do
-                local vf=$(xmllint --xpath "string(//domain/devices/hostdev/source/address[@domain='0' and @bus='0' and @slot='2']/@function)" $file)
-                used_vfs+=($vf)
+            local -a sriovxmlfiles=()
+            mapfile -t sriovxmlfiles < <(find "$xmlpath" -type f -iname \*_sriov.xml -exec grep -le 'id=\"http:\/\/www.android.com\/android-[0-9]*\/\"' {} \;)
+            for file in "${sriovxmlfiles[@]}"; do
+                local vf
+                vf=$(xmllint --xpath "string(//domain/devices/hostdev/source/address[@domain='0' and @bus='0' and @slot='2']/@function)" "$file")
+                used_vfs+=("$vf")
             done
-            for file in ${xmlfiles}; do
-                local filename=$(basename $file)
-                local variant=$(echo $filename | awk -F[_.] '{ print $2 }')
+            for file in "${xmlfiles[@]}"; do
+                local filename
+                filename=$(basename "$file")
+                local variant
+                variant=$(echo "$filename" | awk -F[_.] '{ print $2 }')
                 local newfilename="$newdomain""_""$variant.xml"
                 echo "Creating $newfilename from $file"
-                cp $file $xmlpath/$newfilename
+                cp "$file" "$xmlpath/$newfilename"
                 # update paths etc for new domain
-                sed -i "s|$LIBVIRT_DEFAULT_IMAGES_PATH/android/|$LIBVIRT_DEFAULT_IMAGES_PATH/$newdomain/|" $xmlpath/$newfilename
+                sed -i "s|$LIBVIRT_DEFAULT_IMAGES_PATH/android/|$LIBVIRT_DEFAULT_IMAGES_PATH/$newdomain/|" "$xmlpath"/"$newfilename"
                 if [ "$variant" == "install" ]; then
-                    sed -i -r "s|<name>(.*)</name>|<name>"$newdomain""_install"</name>|" $xmlpath/$newfilename
+                    sed -i -r "s|<name>(.*)</name>|<name>""$newdomain""_install""</name>|" "$xmlpath"/"$newfilename"
                 else
-                    sed -i -r "s|<name>(.*)</name>|<name>$newdomain</name>|" $xmlpath/$newfilename
+                    sed -i -r "s|<name>(.*)</name>|<name>$newdomain</name>|" "$xmlpath"/"$newfilename"
                 fi
-                sed -i -r "s|android-serial0.log|$newdomain-serial0.log|" $xmlpath/$newfilename
+                sed -i -r "s|android-serial0.log|$newdomain-serial0.log|" "$xmlpath"/"$newfilename"
                 # generate a random mac address
-                local sigbyte=$(od -txC -An -N1 /dev/random | tr -d [:space:])
-                sigbyte=$( printf "%02x\n" "$(( 0x$sigbyte & ~3 ))" )
-                local macbytes="$sigbyte $(od -txC -An -N5 /dev/random)"
-                local macstr=$(echo $macbytes | tr ' ' :)
-                xmlstarlet ed -L --update "//domain/devices/interface[@type='network']/mac/@address" --value "$macstr" $xmlpath/$newfilename
+                local sigbyte
+                sigbyte=$(od -txC -An -N1 /dev/random | tr -d '[:space:]')
+                sigbyte=$(printf "%02x\n" "$(( 0x$sigbyte & ~3 ))")
+                local macbytes
+                macbytes="$sigbyte$(od -txC -An -N5 /dev/random)"
+                local macstr
+                macstr=$(echo "$macbytes" | tr ' ' :)
+                xmlstarlet ed -L --update "//domain/devices/interface[@type='network']/mac/@address" --value "$macstr" "$xmlpath/$newfilename"
                 if [ "$variant" == "sriov" ]; then
                     # set to unused VF of same os
-                    local new_vf=($(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq 1 $max_vfs)))
-                    xmlstarlet ed -L --update "//domain/devices/hostdev/source/address[@domain='0' and @bus='0' and @slot='2']/@function" --value "$new_vf" $xmlpath/$newfilename
-                    used_vfs+=($new_vf)
+                    local -a new_vf
+                    mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq 1 "$max_vfs"))
+                    xmlstarlet ed -L --update "//domain/devices/hostdev/source/address[@domain='0' and @bus='0' and @slot='2']/@function" --value "${new_vf[0]}" "$xmlpath"/"$newfilename"
+                    used_vfs+=("${new_vf[0]}")
                 fi
             done
         fi
@@ -585,43 +601,46 @@ function create_android_vm_xml() {
 }
 
 function install_android_vm() {
-    if [[ "$#" -eq "2" && ! -z ${1+x} && ! -z "$1" && ! -z ${2+x} && ! -z "$2" ]]; then
+    if [[ "$#" -eq "2" && -n ${1+x} && -n "$1" && -n ${2+x} && -n "$2" ]]; then
         echo "Starting Android VM installation..."
         local name=$1
         local platform=$2
-        local xmlpath=$(realpath $scriptpath/../../platform/$platform/libvirt_xml)
+        local xmlpath
+        xmlpath=$(realpath "$scriptpath"/../../platform/"$platform"/libvirt_xml)
         local xmlname="$name""_install"
-        local xmlfile=$(realpath "$xmlpath/$xmlname.xml")
-        if [[ ! -d $xmlpath || ! -f $xmlfile ]]; then
+        local xmlfile
+        xmlfile=$(realpath "$xmlpath/$xmlname.xml")
+        if [[ ! -d "$xmlpath" || ! -f "$xmlfile" ]]; then
             echo "Cannot find $xmlname.xml in platform $platform libvirt_xml path $xmlpath!"
-            return -1
+            return 255
         fi
-        if [[ ! -z $(sudo virsh list --all | grep "$name""_install") ]]; then
+        if sudo virsh list --all | grep -q "$name""_install"; then
             sudo virsh undefine --nvram "$name""_install"
         fi
         sudo virsh list --all | grep "$name""_install"
-        sudo virsh define $xmlfile || return -1
+        sudo virsh define "$xmlfile" || return 255
         echo "Installing Android into VM storage"
-        sudo virsh start $xmlname || return -1
-        sudo virsh console $xmlname || return -1
-        sudo virsh undefine --nvram $xmlname || return -1
+        sudo virsh start "$xmlname" || return 255
+        sudo virsh console "$xmlname" || return 255
+        sudo virsh undefine --nvram "$xmlname" || return 255
     fi
 }
 
 function update_launch_multios() {
-    if [[ "$#" -eq "2" && ! -z ${1+x} && ! -z "$1" && ! -z ${2+x} && ! -z "$2" ]]; then
+    if [[ "$#" -eq "2" && -n ${1+x} && -n "$1" && -n ${2+x} && -n "$2" ]]; then
         if [[ "$1" != "android" ]]; then
             local name=$1
             local platform=$2
             echo "Add domain $name for platform $platform launch_multios.sh"
-            local file=$(realpath $scriptpath/../../platform/$platform/launch_multios.sh)
-            if [ ! -f $file ]; then
+            local file
+            file=$(realpath "$scriptpath/../../platform/$platform/launch_multios.sh")
+            if [ ! -f "$file" ]; then
                 echo "Cannot find $file for platform $platform!"
-                return -1
+                return 255
             fi
-            if ! grep -Fq "[\"$name\"]=" $file; then
+            if ! grep -Fq "[\"$name\"]=" "$file"; then
                 sed -i -e "/\[\"android\"\]=/i \
-                    \[\"$name\"\]=\""$name"_sriov.xml\"" "$file"
+                    \[\"$name\"\]=\"""$name""_sriov.xml\"" "$file"
             fi
         fi
     fi
@@ -630,14 +649,15 @@ function update_launch_multios() {
 
 function get_supported_platform_names() {
     local -n arr=$1
-    local platpaths=( $(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d) )
+    local -a platpaths
+    mapfile -t platpaths < <(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d)
     for p in "${platpaths[@]}"; do
-        arr+=( $(basename $p) )
+        arr+=( "$(basename "$p")" )
     done
 }
 
 function set_platform_name() {
-    local platforms=()
+    local -a platforms=()
     local platform
 
     platform=$1
@@ -651,19 +671,21 @@ function set_platform_name() {
     done
 
     echo "Error: $platform is not a supported platform"
-    return -1
+    return 255
 }
 
 function invoke_platform_android_setup() {
     local platform=$1
-    local osname=$(basename $scriptpath)
+    local osname
+    osname=$(basename "$scriptpath")
     local platpath="$scriptpath/../../platform/$platform/guest_setup/$osname"
-    if [ -d $platpath ] ; then
+    if [ -d "$platpath" ] ; then
         platpath=$(realpath "$platpath")
         if [ -f "$platpath/android_setup.sh" ]; then
-            rscriptpath=$(realpath $platpath/android_setup.sh)
+            rscriptpath=$(realpath "$platpath/android_setup.sh")
             echo "Invoking $platform script $rscriptpath"
-            source $rscriptpath
+            # shellcheck source=/dev/null
+            source "$rscriptpath"
         fi
     fi
 }
@@ -671,8 +693,8 @@ function invoke_platform_android_setup() {
 function show_help() {
     local platforms=()
 
-    printf "$(basename "${BASH_SOURCE[0]}") [-h] [-f] [-n] [-p] [-r] [-t] [--noinstall] [--forceclean] [--dupxml] [--qemufromsrc]\n"
-    printf "Installs Celadon system dependencies and create android vm images from CIV releasefiles archive to dest folder $LIBVIRT_DEFAULT_IMAGES_PATH/<vm_domain_name>\n"
+    printf "%s [-h] [-f] [-n] [-p] [-r] [-t] [--noinstall] [--forceclean] [--dupxml] [--qemufromsrc]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "Installs Celadon system dependencies and create android vm images from CIV releasefiles archive to dest folder %s/<vm_domain_name>\n" "$LIBVIRT_DEFAULT_IMAGES_PATH"
     printf "Options:\n"
     printf "\t-h            Show this help message\n"
     printf "\t-r            Celadon releasefiles archive file. \"-r caas-releasefiles-userdebug.tar.gz\". If option is present, any existing dest folder will be deleted.\n"
@@ -683,7 +705,7 @@ function show_help() {
     printf "\t              Accepted values:\n"
     get_supported_platform_names platforms
     for p in "${platforms[@]}"; do
-    printf "\t                $(basename $p)\n"
+    printf "\t                %s\n" "$(basename "$p")"
     done
     printf "\t--noinstall   Only rebuild Android per vm required images and data output. Needs folder specified by -t option to be present and with valid contents.\n"
     printf "\t--forceclean  Delete android VM dest folder if exists. Default not enabled\n"
@@ -701,27 +723,27 @@ function parse_arg() {
                 ;;
 
             -n)
-                LIBVIRT_DOMAIN_NAME=$2
+                LIBVIRT_DOMAIN_NAME="$2"
                 shift
                 ;;
 
             -r)
-                setup_relfiles_path $2 || return -1
+                setup_relfiles_path "$2" || return 255
                 shift
                 ;;
 
             -t)
-                RELFILE_OUT=$(realpath $2)
+                RELFILE_OUT=$(realpath "$2")
                 shift
                 ;;
 
             -f)
-                setup_zip_flashfiles_path $2
+                setup_zip_flashfiles_path "$2"
                 shift
                 ;;
 
             -p)
-                set_platform_name $2 || return -1
+                set_platform_name "$2" || return 255
                 shift
                 ;;
 
@@ -748,11 +770,11 @@ function parse_arg() {
             -?*)
                 echo "Error: Invalid option $1"
                 show_help
-                return -1
+                return 255
                 ;;
             *)
                 echo "Error: Unknown option: $1"
-                return -1
+                return 255
                 ;;
         esac
         shift
@@ -768,48 +790,48 @@ function cleanup () {
 trap 'cleanup' EXIT
 trap 'error ${LINENO} "$BASH_COMMAND"' ERR
 
-parse_arg "$@" || exit -1
-if [[ -z ${LIBVIRT_DOMAIN_NAME+x} || -z "$LIBVIRT_DOMAIN_NAME" ]]; then
+parse_arg "$@" || exit 255
+if [[ -z "${LIBVIRT_DOMAIN_NAME+x}" || -z "$LIBVIRT_DOMAIN_NAME" ]]; then
 	echo "Error: valid VM domain name needed"
     show_help
-    exit -1
+    exit 255
 fi
-if [[ -z ${PLATFORM_NAME+x} || -z "$PLATFORM_NAME" ]]; then
+if [[ -z "${PLATFORM_NAME+x}" || -z "$PLATFORM_NAME" ]]; then
 	echo "Error: valid platform name required"
     show_help
-    exit -1
+    exit 255
 fi
 if [[ -d "$LIBVIRT_DEFAULT_IMAGES_PATH/$LIBVIRT_DOMAIN_NAME" && "$FORCECLEAN" != "1" ]]; then
     echo "VM domain($LIBVIRT_DOMAIN_NAME) images already exists! Use --forceclean to overwrite or create new domain name."
     show_help
-    exit -1
+    exit 255
 fi
 
-check_host_distribution || exit -1
+check_host_distribution || exit 255
 
-uncompress_relfiles || exit -1
-if [[ -z ${FLASHFILES_ZIP+x} || -z $FLASHFILES_ZIP ]]; then
-    setup_zip_flashfiles_path $(find $RELFILE_OUT -iname caas-flashfiles\*.zip) || exit -1
+uncompress_relfiles || exit 255
+if [[ -z "${FLASHFILES_ZIP+x}" || -z "$FLASHFILES_ZIP" ]]; then
+    setup_zip_flashfiles_path "$(find "$RELFILE_OUT" -iname caas-flashfiles\*.zip)" || exit 255
 fi
 print_info
 if [[ "$NOINSTALL" -ne "1" ]]; then
-    install_dep || exit -1
+    install_dep || exit 255
 fi
-setup_android_images || exit -1
+setup_android_images || exit 255
 # create new xml for new domains as necessary
 if [[ "$DUPXML" -eq "1" ]]; then
     sudo apt install -y xmlstarlet
-    create_android_vm_xml $LIBVIRT_DOMAIN_NAME $PLATFORM_NAME || exit -1
+    create_android_vm_xml "$LIBVIRT_DOMAIN_NAME" "$PLATFORM_NAME" || exit 255
 fi
 # Platform specific android guest setup
 # invoke platform/<plat>/guest_setup/android/setup_xxxx.sh scripts
-invoke_platform_android_setup $PLATFORM_NAME || exit -1
+invoke_platform_android_setup "$PLATFORM_NAME" || exit 255
 
 # Run Android installation
-install_android_vm $LIBVIRT_DOMAIN_NAME $PLATFORM_NAME || exit -1
+install_android_vm "$LIBVIRT_DOMAIN_NAME" "$PLATFORM_NAME" || exit 255
 
 # add new Android VM to launch_multios.sh
-update_launch_multios  $LIBVIRT_DOMAIN_NAME $PLATFORM_NAME || exit -1
+update_launch_multios "$LIBVIRT_DOMAIN_NAME" "$PLATFORM_NAME" || exit 255
 
 echo "$(basename "${BASH_SOURCE[0]}") done"
 exit 0

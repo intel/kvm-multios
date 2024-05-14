@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -8,10 +8,10 @@ set -Eeuo pipefail
 #---------      Global variable     -------------------
 
 script=$(realpath "${BASH_SOURCE[0]}")
-scriptpath=$(dirname "$script")
-LOGTAG=$(basename $script)
+#scriptpath=$(dirname "$script")
+LOGTAG=$(basename "$script")
 LOGD="logger -t $LOGTAG"
-LOGE="logger -s -t $LOGTAG"
+#LOGE="logger -s -t $LOGTAG"
 
 #---------      Functions    -------------------
 function setup_pm_mgmt_dep() {
@@ -41,7 +41,8 @@ EOF
 }
 
 function setup_mem_sleep_mode() {
-    local exist=$(sed -En "/^GRUB_CMDLINE_LINUX=.*mem_sleep_default=deep.*$/p" /etc/default/grub)
+    local exist
+    exist=$(sed -En "/^GRUB_CMDLINE_LINUX=.*mem_sleep_default=deep.*$/p" /etc/default/grub)
     if [[ -z "${exist}" ]]; then
         sudo sed -in "s/^\(GRUB_CMDLINE_LINUX=.*\)\"$/\1 mem_sleep_default=deep\"/g" /etc/default/grub
         sudo update-grub
@@ -51,8 +52,8 @@ function setup_mem_sleep_mode() {
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-setup_pm_mgmt_dep || exit -1
-setup_swap_update_service || exit -1
-setup_mem_sleep_mode || exit -1
+setup_pm_mgmt_dep || exit 255
+setup_swap_update_service || exit 255
+setup_mem_sleep_mode || exit 255
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -56,8 +56,8 @@ LINUX_FW_PPA_VER=""
 RT=0
 
 script=$(realpath "${BASH_SOURCE[0]}")
-scriptpath=$(dirname "$script")
-LOGTAG=$(basename $script)
+#scriptpath=$(dirname "$script")
+LOGTAG=$(basename "$script")
 LOGD="logger -t $LOGTAG"
 LOGE="logger -s -t $LOGTAG"
 
@@ -66,11 +66,11 @@ declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
             $LOGE "Error: $1 is a symlink."
-            exit -1
+            exit 255
         fi
     else
         $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -80,11 +80,11 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
         fpath=$(realpath "$1")
         if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
             $LOGE "Error: $fpath invalid/zero sized"
-            exit -1
+            exit 255
         fi
     else
         $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -93,26 +93,24 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
         check_non_symlink "$1"
         dpath=$(realpath "$1")
         if [[ $? -ne 0 || ! -d $dpath ]]; then
-            $LOGE "Error: $dpath invalid directory" | tee -a $LOG_FILE
-            exit -1
+            $LOGE "Error: $dpath invalid directory" | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
 function check_url() {
     local url=$1
 
-    wget --timeout=10 --tries=1 $url -nv --spider
-    if [ $? -ne 0 ]; then
+    if ! wget --timeout=10 --tries=1 "$url" -nv --spider; then
 		# try again without proxy
-		wget --no-proxy --timeout=10 --tries=1 $url -nv --spider
-    	if [ $? -ne 0 ]; then
+    	if ! wget --no-proxy --timeout=10 --tries=1 "$url" -nv --spider; then
         	$LOGE "Error: Network issue, unable to access $url"
         	$LOGE "Error: Please check the internet access connection"
-			return -1
+			return 255
 		fi
     fi
 }
@@ -121,25 +119,26 @@ function install_kernel_from_deb() {
     $LOGD "${FUNCNAME[0]} begin"
     if [[ -z "${1+x}" || -z $1 ]]; then
         $LOGE "Error: empty path to kernel debs"
-        return -1
+        return 255
     fi
-    local path=$(realpath $1)
-    if [ ! -d $path ]; then
+    local path
+    path=$(realpath "$1")
+    if [ ! -d "$path" ]; then
         $LOGE "Error: invalid path to linux-header and linux-image debs given.($path)"
-        return -1
+        return 255
     fi
-    check_dir_valid $1
-    if [[ ! -f $path/linux-headers.deb || ! -f $path/linux-image.deb ]]; then
+    check_dir_valid "$1"
+    if [[ ! -f "$path"/linux-headers.deb || ! -f "$path"/linux-image.deb ]]; then
         $LOGE "Error: linux-headers.deb or linux-image.deb missing from ($path)"
-        return -1
+        return 255
     fi
-    check_file_valid_nonzero $path/linux-headers.deb
-    check_file_valid_nonzero $path/linux-image.deb
+    check_file_valid_nonzero "$path"/linux-headers.deb
+    check_file_valid_nonzero "$path"/linux-image.deb
     # Install Intel kernel overlay
-    sudo dpkg -i $path/linux-headers.deb $path/linux-image.deb
+    sudo dpkg -i "$path"/linux-headers.deb "$path"/linux-image.deb
 
     # Update boot menu to boot to the new kernel
-    kernel_version=$(dpkg --info $path/linux-headers.deb | grep "Package: " | awk -F 'linux-headers-' '{print $2}')
+    kernel_version=$(dpkg --info "$path"/linux-headers.deb | grep "Package: " | awk -F 'linux-headers-' '{print $2}')
     sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $kernel_version'/" /etc/default/grub
     sudo update-grub
 
@@ -148,17 +147,18 @@ function install_kernel_from_deb() {
 
 function install_kernel_from_ppa() {
     $LOGD "${FUNCNAME[0]} begin"
-    if [ -z $1 ]; then
+    if [ -z "$1" ]; then
         $LOGE "Error: empty kernel ppa version"
-        return -1
+        return 255
     fi
 
     # Install Intel kernel overlay
     echo "kernel PPA version: $1"
-    sudo apt install -y --allow-downgrades linux-headers-$1 linux-image-$1 || return -1
+    sudo apt install -y --allow-downgrades linux-headers-"$1" linux-image-"$1" || return 255
 
     # Update boot menu to boot to the new kernel
-    local kernel_name=$(echo $1 | awk -F '=' '{print $1}')
+    local kernel_name
+    kernel_name=$(echo "$1" | awk -F '=' '{print $1}')
     sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $kernel_name'/" /etc/default/grub
     sudo update-grub
 
@@ -171,29 +171,29 @@ function setup_overlay_ppa() {
     # Install Intel BSP PPA and required GPG keys
     cat /dev/null > /etc/apt/sources.list.d/ubuntu_bsp.list
     for i in "${!PPA_URLS[@]}"; do
-        url=$(echo ${PPA_URLS[$i]} | awk -F' ' '{print $1}')
-        check_url "$url" || return -1
+        url=$(echo "${PPA_URLS[$i]}" | awk -F' ' '{print $1}')
+        check_url "$url" || return 255
         if [[ "${PPA_GPGS[$i]}" != "force" ]]; then
-            echo deb ${PPA_URLS[$i]} | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
-            echo deb-src ${PPA_URLS[$i]} | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
+            echo deb "${PPA_URLS[$i]}" | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
+            echo deb-src "${PPA_URLS[$i]}" | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
 
             if [[ "${PPA_GPGS[$i]}" == "auto" ]]; then
-                ppa_gpg_key=$(wget ${PPA_WGET_NO_PROXY[$i]} -q -O - --timeout=10 --tries=1 $url | awk -F'.gpg">|&' '{ print $2 }' | awk -F '.gpg|&' '{ print $1 }' | xargs )
+                ppa_gpg_key=$(wget "${PPA_WGET_NO_PROXY[$i]}" -q -O - --timeout=10 --tries=1 "$url" | awk -F'.gpg">|&' '{ print $2 }' | awk -F '.gpg|&' '{ print $1 }' | xargs )
                 if [[ -z "$ppa_gpg_key" ]]; then
                     $LOGE "Error: unable to auto get GPG key for PPG url ${PPA_URLS[$i]}"
-                    return -1
+                    return 255
                 fi
-                sudo wget ${PPA_WGET_NO_PROXY[$i]} "$url/$ppa_gpg_key.gpg" -O /etc/apt/trusted.gpg.d/$ppa_gpg_key.gpg
+                sudo wget "${PPA_WGET_NO_PROXY[$i]}" "$url/$ppa_gpg_key.gpg" -O /etc/apt/trusted.gpg.d/"$ppa_gpg_key".gpg
             else
-                if [[ ! -z "${PPA_GPGS[$i]}" ]]; then
-                    gpg_key_name=$(basename ${PPA_GPGS[$i]})
+                if [[ -n "${PPA_GPGS[$i]}" ]]; then
+                    gpg_key_name=$(basename "${PPA_GPGS[$i]}")
                     if [[ ! -f /etc/apt/trusted.gpg.d/$gpg_key_name ]]; then
-                        sudo wget ${PPA_WGET_NO_PROXY[$i]} ${PPA_GPGS[$i]} -O /etc/apt/trusted.gpg.d/$gpg_key_name
+                        sudo wget "${PPA_WGET_NO_PROXY[$i]}" "${PPA_GPGS[$i]}" -O /etc/apt/trusted.gpg.d/"$gpg_key_name"
                     fi
                 fi
             fi
         else
-            echo deb [trusted=yes] ${PPA_URLS[$i]} | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
+            echo "deb [trusted=yes] ${PPA_URLS[$i]}" | sudo tee -a /etc/apt/sources.list.d/ubuntu_bsp.list
         fi
     done
 
@@ -201,17 +201,17 @@ function setup_overlay_ppa() {
     echo -e "Package: *\nPin: $PPA_PIN\nPin-Priority: $PPA_PIN_PRIORITY" | sudo tee -a /etc/apt/preferences.d/priorities
 
     # Add PPA apt proxy settings if any
-    if [[ ! -z "${ftp_proxy+x}" && ! -z "$ftp_proxy" ]]; then
+    if [[ -n "${ftp_proxy+x}" && -n "$ftp_proxy" ]]; then
         echo "Acquire::ftp::Proxy \"$ftp_proxy\";" | sudo tee -a /etc/apt/apt.conf.d/99proxy.conf
     fi
-    if [[ ! -z "${http_proxy+x}" && ! -z "$http_proxy" ]]; then
+    if [[ -n "${http_proxy+x}" && -n "$http_proxy" ]]; then
         echo "Acquire::http::Proxy \"$http_proxy\";" | sudo tee -a /etc/apt/apt.conf.d/99proxy.conf
     fi
-    if [[ ! -z "${https_proxy+x}" && ! -z "$https_proxy" ]]; then
+    if [[ -n "${https_proxy+x}" && -n "$https_proxy" ]]; then
         echo "Acquire::https::Proxy \"$https_proxy\";" | sudo tee -a /etc/apt/apt.conf.d/99proxy.conf
     fi
     for line in "${PPA_APT_CONF[@]}"; do
-        if [[ ! -z "$line" ]]; then
+        if [[ -n "$line" ]]; then
             echo "$line" | sudo tee -a /etc/apt/apt.conf.d/99proxy.conf
         fi
     done
@@ -237,17 +237,17 @@ function install_userspace_pkgs() {
 
     # install bsp overlay packages
     for package in "${overlay_packages[@]}"; do
-        if [[ ! -z ${package+x} && ! -z $package ]]; then
+        if [[ -n ${package+x} && -n $package ]]; then
             echo "Installing overlay package: $package"
-            sudo apt install -y --allow-downgrades $package
+            sudo apt install -y --allow-downgrades "$package"
         fi
     done
 
     # other non overlay packages
     for package in "${PACKAGES_ADD_INSTALL[@]}"; do
-        if [[ ! -z ${package+x} && ! -z $package ]]; then
+        if [[ -n ${package+x} && -n $package ]]; then
             echo "Installing package: $package"
-            sudo apt install -y --allow-downgrades $package
+            sudo apt install -y --allow-downgrades "$package"
         fi
     done
 
@@ -268,8 +268,8 @@ function disable_auto_upgrade() {
                          "APT::Periodic::AutocleanInterval")
 
     # Disable auto upgrade
-    for config in ${auto_upgrade_config[@]}; do
-        if [[ ! `cat /etc/apt/apt.conf.d/20auto-upgrades` =~ "$config" ]]; then
+    for config in "${auto_upgrade_config[@]}"; do
+        if [[ ! $(cat /etc/apt/apt.conf.d/20auto-upgrades) =~ $config ]]; then
             echo -e "$config \"0\";" | sudo tee -a /etc/apt/apt.conf.d/20auto-upgrades
         else
             sudo sed -i "s/$config \"1\";/$config \"0\";/g" /etc/apt/apt.conf.d/20auto-upgrades
@@ -281,8 +281,6 @@ function disable_auto_upgrade() {
 function update_cmdline() {
     $LOGD "${FUNCNAME[0]} begin"
     local updated=0
-    local major_version
-    local max_guc
     local cmdline
 
     if [[ "$RT" == "0" ]]; then
@@ -327,26 +325,26 @@ function update_cmdline() {
               "intel_iommu=on")
     fi
     cmdline=$(sed -n -e "/.*\(GRUB_CMDLINE_LINUX=\).*/p" /etc/default/grub)
-    cmdline=$(awk -F '"' '{print $2}' <<< $cmdline)
+    cmdline=$(awk -F '"' '{print $2}' <<< "$cmdline")
 
     for cmd in "${cmds[@]}"; do
-        if [[ ! "$cmdline" =~ "$cmd" ]]; then
+        if [[ ! "$cmdline" =~ $cmd ]]; then
             # Special handling for i915.enable_guc
             if [[ "$cmd" == "i915.enable_guc=(0x)?(0)*3" ]]; then
-                cmdline=$(sed -r -e "s/\<i915.enable_guc=(0x)?([A-Fa-f0-9])*\>//g" <<< $cmdline)
+                cmdline=$(sed -r -e "s/\<i915.enable_guc=(0x)?([A-Fa-f0-9])*\>//g" <<< "$cmdline")
                 cmd="i915.enable_guc=0x3"
             fi
             if [[ "$cmd" == "i915.max_vfs=(0x)?(0)*0" ]]; then
-                cmdline=$(sed -r -e "s/\<i915.max_vfs=(0x)?([0-9])*\>//g" <<< $cmdline)
+                cmdline=$(sed -r -e "s/\<i915.max_vfs=(0x)?([0-9])*\>//g" <<< "$cmdline")
                 cmd="i915.max_vfs=0"
             fi
 
-            cmdline=$(echo $cmdline $cmd)
+            cmdline="$cmdline $cmd"
             updated=1
         fi
     done
 
-    if [[ $updated -eq 1 ]]; then
+    if [[ "$updated" -eq 1 ]]; then
         sudo sed -i -r -e "s/(GRUB_CMDLINE_LINUX=).*/GRUB_CMDLINE_LINUX=\" $cmdline \"/" /etc/default/grub
         sudo update-grub
     fi
@@ -382,11 +380,15 @@ function update_ubuntu_cfg() {
         echo -e "Option \"SWcursor\" \"true\"" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
         echo -e "EndSection" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
     fi
+    # Disable GUI for RT guest
+    if [[ "$RT" == "1" ]]; then
+        systemctl set-default multi-user.target
+    fi
     $LOGD "${FUNCNAME[0]} end"
 }
 
 function show_help() {
-    printf "$(basename "${BASH_SOURCE[0]}") [-k kern_deb_path | -kp kern_ver] [-fw fw_ver] [--no-install-bsp] [--rt]\n"
+    printf "%s [-k kern_deb_path | -kp kern_ver] [-fw fw_ver] [--no-install-bsp] [--rt]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t-k\tpath to location of bsp kernel files linux-headers.deb and linux-image.deb\n"
@@ -432,11 +434,11 @@ function parse_arg() {
             -?*)
                 $LOGE "Error: Invalid option: $1"
                 show_help
-                return -1
+                return 255
                 ;;
             *)
                 $LOGE "Error: Unknown option: $1"
-                return -1
+                return 255
                 ;;
         esac
         shift
@@ -446,23 +448,23 @@ function parse_arg() {
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-parse_arg "$@" || exit -1
+parse_arg "$@" || exit 255
 
 if [[ "$NO_BSP_INSTALL" -ne "1" ]]; then
     # Install PPA
-    setup_overlay_ppa || exit -1
+    setup_overlay_ppa || exit 255
 
     # Install bsp kernel
     if [[ "$KERN_INSTALL_FROM_PPA" -eq "0" ]]; then
-        install_kernel_from_deb "$KERN_PATH" || exit -1
+        install_kernel_from_deb "$KERN_PATH" || exit 255
     else
-        install_kernel_from_ppa "$KERN_PPA_VER" || exit -1
+        install_kernel_from_ppa "$KERN_PPA_VER" || exit 255
     fi
     # Install bsp userspace
-    install_userspace_pkgs || exit -1
+    install_userspace_pkgs || exit 255
 fi
-disable_auto_upgrade || exit -1
-update_cmdline || exit -1
-update_ubuntu_cfg || exit -1
+disable_auto_upgrade || exit 255
+update_cmdline || exit 255
+update_ubuntu_cfg || exit 255
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

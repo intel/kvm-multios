@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -13,11 +13,11 @@ declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
             echo "Error: $1 is a symlink."
-            exit -1
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -25,13 +25,13 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         dpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -d $dpath ]]; then
+        if [[ $? -ne 0 || ! -d "$dpath" ]]; then
             echo "Error: $dpath invalid directory"
-            exit -1
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -39,13 +39,13 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         fpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
+        if [[ $? -ne 0 || ! -f "$fpath" || ! -s "$fpath" ]]; then
             echo "Error: $fpath invalid/zero sized"
-            exit -1
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -53,56 +53,56 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
 # Update /etc/libvirt/qemu.conf
 
 UPDATE_FILE="/etc/libvirt/qemu.conf"
-check_file_valid_nonzero $UPDATE_FILE
+check_file_valid_nonzero "$UPDATE_FILE"
 UPDATE_LINE="security_default_confined = 0"
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
   sudo sed -i "s/^#security_default_confined.*/$UPDATE_LINE/g" $UPDATE_FILE
 fi
 
 UPDATE_LINE='user = "root"'
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#user.*/$UPDATE_LINE/g" $UPDATE_FILE
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s/^#user.*/$UPDATE_LINE/g" "$UPDATE_FILE"
 fi
 
 UPDATE_LINE='group = "root"'
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#group.*/$UPDATE_LINE/g" $UPDATE_FILE
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s/^#group.*/$UPDATE_LINE/g" "$UPDATE_FILE"
 fi
 
 UPDATE_LINE='cgroup_device_acl = ['
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#cgroup_device_acl.*/$UPDATE_LINE/g" $UPDATE_FILE
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s/^#cgroup_device_acl.*/$UPDATE_LINE/g" "$UPDATE_FILE"
 fi
 
 UPDATE_LINE='    "/dev/null", "/dev/full", "/dev/zero",'
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/null\".*+$UPDATE_LINE+g" $UPDATE_FILE
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s+#    \"/dev/null\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
 fi
 
 UPDATE_LINE='    "/dev/random", "/dev/urandom",'
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/random\".*+$UPDATE_LINE+g" $UPDATE_FILE
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s+#    \"/dev/random\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
 fi
 
-UPDATE_LINE='    "/dev/ptmx", "/dev/kvm", "/dev/udmabuf", "/dev/dri/card0"]'
-if [[ "$UPDATE_LINE" != $(sudo cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/ptmx\".*+$UPDATE_LINE+g" $UPDATE_FILE
+UPDATE_LINE='    "/dev/ptmx", "/dev/kvm", "/dev/udmabuf", "/dev/dri/card0", "/dev/dri/renderD128"]'
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s+#    \"/dev/ptmx\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
 fi
 
 # Update /etc/sysctl.conf
 
 UPDATE_FILE="/etc/sysctl.conf"
-check_file_valid_nonzero $UPDATE_FILE
+check_file_valid_nonzero "$UPDATE_FILE"
 UPDATE_LINE="net.bridge.bridge-nf-call-iptables=0"
-if [[ "$UPDATE_LINE" != $(cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  echo $UPDATE_LINE | sudo tee -a $UPDATE_FILE
-  sudo sysctl $UPDATE_LINE
+if [[ "$UPDATE_LINE" != $(grep -F "$UPDATE_LINE" "$UPDATE_FILE") ]]; then
+  echo $UPDATE_LINE | sudo tee -a "$UPDATE_FILE"
+  sudo sysctl "$UPDATE_LINE"
 fi
 
 UPDATE_LINE="net.ipv4.conf.all.route_localnet=1"
-if [[ "$UPDATE_LINE" != $(cat $UPDATE_FILE | grep -F "$UPDATE_LINE") ]]; then
-  echo $UPDATE_LINE | sudo tee -a $UPDATE_FILE
-  sudo sysctl $UPDATE_LINE
+if [[ "$UPDATE_LINE" != $(grep -F "$UPDATE_LINE" "$UPDATE_FILE") ]]; then
+  echo "$UPDATE_LINE" | sudo tee -a "$UPDATE_FILE"
+  sudo sysctl "$UPDATE_LINE"
 fi
 
 # Update default network dhcp host
@@ -119,6 +119,7 @@ tee default_network.xml &>/dev/null <<EOF
       <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.122.22'/>
       <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.122.33'/>
       <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.122.44'/>
+      <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.122.55'/>
     </dhcp>
   </ip>
 </network>
@@ -126,10 +127,10 @@ EOF
 
 echo end of file
 
-if [[ ! -z $(sudo virsh net-list --name | grep default) ]]; then
+if sudo virsh net-list --name | grep -q 'default'; then
     sudo virsh net-destroy default
 fi
-if [[ ! -z $(sudo virsh net-list --name --all | grep default) ]]; then
+if sudo virsh net-list --name --all | grep -q 'default'; then
     sudo virsh net-undefine default
 fi
 sudo virsh net-define default_network.xml
@@ -162,7 +163,7 @@ if [[ "\${2}" == "prepare" ]]; then
       echo '0' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
       echo \$totalvfs | tee -a /sys/class/drm/card0/device/sriov_numvfs
       echo '1' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
-      modprobe vfio-pci
+      modprobe vfio-pci || :
       echo "\$vendor \$device" | tee -a /sys/bus/pci/drivers/vfio-pci/new_id
       vfschedexecq=25
       vfschedtimeout=500000
@@ -282,12 +283,12 @@ if [[ "\${1}" == "ubuntu" ]]; then
   fi
 
 elif [[ "\${1}" == "windows" ]]; then
- 
+
   # Update the following variables to fit your setup
   GUEST_IP=192.168.122.22
   declare -A HOST_PORTS
   HOST_PORTS=([22]=2222 [3389]=3389)
- 
+
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
     if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
       /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
@@ -345,6 +346,28 @@ elif [[ "\${1}" == "ubuntu_rt" ]]; then
     /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
   fi
 
+elif [[ "\${1}" == "windows11" ]]; then
+
+  # Update the following variables to fit your setup
+  GUEST_IP=192.168.122.55
+  declare -A HOST_PORTS
+  HOST_PORTS=([22]=5555 [3389]=3389)
+
+  for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
+    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
+      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
+      /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
+      /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
+      /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    fi
+    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
+      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
+      /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
+      /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
+      /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    fi
+  done
+
 fi
 EOF
 
@@ -360,15 +383,15 @@ sudo apt install -y virt-manager
 
 # Add user running host setup to group libvirt
 username=""
-if [[ -z ${SUDO_USER+x} || -z $SUDO_USER ]]; then
+if [[ -z "${SUDO_USER+x}" || -z "$SUDO_USER" ]]; then
     echo "Add $USER to group libvirt."
-	username=$USER
+	username="$USER"
 else
     echo "Add $SUDO_USER to group libvirt."
-	username=$SUDO_USER
+	username="$SUDO_USER"
 fi
-if [[ ! -z $username ]]; then
-	sudo usermod -a -G libvirt $username
+if [[ -n "$username" ]]; then
+	sudo usermod -a -G libvirt "$username"
 fi
 
 # Allow ipv4 forwarding for host/vm ssh
@@ -380,7 +403,8 @@ sudo sysctl -p
 # taken care not in launch_multios.sh
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
-platpaths=( $(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d) )
+declare -a platpaths
+mapfile -t platpaths < <(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d) 
 for p in "${platpaths[@]}"; do
     platscript=$(find "$p" -maxdepth 1 -mindepth 1 -type f -name "launch_multios.sh")
     check_file_valid_nonzero "$platscript"
@@ -393,4 +417,4 @@ EOF
 done
 sudo chmod 440 /etc/sudoers.d/multios-sudo
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

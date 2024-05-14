@@ -1,0 +1,28 @@
+# Copyright (c) 2024 Intel Corporation.
+# All rights reserved.
+
+installations:
+  - name: Bluetooth
+    description: Intel® Wireless Bluetooth® for IT Administrators version
+    filename: BT-64UWD-Win10-Win11.zip
+    download_url: 'https://downloadmirror.intel.com/794708/BT-23.10.0-64UWD-Win10-Win11.zip'
+    install_type: msi                 # msi | exe | cab | inf
+    install_file: Intel Bluetooth.msi
+    silent_install_option: '/qn'
+    enable_test_sign: no
+  - name: Wireless
+    description: Intel® PROSet/Wireless Software and Drivers for IT Admins
+    filename: WiFi-Driver64-Win10-Win11.exe
+    download_url: 'https://downloadmirror.intel.com/812774/WiFi-23.20.0-Driver64-Win10-Win11.exe'
+    install_type: exe                 # msi | exe | cab | inf
+    install_file: WiFi-Driver64-Win10-Win11.exe
+    silent_install_option: '-q -s -l WiFi-Driver64-Win10-Win11.txt'
+    enable_test_sign: no
+  - name: Ethernet
+    description: Intel® Ethernet Adapter Complete Driver Pack
+    filename: Release_Eth.zip
+    download_url: 'https://downloadmirror.intel.com/812365/Release_28.3.zip'
+    install_type: inf                 # msi | exe | cab | inf
+    install_file: 'PRO2500\Winx64\NDIS68\e2f.inf'
+    silent_install_option: ''
+    enable_test_sign: no

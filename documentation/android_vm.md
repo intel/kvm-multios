@@ -6,7 +6,6 @@
             1. [Setup Celadon workspace](#setup-celadon-workspace)
             1. [Running Android Celadon IOT Build](#running-android-celadon-iot-build)
                 1. [Celadon IOT vertical Android12 Build](#celadon-iot-vertical-android12-build)
-                1. [Celadon IOT vertical Android13 Build](#celadon-iot-vertical-android13-build)
     1. [Running Android Celadon Automated Install](#running-android-celadon-automated-install)
 1. [Launching Android VM](#launching-android-vm)
 1. [Basic Android VM operations](#basic-android-vm-operations)
@@ -89,12 +88,6 @@ Sync Android Celadon IOT release as per manifest xml provided in platform KVM Mu
         repo sync -c -j8
         repo forall -c git lfs pull
 
-Additional steps required Celadon IOT Android13 release 2023_WW23 only:
-
-        cd civ
-        mkdir -p vendor/intel/utils_vertical
-        unzip -d vendor/intel/ <path_to>/vertical_patches.zip
-
 #### Running Android Celadon IOT Build  
 ##### Celadon IOT vertical Android12 Build  
 Run the following commands in Celadon workspace to build for Celadon IOT Android 12 release.
@@ -105,28 +98,6 @@ For all Celadon IOT vertical Android12 releases:
         source build/envsetup.sh
         lunch caas-userdebug
         make flashfiles BASE_LTS2020_YOCTO_KERNEL=true -j8
-
-After successful build, required build output releasefiles archive can be located from build workspace as per example below:
-
-        $ find pub -name caas-releasefiles*.tar.gz
-        pub/caas/userdebug/caas-releasefiles-userdebug.tar.gz
-
-##### Celadon IOT vertical Android13 Build  
-Run the following commands in Celadon workspace to build for Celadon IOT Android 13 release.
-
-For Celadon IOT vertical Android13 releases (except release 2023_WW23):  
-
-        cd civ
-        source build/envsetup.sh
-        lunch caas-userdebug
-        make flashfiles BASE_LINUX_INTEL_LTS2021_KERNEL=true -j8
-
-For Celadon IOT vertical Android13 release 2023_WW23 only:
-
-        cd civ
-        source build/envsetup.sh
-        lunch caas-userdebug
-        make flashfiles BASE_LINUX_INTEL_LTS2022_KERNEL=true -j8
 
 After successful build, required build output releasefiles archive can be located from build workspace as per example below:
 
@@ -162,9 +133,9 @@ To use another VM domain name, use "--dupxml" option to create new duplicate xml
 
 This script will decompress provided caas-releasefiles-userdebug.tar.gz and create all necessary Celadon VM image file and other data/executable files into /var/lib/libvirt/images/<vm_domain_name> folder.
 
-If the host platform already has installed required Android dependencies before, "--noinstall" option could be used to skip installation steps.
-If creating multiple VMs from the same caas-releasefiles-*.tar.gz archive package, '-r' option could be left out to skip archive package decompression and reuse earlier releasefiles decompressed folder for 2nd and beyond VM image creation.
-Use "--dupxml" option for duplicating new Android VM libvirt xml for non-default name (aka not named "android").
+If the host platform already has installed required Android dependencies before, "--noinstall" option could be used to skip installation steps.  
+If creating multiple VMs from the same caas-releasefiles-*.tar.gz archive package, '-r' option could be left out to skip archive package decompression and reuse earlier releasefiles decompressed folder for 2nd and beyond VM image creation.  
+Use "--dupxml" option for duplicating new Android VM libvirt xml for non-default name (aka not named "android").  
 
 Android VM installation will be automatically started by setup script using once VM images have been created by running the <vm_name>_install domain.
 

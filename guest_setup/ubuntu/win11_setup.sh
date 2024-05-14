@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -8,13 +8,13 @@ set -Eeuo pipefail
 #---------      Global variable     -------------------
 LIBVIRT_DEFAULT_IMAGES_PATH=/var/lib/libvirt/images
 OVMF_DEFAULT_PATH=/usr/share/OVMF
-WIN_DOMAIN_NAME=windows
+WIN_DOMAIN_NAME=windows11
 WIN_IMAGE_NAME=$WIN_DOMAIN_NAME.qcow2
 WIN_INSTALLER_ISO=windowsNoPrompt.iso
 WIN_VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win-0.1.240.iso"
 WIN_VIRTIO_ISO=virtio-win.iso
-WIN_UNATTEND_ISO=$WIN_DOMAIN_NAME-unattend-win10.iso
-WIN_UNATTEND_FOLDER=unattend_win10
+WIN_UNATTEND_ISO=$WIN_DOMAIN_NAME-unattend-win11.iso
+WIN_UNATTEND_FOLDER=unattend_win11
 WIN_DISK_SIZE=60 # size in GiB
 
 # files required to be in $WIN_UNATTEND_FOLDER folder for installation
@@ -116,9 +116,9 @@ function install_dep() {
 }
 
 function clean_windows_images() {
-  echo "Remove existing windows image"
+  echo "Remove existing windows11 image"
   if virsh list --name | grep -q -w "$WIN_DOMAIN_NAME"; then
-    echo "Shutting down running windows VM"
+    echo "Shutting down running windows11 VM"
     virsh destroy "$WIN_DOMAIN_NAME" &>/dev/null || :
     sleep 30
   fi
@@ -127,7 +127,7 @@ function clean_windows_images() {
   fi
   sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}"
 
-  echo "Remove and rebuild unattend_win10.iso"
+  echo "Remove and rebuild unattend_win11.iso"
   sudo rm -f "/tmp/${WIN_UNATTEND_ISO}"
   sudo rm -f "/tmp/${WIN_VIRTIO_ISO}"
 }
@@ -1053,7 +1053,7 @@ EOF
   mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
   TMP_FILES+=("/tmp/${WIN_UNATTEND_ISO}")
 
-  echo "$(date): Start windows guest creation and auto-installation"
+  echo "$(date): Start windows11 guest creation and auto-installation"
   run_file_server "$fileserverdir" "$FILE_SERVER_IP" "$FILE_SERVER_PORT" FILE_SERVER_DAEMON_PID || return 255
   if [[ "$VIEWER" -eq "1" ]]; then
     virt-viewer -w -r --domain-name "${WIN_DOMAIN_NAME}" &
@@ -1070,12 +1070,12 @@ EOF
   --cpu host \
   --machine q35 \
   --network network=default,model=virtio \
-  --graphics vnc,listen=0.0.0.0,port=5902 \
+  --graphics vnc,listen=0.0.0.0,port=5905 \
   --cdrom "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_INSTALLER_ISO}" \
   --disk "/tmp/${WIN_VIRTIO_ISO}",device=cdrom \
   --disk "/tmp/${WIN_UNATTEND_ISO}",device=cdrom \
   --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${WIN_DISK_SIZE},bus=virtio,cache=none \
-  --os-variant win10 \
+  --os-variant win11 \
   --boot loader="$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd",loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$ovmf_option \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
   --pm suspend_to_mem.enabled=off,suspend_to_disk.enabled=on \
@@ -1113,11 +1113,11 @@ EOF
     local platpath="$scriptpath/../../platform/$PLATFORM_NAME"
     if [ -d "$platpath" ]; then
       platpath=$(realpath "$platpath")
-      echo "$(date): Restarting windows VM with SRIOV for Zero-Copy driver installation on local display."
+      echo "$(date): Restarting windows11 VM with SRIOV for Zero-Copy driver installation on local display."
       #sudo pkill virt-viewer
       kill_by_pid $VIEWER_DAEMON_PID
 
-      if "$platpath/launch_multios.sh" -f -d windows -g sriov windows || return 255; then
+      if "$platpath/launch_multios.sh" -f -d $WIN_DOMAIN_NAME -g sriov $WIN_DOMAIN_NAME || return 255; then
         local count=0
         local maxcount=90
         while [[ count -lt $maxcount ]]; do
@@ -1125,7 +1125,7 @@ EOF
           local state
           state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
           if [[ -n "${state+x}" && $state == "running" ]]; then
-            #timeout 600 watch -g -n 2 'virsh domstate windows'
+            #timeout 600 watch -g -n 2 'virsh domstate windows11'
             sleep 60
           else
             break
@@ -1197,9 +1197,9 @@ function show_help() {
     for p in "${platforms[@]}"; do
     printf "\t                    %s\n" "$(basename "$p")"
     done
-    printf "\t--no-sriov        Non-SR-IOV windows install. No GFX/SRIOV support to be installed\n"
+    printf "\t--no-sriov        Non-SR-IOV windows11 install. No GFX/SRIOV support to be installed\n"
     printf "\t--non-whql-gfx    GFX driver to be installed is non-WHQL signed but test signed\n"
-    printf "\t--force           force clean if windows vm qcow is already present\n"
+    printf "\t--force           force clean if windows11 vm qcow is already present\n"
     printf "\t--viewer          show installation display\n"
     printf "\t--debug           Do not remove temporary files. For debugging only.\n"
 }
@@ -1300,7 +1300,7 @@ fi
 
 if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}" ]]; then
     echo "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME} present"
-    echo "Use --force option to force clean and re-install windows"
+    echo "Use --force option to force clean and re-install windows11"
     exit 255
 fi
 

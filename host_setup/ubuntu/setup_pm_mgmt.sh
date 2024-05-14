@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -14,12 +14,12 @@ LOG_FILE=${LOG_FILE:="/tmp/host_setup_ubuntu.log"}
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
-            echo "Error: $1 is a symlink." | tee -a $LOG_FILE
-            exit -1
+            echo "Error: $1 is a symlink." | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -27,13 +27,13 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         dpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -d $dpath ]]; then
-            echo "Error: $dpath invalid directory" | tee -a $LOG_FILE
-            exit -1
+        if [[ $? -ne 0 || ! -d "$dpath" ]]; then
+            echo "Error: $dpath invalid directory" | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
@@ -41,29 +41,28 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         fpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
-            echo "Error: $fpath invalid/zero sized" | tee -a $LOG_FILE
-            exit -1
+        if [[ $? -ne 0 || ! -f "$fpath" || ! -s "$fpath" ]]; then
+            echo "Error: $fpath invalid/zero sized" | tee -a "$LOG_FILE"
+            exit 255
         fi
     else
         echo "Error: Invalid param to ${FUNCNAME[0]}"
-        exit -1
+        exit 255
     fi
 }
 
 declare -F "log_func" >/dev/null || log_func() {
-    declare -F "$1" >/dev/null
-    if [ $? -eq 0 ]; then
-        start=`date +%s`
-        echo -e "$(date)   start:   \t$1" >> $LOG_FILE
-        $@
+    if declare -F "$1" >/dev/null; then
+        start=$(date +%s)
+        echo -e "$(date)   start:   \t$1" >> "$LOG_FILE"
+        "$@"
         ec=$?
-        end=`date +%s`
-        echo -e "$(date)   end ($((end-start))s):\t$1" >> $LOG_FILE
+        end=$(date +%s)
+        echo -e "$(date)   end ($((end-start))s):\t$1" >> "$LOG_FILE"
         return $ec
     else
         echo "Error: $1 is not a function"
-        exit -1
+        exit 255
     fi
 }
 
@@ -72,9 +71,9 @@ function setup_pre_post_sleep_actions() {
     dest_script_path="/usr/local/bin"
     local_state_path="/var/lib/libvirt"
     libvirt_script_path=$(realpath "$scriptpath/../../libvirt_scripts/")
-    check_dir_valid $dest_script_path
-    check_dir_valid $local_state_path
-    check_dir_valid $libvirt_script_path
+    check_dir_valid "$dest_script_path"
+    check_dir_valid "$local_state_path"
+    check_dir_valid "$libvirt_script_path"
 
     # script for handling sleep dependencies
     tee libvirt-guests-sleep-dep.sh &>/dev/null <<EOF
@@ -139,14 +138,14 @@ function main() {
 
             pre)
                 # Enable desired wake sources
-                local wake_sources_enabled=()
+                local -a wake_sources_enabled=()
                 enable_wake_sources wake_sources_to_enable wake_sources_enabled
                 cat /dev/null > $local_state_path/wake_sources_enabled.txt
                 for src in "\${wake_sources_enabled[@]}"; do
                     echo \$src | sudo tee -a $local_state_path/wake_sources_enabled.txt >/dev/null
                 done
                 # disable undesired wake sources
-                local wake_sources_disabled=()
+                local -a wake_sources_disabled=()
                 disable_wake_sources wake_sources_to_disable wake_sources_disabled
                 cat /dev/null > $local_state_path/wake_sources_disabled.txt
                 for src in "\${wake_sources_disabled[@]}"; do
@@ -167,16 +166,16 @@ function main() {
             post)
                 # Restore any modified wake sources
                 if [ -f "$local_state_path/wake_sources_enabled.txt" ]; then
-                    local restore_sources=()
-                    local restored_sources=()
-                    readarray -t restore_sources < $local_state_path/wake_sources_enabled.txt
+                    local -a restore_sources=()
+                    local -a restored_sources=()
+                    mapfile -t restore_sources < $local_state_path/wake_sources_enabled.txt
                     disable_wake_sources restore_sources restored_sources
                     sudo rm $local_state_path/wake_sources_enabled.txt
                 fi
                 if [ -f "$local_state_path/wake_sources_disabled.txt" ]; then
-                    local restore_sources=()
-                    local restored_sources=()
-                    readarray -t restore_sources < $local_state_path/wake_sources_disabled.txt
+                    local -a restore_sources=()
+                    local -a restored_sources=()
+                    mapfile -t restore_sources < $local_state_path/wake_sources_disabled.txt
                     enable_wake_sources restore_sources restored_sources
                     sudo rm $local_state_path/wake_sources_disabled.txt
                 fi
@@ -256,14 +255,14 @@ ExecStop=$dest_script_path/libvirt-guests-sleep-dep.sh post hibernate
 [Install]
 RequiredBy=hibernate.target systemd-hibernate.service
 EOF
-    check_file_valid_nonzero $libvirt_script_path/libvirt-guests-sleep.sh
-    sudo cp $libvirt_script_path/libvirt-guests-sleep.sh $dest_script_path/
-    sudo chown root:libvirt $dest_script_path/libvirt-guests-sleep.sh
-    sudo chmod 755 $dest_script_path/libvirt-guests-sleep.sh
+    check_file_valid_nonzero "$libvirt_script_path/libvirt-guests-sleep.sh"
+    sudo cp "$libvirt_script_path/libvirt-guests-sleep.sh" "$dest_script_path/"
+    sudo chown root:libvirt "$dest_script_path/libvirt-guests-sleep.sh"
+    sudo chmod 755 "$dest_script_path/libvirt-guests-sleep.sh"
 
-    sudo mv libvirt-guests-sleep-dep.sh $dest_script_path/
-    sudo chown root:libvirt $dest_script_path/libvirt-guests-sleep-dep.sh
-    sudo chmod 755 $dest_script_path/libvirt-guests-sleep-dep.sh
+    sudo mv libvirt-guests-sleep-dep.sh "$dest_script_path/"
+    sudo chown root:libvirt "$dest_script_path/libvirt-guests-sleep-dep.sh"
+    sudo chmod 755 "$dest_script_path/libvirt-guests-sleep-dep.sh"
 
     sudo chown root:root libvirt-guests-suspend.service libvirt-guests-hibernate.service
     sudo chmod 644 libvirt-guests-suspend.service libvirt-guests-hibernate.service
@@ -276,6 +275,6 @@ EOF
 #-------------    main processes    -------------
 trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' ERR
 
-log_func setup_pre_post_sleep_actions || exit -1
+log_func setup_pre_post_sleep_actions || exit 255
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -70,10 +70,10 @@ EOF
 
 echo end of file
 
-if [ ! -z $(sudo virsh net-list --name | grep default) ]; then
+if sudo virsh net-list --name | grep -q 'default'; then
     sudo virsh net-destroy default
 fi
-if [ ! -z $(sudo virsh net-list --name --all | grep default) ]; then
+if sudo virsh net-list --name --all | grep -q 'default'; then
     sudo virsh net-undefine default
 fi
 sudo virsh net-define default_network.xml
@@ -177,22 +177,22 @@ sudo systemctl restart libvirtd
 
 # Add user running host setup to group libvirt
 username=""
-if [[ -z ${SUDO_USER+x} || -z $SUDO_USER ]]; then
+if [[ -z "${SUDO_USER+x}" || -z "$SUDO_USER" ]]; then
     echo "Add $USER to group libvirt."
 	username=$USER
 else
     echo "Add $SUDO_USER to group libvirt."
 	username=$SUDO_USER
 fi
-if [[ ! -z $username ]]; then
-	sudo usermod -a -G libvirt $username
+if [[ -n "$username" ]]; then
+	sudo usermod -a -G libvirt "$username"
 fi
 
 # Setup new directory for larger storage pool
 
 # Create the directory if it doesn't exist
 if [ ! -d "/home/user/vm_images" ]; then
-    mkdir -p /home/user/vm_images
+    mkdir -p "/home/user/vm_images"
 fi
 
 # Create a new storage pool with the desired settings
