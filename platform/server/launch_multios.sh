@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -8,10 +8,10 @@ set -Eeuo pipefail
 #---------      Global variable     -------------------
 # Define supported VM domains and configuration files
 declare -A VM_DOMAIN=(
-  ["ubuntu"]="ubuntu_vnc.xml"
-  ["windows"]="windows_vnc.xml"
-  ["redhat"]="redhat_vnc.xml"
-  ["centos"]="centos_vnc.xml"
+  ["ubuntu"]="ubuntu_vnc_spice.xml"
+  ["windows"]="windows_vnc_spice.xml"
+  ["redhat"]="redhat_vnc_spice.xml"
+  ["centos"]="centos_vnc_spice.xml"
 )
 
 # Array to store the list of passthrough devices
@@ -20,7 +20,7 @@ declare -A device_passthrough
 # Define variables
 
 # Set default vm image directory and vm config xml file directory
-IMAGE_DIR="/home/user/vm_images/"
+#IMAGE_DIR="/home/user/vm_images/"
 
 # Set passthrough script name
 PASSTHROUGH_SCRIPT="./libvirt_scripts/virsh_attach_device.sh"
@@ -38,12 +38,12 @@ ERROR_LOG_FILE="/tmp/launch_multios_errors.log"
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
-            echo "Error: $1 is a symlink." | tee -a $ERROR_LOG_FILE
-            exit -1
+            echo "Error: $1 is a symlink." | tee -a "$ERROR_LOG_FILE"
+            exit 255
         fi
     else
-        echo "Error: Invalid param to ${FUNCNAME[0]}" | tee -a $ERROR_LOG_FILE
-        exit -1
+        echo "Error: Invalid param to ${FUNCNAME[0]}" | tee -a "$ERROR_LOG_FILE"
+        exit 255
     fi
 }
 
@@ -51,19 +51,19 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     if [[ $# -eq 1 ]]; then
         check_non_symlink "$1"
         fpath=$(realpath "$1")
-        if [[ $? -ne 0 || ! -f $fpath || ! -s $fpath ]]; then
-            echo "Error: $fpath invalid/zero sized" | tee -a $ERROR_LOG_FILE
-            exit -1
+        if [[ $? -ne 0 || ! -f "$fpath" || ! -s "$fpath" ]]; then
+            echo "Error: $fpath invalid/zero sized" | tee -a "$ERROR_LOG_FILE"
+            exit 255
         fi
     else
-        echo "Error: Invalid param to ${FUNCNAME[0]}" | tee -a $ERROR_LOG_FILE
-        exit -1
+        echo "Error: Invalid param to ${FUNCNAME[0]}" | tee -a "$ERROR_LOG_FILE"
+        exit 255
     fi
 }
 
 # Function to log errors
 function log_error() {
-  echo "$(date): line: ${BASH_LINENO[0]}: $1" >> $ERROR_LOG_FILE
+  echo "$(date): line: ${BASH_LINENO[0]}: $1" >> "$ERROR_LOG_FILE"
   echo "Error: $1"
   echo ""
 }
@@ -71,7 +71,7 @@ function log_error() {
 
 function show_help() {
   printf "Usage:\n"
-  printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --xml <xml file>]\n"
+  printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                     Show the help message and exit\n"
@@ -87,7 +87,7 @@ function show_help() {
   printf "  -p <domain> --xml <xml file>  Passthrough devices defined in an XML file\n\n"
   printf "Supported domains:\n"
   for domain in "${!VM_DOMAIN[@]}"; do
-    printf "  -  $domain\n"
+    printf "  -  %s\n" "$domain"
   done
 }
 
@@ -97,7 +97,7 @@ function parse_arg() {
   if [[ $# -eq 0 ]]; then
     log_error "No input argument found"
     show_help
-    exit -1
+    exit 255
   fi
 
   while [[ $# -gt 0 ]]; do
@@ -119,15 +119,15 @@ function parse_arg() {
         if [[ -z "${2+x}" || -z "$2" ]]; then
           log_error "Domain name missing after $1 option"
           show_help
-          exit -1
+          exit 255
         fi
         shift
         while [[ $# -gt 0 && ! "$1" =~ ^-[^-] ]]; do
           # Check if domain is supported
-          if [[ ! "${!VM_DOMAIN[@]}" =~ "$1" ]]; then
+          if [[ ! "${!VM_DOMAIN[*]}" =~ $1 ]]; then
             log_error "Domain $1 is not supported."
             show_help
-            exit -1
+            exit 255
           fi
           domains+=("$1")
           shift
@@ -138,34 +138,34 @@ function parse_arg() {
         if [[ -z "${2+x}" || -z "$2" ]]; then
           log_error "Domain name missing after $1 option."
           show_help
-          exit -1
+          exit 255
         fi
         domain=$2
         # Check if domain is supported
-        if [[ ! "${!VM_DOMAIN[@]}" =~ "$domain" ]]; then
+        if [[ ! "${!VM_DOMAIN[*]}" =~ $domain ]]; then
           log_error "Domain $domain is not supported."
           show_help
-          exit -1
+          exit 255
         fi
         shift 2
         devices=()
         # Check passthrough options
-        while [[ $# -gt 0 && ($1 == "--xml" || $1 == "--usb" || $1 == "--pci") ]]; do
-          if [[ $1 == "--xml" ]]; then
-            if [[ -z $2 || $2 == -* ]]; then
+        while [[ $# -gt 0 && ("$1" == "--xml" || "$1" == "--usb" || "$1" == "--pci") ]]; do
+          if [[ "$1" == "--xml" ]]; then
+            if [[ -z "$2" || "$2" == -* ]]; then
               log_error "Missing XML file name after --xml"
               show_help
-              exit -1
+              exit 255
             fi
             devices+=("$1" "$2")
             shift 2
-          elif [[ $1 == "--usb" || $1 == "--pci" ]]; then
-            if [[ -z $2 || $2 == -* ]]; then
+          elif [[ "$1" == "--usb" || "$1" == "--pci" ]]; then
+            if [[ -z "$2" || "$2" == -* ]]; then
               log_error "Missing device name after $1"
               show_help
-              exit -1
+              exit 255
             fi
-            if [[ -z $3 || $3 == -* ]]; then
+            if [[ -z "$3" || "$3" == -* ]]; then
               devices+=("$1" "$2")
               shift 2
             else
@@ -175,25 +175,25 @@ function parse_arg() {
           else
             log_error "unknown device type"
             show_help
-            exit -1
+            exit 255
           fi
         done
         if [[ ${#devices[@]} -eq 0 ]]; then
           log_error "Missing device parameters after -p $domain"
           show_help
-          exit -1
+          exit 255
         fi
-        device_passthrough[$domain]="${devices[*]}"
+        device_passthrough["$domain"]="${devices[*]}"
         ;;
 
       -?*)
           echo "Error: Invalid option: $1"
           show_help
-          return -1
+          return 255
           ;;
       *)
           echo "Error: Unknown option: $1"
-          return -1
+          return 255
           ;;
     esac
   done
@@ -206,7 +206,7 @@ function check_domain() {
 
     if [[ "$status" =~ "running" || "$status" =~ "paused" ]]; then
       if [[ ! "$FORCE_LAUNCH" == "true" ]]; then
-        read -p "Domain $domain is already $status. Do you want to continue (y/n)? " choice
+        read -r -p "Domain $domain is already $status. Do you want to continue (y/n)? " choice
         case "$choice" in
           y|Y)
             # Continue to cleanup vm domain
@@ -214,12 +214,12 @@ function check_domain() {
             ;;
           n|N)
             echo "Aborting launch of domain"
-            exit -1
+            exit 255
             ;;
           *)
             log_error "Invalid choice. Aborting launch of domain"
             show_help
-	    exit -1
+	    exit 255
             ;;
         esac
       else
@@ -267,11 +267,11 @@ function cleanup_domain() {
 function launch_domains() {
   for domain in "$@"; do
     # Check if domain is supported
-    if [[ ! "${VM_DOMAIN[@]}" =~ "$domain" ]]; then
+    if [[ ! "${VM_DOMAIN[*]}" =~ $domain ]]; then
       # By right should not come here, just double check
       log_error "Domain $domain is not supported."
       show_help
-      exit -1
+      exit 255
     fi
   done
 
@@ -284,7 +284,7 @@ function launch_domains() {
     # Define domain
     echo "Define domain $domain"
     check_file_valid_nonzero "$XML_DIR/${VM_DOMAIN[$domain]}"
-    virsh define $XML_DIR/${VM_DOMAIN[$domain]}
+    virsh define "$XML_DIR/${VM_DOMAIN[$domain]}"
 
     # Passthrough devices
     echo "Passthrough device to domain $domain if any"
@@ -302,28 +302,28 @@ function passthrough_devices() {
   local domain=$1
 
   # Check if domain has device passthrough
-  if [[ ${device_passthrough[$domain]+_} ]]; then
+  if [[ "${device_passthrough[$domain]+_}" ]]; then
     local raw_devices="${device_passthrough[$domain]}"
     local devices=()
     IFS=' ' read -r -a devices <<< "$raw_devices"
 
     # Check the list of devices
     local i=0
-    while [[ $i -lt ${#devices[@]} ]]; do
+    while [[ $i -lt "${#devices[@]}" ]]; do
       local option=${devices[$i]}
       case $option in
         --xml)
           # XML file passthrough
           echo "Use XML file passthrough for domain: $domain"
           local xml_file=${devices[$i + 1]}
-          check_file_valid_nonzero $xml_file
-          if [[ ! -f $xml_file ]]; then
+          check_file_valid_nonzero "$xml_file"
+          if [[ ! -f "$xml_file" ]]; then
             log_error "XML file not found for domain $domain: $xml_file"
             show_help
-            exit -1
+            exit 255
           fi
           echo "Performing XML file passthrough for domain $domain"
-          virsh attach-device $domain --config --file $xml_file
+          virsh attach-device "$domain" --config --file "$xml_file"
           ((i+=2))
           ;;
 
@@ -339,11 +339,11 @@ function passthrough_devices() {
             current_device=${devices[$i]}
             if [[ -n "$current_device" ]]; then
               # Check if the current device is a digit
-              if [[ $current_device =~ ^[0-9]+$ ]]; then
+              if [[ "$current_device" =~ ^[0-9]+$ ]]; then
                 device_number=$current_device
               else
                 # Add the current device to the device name
-                if [[ -z $device_name ]]; then
+                if [[ -z "$device_name" ]]; then
                   device_name=$current_device
                 else
                   device_name+=" $current_device"
@@ -355,13 +355,13 @@ function passthrough_devices() {
 
           # Perform device passthrough
           echo "Performing device passthrough for domain $domain with $interface device $device_name $device_number"
-          $PASSTHROUGH_SCRIPT -p $domain $interface "$device_name" $device_number
+          "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name" "$device_number"
           ;;
 
         *)
           log_error "Invalid passthrough device option: $option"
           show_help
-          exit -1
+          exit 255
           ;;
       esac
 
@@ -374,8 +374,8 @@ function passthrough_devices() {
 
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
-parse_arg "$@" || exit -1
+parse_arg "$@" || exit 255
 
 # Launch domain(s)
-launch_domains "${domains[@]}" || exit -1
+launch_domains "${domains[@]}" || exit 255
 exit 0

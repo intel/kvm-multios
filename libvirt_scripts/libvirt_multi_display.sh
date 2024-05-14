@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -25,25 +25,24 @@ function edit_xml() {
     #    <qemu:arg value='gtk,gl=on'/>
     #  </qemu:commandline>
     # will be convert to: "-set device.video0.blob=true -display gtk,gl=on"
-    qemu_arg=$(sudo virsh dumpxml $GUEST_DOMAIN | grep "qemu:arg" | grep -P "'\K[^'/>]+" | tr '\n' ' ')
+    qemu_arg=$(sudo virsh dumpxml "$GUEST_DOMAIN" | grep "qemu:arg" | grep -P "'\K[^'/>]+" | tr '\n' ' ')
     qemu_arg=$(echo "$qemu_arg" | sed -e 's/<//g' -e 's/qemu:arg value=//g' -e "s/'//g" -e 's/\/>//g')
 
     if [[ "$qemu_arg" =~ "-display gtk,gl=on" ]]; then
-      qemu_arg=$(sed "s/-display gtk,gl=on\S*/$GUEST_DISP_TYPE/" <<< $qemu_arg)
+      # shellcheck disable=SC2001
+      qemu_arg=$(sed "s/-display gtk,gl=on\S*/$GUEST_DISP_TYPE/" <<< "$qemu_arg")
     else
       qemu_arg+=" $GUEST_DISP_TYPE"
     fi
     
-    sudo virt-xml $GUEST_DOMAIN -q --edit --video model.heads=$GUEST_MAX_OUTPUTS
-    sudo virt-xml $GUEST_DOMAIN -q --edit --qemu-commandline clearxml=yes
-    sudo virt-xml $GUEST_DOMAIN -q --edit --qemu-commandline args="$qemu_arg"
-    sudo virt-xml $GUEST_DOMAIN -q --edit --qemu-commandline env="DISPLAY=:0"
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --video model.heads="$GUEST_MAX_OUTPUTS"
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline clearxml=yes
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline args="$qemu_arg"
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline env="DISPLAY=:0"
 }
 
 function show_help() {
-    local platforms
-
-    printf "$(basename "${BASH_SOURCE[0]}") domain_name [-h] [--output n] [--connectors list] [--full-screen] [--show-fps] [--extend-abs-mode] [--disable-host-input] \n"
+    printf "%s domain_name [-h] [--output n] [--connectors list] [--full-screen] [--show-fps] [--extend-abs-mode] [--disable-host-input] \n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t--output n]\tNumber of output displays, n, range from 1 to 4\n"
@@ -55,7 +54,8 @@ function show_help() {
 }
 
 function parse_connectors() {
-    OIFS=$IFS IFS=',' connector_arr=($GUEST_CONNECTORS) IFS=$OIFS
+    local -a connector_arr
+    mapfile -t -d ',' connector_arr <<< "$GUEST_CONNECTORS"
     display_num=0
     for connector in "${connector_arr[@]}"; do
         GUEST_DISP_TYPE+=",connectors.${display_num}=${connector}"  
@@ -63,7 +63,7 @@ function parse_connectors() {
         # Check if display number within limit
         if [[ $display_num -gt $GUEST_MAX_OUTPUTS ]]; then
             echo "$GUEST_CONNECTORS exceed maximum display output of $GUEST_MAX_OUTPUTS!"
-            return -1
+            return 255
         fi
     done
 }
@@ -73,11 +73,11 @@ function parse_arg() {
     # Verify domain name
     if [[ $# -eq 0 || "$1" == "-h" ]]; then
       show_help
-      return -1
+      return 255
     else
-      if [[ -z $(sudo virsh list --all | grep $1) ]]; then
+      if ! sudo virsh list --all | grep -q "$1"; then
         echo "Domain $1 is not defined"
-        return -1
+        return 255
       fi
     fi
     GUEST_DOMAIN=$1
@@ -92,15 +92,15 @@ function parse_arg() {
             --output)
                 # Save max-ouputs
                 GUEST_MAX_OUTPUTS=$2
-                if [ $GUEST_MAX_OUTPUTS -lt $GUEST_DISPLAY_MIN ] || [ $GUEST_MAX_OUTPUTS -gt $GUEST_DISPLAY_MAX ]; then
+                if [ "$GUEST_MAX_OUTPUTS" -lt "$GUEST_DISPLAY_MIN" ] || [ "$GUEST_MAX_OUTPUTS" -gt "$GUEST_DISPLAY_MAX" ]; then
                     echo "$1 exceed limit, must be between $GUEST_DISPLAY_MIN to $GUEST_DISPLAY_MAX!"
-                    exit -1
+                    exit 255
                 fi
                 shift
                 ;;
 
             --connectors)
-                GUEST_CONNECTORS=$2
+                GUEST_CONNECTORS="$2"
                 shift
                 ;;
 
@@ -129,22 +129,22 @@ function parse_arg() {
             -?*)
                 echo "Error: Invalid option: $1"
                 show_help
-                return -1
+                return 255
                 ;;
             *)
                 echo "Error: Unknown option: $1"
-                return -1
+                return 255
                 ;;
         esac
         shift
     done
 
-    parse_connectors
+    parse_connectors || return 255
 }
 
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-parse_arg "$@" || exit -1
-edit_xml || exit -1
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+parse_arg "$@" || exit 255
+edit_xml || exit 255
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

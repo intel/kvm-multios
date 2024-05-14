@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -20,7 +20,7 @@ tpm_version="2.0"
 #
 # Function to show help information
 function show_help() {
-    printf "$(basename "${BASH_SOURCE[0]}") -h -d <domain_name> -type <passthrough/emulated> [-model <tis/crb>] [-version <2.0>] [-device </dev/tpm0>]\n"
+    printf "%s -h -d <domain_name> -type <passthrough/emulated> [-model <tis/crb>] [-version <2.0>] [-device </dev/tpm0>]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h            show this help message\n"
     printf "\t-d            domain name, eg. ubuntu or windows \n"
@@ -44,7 +44,7 @@ function parse_arg() {
                 if [[ -z "${2+x}" || -z "$2" ]]; then
                     echo "Error: '-d' option requires a parameter."
                     show_help
-                    exit -1
+                    exit 255
                 fi
                 domain_name="$2"
                 shift 2
@@ -53,7 +53,7 @@ function parse_arg() {
                 if [[ -z "${2+x}" ||  -z "$2" ]]; then
                     echo "Error: '-type' option requires a parameter."
                     show_help
-                    exit -1
+                    exit 255
                 fi
                 tpm_type="$2"
                 shift 2
@@ -62,7 +62,7 @@ function parse_arg() {
                 if [[ -z "${2+x}" ||  -z "$2" ]]; then
                     echo "Error: '-model' option requires a parameter."
                     show_help
-                    exit -1
+                    exit 255
                 fi
                 tpm_model="$2"
                 shift 2
@@ -71,7 +71,7 @@ function parse_arg() {
                 if [[ -z "${2+x}" ||  -z "$2" ]]; then
                     echo "Error: '-version' option requires a parameter."
                     show_help
-                    exit -1
+                    exit 255
                 fi
                 tpm_version="$2"
                 shift 2
@@ -80,7 +80,7 @@ function parse_arg() {
                 if [[ -z "${2+x}" ||  -z "$2" ]]; then
                     echo "Error: '-device' option requires a parameter."
                     show_help
-                    exit -1
+                    exit 255
                 fi
                 tpm_device="$2"
                 shift 2
@@ -88,7 +88,7 @@ function parse_arg() {
             *)
                 echo "Error: Invalid argument."
                 show_help
-                exit -1
+                exit 255
                 ;;
         esac
     done
@@ -97,14 +97,14 @@ function parse_arg() {
     if [[ -z "${domain_name:-}" ]]; then
         echo "Error: Missing required option '-d <domain_name>'."
         show_help
-        exit -1
+        exit 255
     fi
 
     # Check for required options
     if [[ -z "${tpm_type:-}" ]]; then
         echo "Error: Missing required option '-type <passthrough/emulated>'."
         show_help
-        exit -1
+        exit 255
     fi
 }
 
@@ -113,7 +113,7 @@ function validate_type() {
     if [[ "$tpm_type" != "passthrough" && "$tpm_type" != "emulated" ]]; then
         echo "Error: Type should be 'passthrough' or 'emulated'."
         show_help
-        exit -1
+        exit 255
     fi
 }
 
@@ -122,7 +122,7 @@ function validate_model() {
     if [[ "$tpm_model" != "tis" && "$tpm_model" != "crb" ]]; then
         echo "Error: Model should be 'tis' or 'crb'."
         show_help
-        exit -1
+        exit 255
     fi
 }
 
@@ -131,7 +131,7 @@ function validate_version() {
     if [[ "$tpm_version" != "2.0" ]]; then
         echo "Error: Currently only supports TPM version '2.0'."
         show_help
-        exit -1
+        exit 255
     fi
 }
 
@@ -140,7 +140,7 @@ function validate_device_path() {
     if [[ "$tpm_type" == "passthrough" ]] && [[ ! -e "$tpm_device" ]]; then
         echo "Error: Device path '$tpm_device' does not exist."
         show_help
-        exit -1
+        exit 255
     fi
 }
 
@@ -170,13 +170,15 @@ function append_tpm_config() {
         # by right should not reach here!
         echo "Error: Type should be 'passthrough' or 'emulated'."
         show_help
-        exit -1
+        exit 255
     fi
 
     # Check if TPM device already exists and remove it
     sudo sed -i '/<tpm/,/<\/tpm>/d' "$xml_file"
 
     # Insert the TPM XML content within <devices> section
+    #TODO: do not touch domain file in libvirt directory
+    #shellcheck disable=SC1078
     sudo bash -c "awk -v tpm_xml='$tpm_xml' '
       /<devices>/ {
         devices=1
@@ -188,7 +190,7 @@ function append_tpm_config() {
         }
       }
       { print }
-    ' "$xml_file" > temp.xml && mv temp.xml "$xml_file""
+    ' \"$xml_file\" > temp.xml && mv temp.xml \"$xml_file\""
 
     # Redefine domain for the updated xml
     sudo virsh define "$xml_file"
@@ -212,18 +214,18 @@ function check_tpm_services() {
 
 # Main function to execute the script
 function main() {
-    parse_arg "$@"
-    validate_type
-    validate_model
-    validate_version
-    validate_device_path
-    append_tpm_config "$domain_name"
-    check_tpm_services
+    parse_arg "$@" || return 255
+    validate_type || return 255
+    validate_model || return 255
+    validate_version || return 255
+    validate_device_path || return 255
+    append_tpm_config "$domain_name" || return 255
+    check_tpm_services || return 255
 }
 
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-main "$@" || exit -1
+main "$@" || exit 255
 
-echo "Done: \"$(realpath ${BASH_SOURCE[0]}) $@\""
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Copyright (c) 2023 Intel Corporation.
+# Copyright (c) 2023-2024 Intel Corporation.
 # All rights reserved.
 
-set -Eeo pipefail
+set -Eeuo pipefail
 
 #---------      Global variable     -------------------
 VM=""
@@ -22,7 +22,7 @@ RAM_PCI_DEV="RAM memory"
 
 #---------      Functions    -------------------
 function show_help() {
-  printf "$(basename "${BASH_SOURCE[0]}") [-h|--help] [-p <domain> --usb|--pci <device> (<number>)]\n\n"
+  printf "%s [-h|--help] [-p <domain> --usb|--pci <device> (<number>)]\n\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Options:\n"
   printf "  -h,--help          Show the help message and exit\n"
   printf "  -p <domain>        Name of the VM domain for device passthrough\n"
@@ -50,17 +50,19 @@ function attach_usb() {
 </hostdev>
 EOF
 
-  sudo virsh attach-device $VM usb.xml --current
+  sudo virsh attach-device "$VM" usb.xml --current
 }
 
 function attach_pci() {
   #check devices belong to same iommu group
-  pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_${PCI_BUS}_${PCI_SLOT}_${PCI_FUNC} | grep address)
-  readarray pci_array <<< $pci_iommu
+  pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_"${PCI_BUS}"_"${PCI_SLOT}"_"${PCI_FUNC}" | grep address)
+  mapfile pci_array <<< "$pci_iommu"
 
   for pci in "${pci_array[@]}";do
-    local pci_bus=$(echo $pci | sed "s/.*domain='0x\([^']\+\)'.*bus='0x\([^']\+\)'.*slot='0x\([^']\+\)'.*function='0x\([^']\+\)'.*/\1:\2:\3.\4/")
-    if [[ $(lspci -s $pci_bus) =~ $RAM_PCI_DEV ]]; then
+    local pci_bus
+    # shellcheck disable=SC2001
+    pci_bus=$(echo "$pci" | sed "s/.*domain='0x\([^']\+\)'.*bus='0x\([^']\+\)'.*slot='0x\([^']\+\)'.*function='0x\([^']\+\)'.*/\1:\2:\3.\4/")
+    if [[ $(lspci -s "$pci_bus") =~ $RAM_PCI_DEV ]]; then
       echo "Find ram memory: $pci_bus. Skip this device"
       continue;
     fi
@@ -72,7 +74,7 @@ function attach_pci() {
   </source>
 </hostdev>
 EOF
-    sudo virsh attach-device $VM pci.xml --current
+    sudo virsh attach-device "$VM" pci.xml --current
  done
 }
 
@@ -80,7 +82,7 @@ function parse_arg() {
   if [[ $# -eq 0 ]]; then
     log_error "NO input argument found"
     show_help
-    exit -1
+    exit 255
   fi
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -94,25 +96,25 @@ function parse_arg() {
         if [[ -z "${2+x}" || -z "$2" ]]; then
           log_error "Domain name missing after $1 option"
           show_help
-          exit -1
+          exit 255
         fi
         VM=$2
         # Check if domain is supported
-        if [[ -z $(sudo virsh list --all | grep $VM) ]]; then
+        if ! sudo virsh list --all | grep -q "$VM"; then
           log_error "$VM is not defined"
           show_help
-          exit -1
+          exit 255
         fi
         shift 2
-        if [[ $1 == "--usb" || $1 == "--pci" ]]; then
-          if [[ -z $2 || $2 == -* ]]; then
+        if [[ "$1" == "--usb" || "$1" == "--pci" ]]; then
+          if [[ -z "$2" || "$2" == -* ]]; then
               log_error "Missing device name after $1"
               show_help
-              exit -1
+              exit 255
           fi
           INTERFACE=$1
           DEVICE_NAME=$2
-          if [[ -z $3 || $3 == -* ]]; then
+          if [[ -z "$3" || "$3" == -* ]]; then
               DEVICE_NUMBER=1
           else
               DEVICE_NUMBER=$3
@@ -122,17 +124,17 @@ function parse_arg() {
         else
           log_error "unknown device type"
           show_help
-          exit -1
+          exit 255
         fi
         ;;
       -?*)
         echo "Error: Invalid option $1"
         show_help
-        return -1
+        return 255
         ;;
       *)
         echo "Error: Unknown option: $1"
-        return -1
+        return 255
         ;;
     esac
   done
@@ -141,26 +143,26 @@ function parse_arg() {
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-parse_arg "$@" || exit -1
+parse_arg "$@" || exit 255
 
 if [[ "--pci" == "$INTERFACE" ]]; then
-  DEVICE_FOUND=$(lspci -nn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk $NR_DEVICE)
+  DEVICE_FOUND=$(lspci -nn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk "$NR_DEVICE")
   if [[ -z "$DEVICE_FOUND" ]]; then
     echo "No device $DEVICE_NAME found"
-    exit -1
+    exit 255
   fi
-  PCI_BUS=$(echo $DEVICE_FOUND | cut -d':' -f1)
-  PCI_SLOT=$(echo $DEVICE_FOUND | cut -d':' -f2 | cut -d '.' -f1)
-  PCI_FUNC=$(echo $DEVICE_FOUND | cut -d':' -f2 | cut -d '.' -f2)
+  PCI_BUS=$(echo "$DEVICE_FOUND" | cut -d':' -f1)
+  PCI_SLOT=$(echo "$DEVICE_FOUND" | cut -d':' -f2 | cut -d '.' -f1)
+  PCI_FUNC=$(echo "$DEVICE_FOUND" | cut -d':' -f2 | cut -d '.' -f2)
   attach_pci
 elif [[ "--usb" == "$INTERFACE" ]]; then
-  DEVICE_FOUND=$(lsusb | grep -i $DEVICE_NAME | awk $NR_DEVICE | grep -o "ID ....:....")
+  DEVICE_FOUND=$(lsusb | grep -i "$DEVICE_NAME" | awk "$NR_DEVICE" | grep -o "ID ....:....")
   if [[ -z "$DEVICE_FOUND" ]]; then
     echo "No device $DEVICE_NAME found"
-    exit -1
+    exit 255
   fi
-  USB_VENDOR_ID=$(echo $DEVICE_FOUND | cut -d' ' -f2 | cut -d':' -f1)
-  USB_PRODUCT_ID=$(echo $DEVICE_FOUND | cut -d' ' -f2 | cut -d':' -f2)
+  USB_VENDOR_ID=$(echo "$DEVICE_FOUND" | cut -d' ' -f2 | cut -d':' -f1)
+  USB_PRODUCT_ID=$(echo "$DEVICE_FOUND" | cut -d' ' -f2 | cut -d':' -f2)
   attach_usb
 else
   echo "Not supported interface $INTERFACE"

@@ -47,16 +47,20 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
     - Ubuntu 22.04
-    - Windows 10 LTSC Enterprise
-    - Android Celadon 12/13
+    - Windows 10 IOT Enterprise LTSC 21H2
+    - Windows 11 IOT Enterprise 22H2
+    - Android Celadon 12
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 
 # Intel IOT Platforms Supported
 | Supported Intel IOT platform | Supported Host and Guest OS Details | Comment
 | :-- | :-- | :--
-| Meteor lake | [refer here](platforms.md#meteor-lake) |
-| Alder lake | [refer here](platforms.md#alder-lake) | Not officially supported for KVM MultiOS Portfolio release. N-1 platform for development only.
+| Arrow Lake | [refer here](platforms.md#arrow-lake) |
+| Amston Lake | [refer here](platforms.md#amston-lake-and-alder-lake-n) |
+| Meteor Lake | [refer here](platforms.md#meteor-lake) |
 | Raptor Lake PS | [refer here](platforms.md#raptor-lake-ps) |
+| Alder Lake N | [refer here](platforms.md#amston-lake-and-alder-lake-n) |
+| Alder Lake | [refer here](platforms.md#alder-lake) | Not officially supported for KVM MultiOS Portfolio release. N-1 platform for development only.
 
 For internal only platforms, refer [here](intel_internal/platforms.md)
 
@@ -87,43 +91,47 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 ## Platform Naming Convention
 | Supported Intel IOT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
+| Arrow Lake | client
 | Amston Lake | client
 | Meteor Lake | client
-| Alder Lake | client
 | Raptor Lake PS | client
+| Alder Lake N | client
+| Alder Lake | client
 
 For Intel internal only platforms, refer [here](intel_internal/platforms.md)
 
-## Guest OS Domain Naming Convention
-| VM Operating System | domain name in KVM MultiOS Portfolio Release |
-| :-- | :-- |
-| Ubuntu | ubuntu |
-| Ubuntu RT | ubuntu_rt |
-| Windows | windows |
-| Android | android |
-| Redhat | redhat |
-| CentOS | centos |
+## Guest OS Domain Naming Convention, MAC and IP Address
+| VM Operating System | domain name in KVM MultiOS Portfolio Release | MAC address | IP address |
+| :-- | :-- | :-- | :-- |
+| Ubuntu | ubuntu | 52:54:00:ab:cd:11 | 192.168.122.11 |
+| Windows 10 | windows | 52:54:00:ab:cd:22 | 192.168.122.22 |
+| Android | android | 52:54:00:ab:cd:33 | 192.168.122.33 |
+| Ubuntu RT | ubuntu_rt | 52:54:00:ab:cd:44 | 192.168.122.44 |
+| Windows 11 | windows11 | 52:54:00:ab:cd:55 | 192.168.122.55 |
+| Redhat | redhat | TBD | TBD |
+| CentOS | centos | TBD | TBD |
 
 ## Guest OS libvirt Domain XML Naming Convention
 | XML filename | VM Operating System | display | GPU virtualization | OS boot (BIOS/UEFI) | default used in launch_multios.sh |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| ubuntu_vnc.xml | Ubuntu | VNC | None | UEFI | Yes |
+| ubuntu_vnc_spice.xml | Ubuntu | VNC/SPICE | None | UEFI | Yes |
 | ubuntu_gvtd.xml | Ubuntu | Local Display | GVT-d in legacy mode | UEFI | Yes |
 | ubuntu_sriov.xml | Ubuntu | Local Display | SR-IOV | UEFI | Yes |
-| ubuntu_rt_vnc.xml | Ubuntu RT | VNC | None | UEFI | Yes |
-| ubuntu_rt_gvtd.xml | Ubuntu RT | Local Display | GVT-d in legacy mode | UEFI | Yes |
-| ubuntu_rt_sriov.xml | Ubuntu RT | Local Display | SR-IOV | UEFI | Yes |
-| windows_vnc_ovmf.xml | Ubuntu | VNC | None | UEFI | Yes |
-| windows_gvtd_ovmf.xml | Ubuntu | Local Display | GVT-d in legacy mode| UEFI | Yes |
-| windows_gvtd_upt_ovmf.xml | Ubuntu | VNC | GVT-d in UPT mode | UEFI | No |
-| windows_gvtd_upt_seabios.xml | Ubuntu | VNC | GVT-d in UPT mode | BIOS | No |
-| windows_sriov_ovmf.xml | Ubuntu | Local Display | SR-IOV | UEFI | Yes |
-| windows_sriov_seabios.xml | Ubuntu | Local Display | SR-IOV | BIOS | No |
+| ubuntu_rt_headless.xml | Ubuntu RT | Headless | None | UEFI | Yes |
+| windows_vnc_spice_ovmf.xml | Windows 10 | VNC/SPICE | None | UEFI | Yes |
+| windows_gvtd_ovmf.xml | Windows 10 | Local Display | GVT-d in legacy mode| UEFI | Yes |
+| windows_gvtd_upt_ovmf.xml | Windows 10 | VNC | GVT-d in UPT mode | UEFI | No |
+| windows_gvtd_upt_seabios.xml | Windows 10 | VNC | GVT-d in UPT mode | BIOS | No (for reference only) |
+| windows_sriov_ovmf.xml | Windows 10 | Local Display | SR-IOV | UEFI | Yes |
+| windows_sriov_seabios.xml | Windows 10 | Local Display | SR-IOV | BIOS | No (for reference only) |
 | android_virtio-gpu.xml | Android | Local Display | Virtio-GPU | UEFI | Yes |
 | android_gvtd.xml | Android | Local Display | GVT-d in legacy mode | UEFI | Yes |
 | android_sriov.xml | Android | Local Display | SR-IOV | UEFI | Yes |
-| centos_vnc.xml | CentOS | VNC | None | UEFI | Yes |
-| redhat_vnc.xml | Redhat | VNC | None | UEFI | Yes |
+| centos_vnc_spice.xml | CentOS | VNC/SPICE | None | UEFI | Yes |
+| redhat_vnc_spice.xml | Redhat | VNC/SPICE | None | UEFI | Yes |
+| windows11_vnc_spice_ovmf.xml | Windows 11 | VNC/SPICE | None | UEFI | Yes |
+| windows11_sriov_ovmf.xml | Windows 11 | Local Display | SR-IOV | UEFI | Yes |
+| windows11_sriov_seabios.xml | Windows 11 | Local Display | SR-IOV | BIOS | No (for reference only) |
 
 # Host Setup
 The Intel IOT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.
@@ -178,7 +186,7 @@ The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where 
 
 The number of vCPUs allocated to VM could be found in the \<vcpu\> element of XML file which could be modified accordingly to desired values.
 
-For example, the below shows 2 vCPU allocation for windows.
+For example, the below shows 2 vCPU allocation for windows 10 guest VM.
 
         <name>windows</name>
         ...
@@ -196,7 +204,7 @@ The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where 
 
 The memory allocated to VM could be found in the \<memory\> and \<currentMemory\> elements of XML file which could be modified accordingly to desired values. The unit is default to "KiB" for kibibytes (1024 bytes) unless otherwise specified.
 
-For example, the below shows 4GB allocation for windows.
+For example, the below shows 4GB allocation for windows 10 guest VM.
 
         <name>windows</name>
         ...
@@ -210,7 +218,7 @@ Reference: [Libvirt Domain XML format: Memory allocation](https://libvirt.org/fo
 To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt toolkit on xxxx platform.
 **Note: refer to [Guest OS domain naming convention](#guest-os-domain-naming-convention) for domain
 
-        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <vnc|sriov|gvtd> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p <domain> --tpm <type> (<model>) | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
+        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <headless|vnc|spice|sriov|gvtd> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p <domain> --tpm <type> (<model>) | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
 
 ### Launch_multios Script Options
 <table>
@@ -219,7 +227,10 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td>-f</td><td></td><td>Force shutdown, destory and start VM domain(s) even if already running</td></tr>
     <tr><td>-a</td><td></td><td>Launch all supported VM domains for platform</td></tr>
     <tr><td>-d</td><td>&ltdomain&gt...&ltdomainN&gt</td><td>Name of all VM domain(s) to launch. Superset of domain(s) used with -p|-g options.</td></tr>
-    <tr><td rowspan="3">-g</td><td>vnc &ltdomain&gt...&ltdomainN&gt</td><td>Use VNC for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Use SR-IOV for VM domains of names &ltdomain&gt...&ltdomainN&gt. Superset of domain(s) used with -m option.</td></tr>
+    <tr><td rowspan="5">-g</td><td>headless &ltdomain&gt...&ltdomainN&gt</td><td>Headless for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td>vnc &ltdomain&gt...&ltdomainN&gt</td><td>Use VNC for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td>spice &ltdomain&gt...&ltdomainN&gt</td><td>Use SPICE for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Use SR-IOV for VM domains of names &ltdomain&gt...&ltdomainN&gt. Superset of domain(s) used with -m option.</td></tr>
     <tr><td>gvtd &ltdomain&gt</td><td>Use GVT-d for VM domain</td></tr>
     <tr><td rowspan="4">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
@@ -264,18 +275,19 @@ Follow the command below to get names of hardware display ports **connected** on
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a</td><td>To force launch all guest VMs with default configuration even if VMs are already running</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d ubuntu</td><td>To launch ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu</td><td>To force launch ubuntu guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -g gvtd ubuntu</td><td>To force launch ubuntu guest VM configured with GVT-d display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -g sriov windows</td><td>To force launch windows guest VM configured with SR-IOV display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g gvtd ubuntu</td><td>To force launch ubuntu guest VM configured with GVT-d display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows 10 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard</td><td>To force launch all guest VMs and passthrough USB Keyboard to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci wi-fi</td><td>To force launch all guest VMs and passthrough PCI WiFi to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci network controller 2</td><td>To force launch all guest VMs and passthrough the 2nd PCI Network Controller in lspci list to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --tpm passthrough crb</td><td>To force launch all guest VMs and passthrough TPM with crb model to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs and passthrough the device(s) in the XML file to ubuntu guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors HDMI-1,DP-1 --fullscreen --show-fps</td><td>To force launch windows guest VM with SR-IOV display on 2 physical displays HDMI and DP with full screen mode and fps shows on primary display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows 10 guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors HDMI-1,DP-1 --fullscreen --show-fps</td><td>To force launch windows 10 guest VM with SR-IOV display on 2 physical displays HDMI and DP with full screen mode and fps shows on primary display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g sriov windows11</td><td>To force launch windows 11 guest VM configured with SR-IOV display</td></tr>
 </table>
 
 ## VM Misc Operations

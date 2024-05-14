@@ -1,12 +1,12 @@
 # Table of Contents
 1. [Automated Windows VM Installation](#automated-windows-vm-installation)
     1. [Prerequisites](#prerequisites)
-        1. [NoPrompt Windows10 Installation ISO Creation](#noprompt-windows10-installation-iso-creation)
+        1. [NoPrompt Windows Installation ISO Creation](#noprompt-windows-installation-iso-creation)
         1. [Getting Ready for Automated Install](#getting-ready-for-automated-install)
-    1. [Running Windows10 Automated Install](#running-windows10-automated-install)
+    1. [Running Windows Automated Install](#running-windows-automated-install)
         1. [Automated SRIOV Install with WHQL Certified Graphics Driver](#automated-sriov-install-with-whql-certified-graphics-driver)
         1. [Automated SRIOV Install with Intel Attest-signed Graphics Driver](#automated-sriov-install-with-intel-attest-signed-graphics-driver)
-        1. [Windows10 Non-SR-IOV Automated Install](#windows10-non-sr-iov-automated-install) 
+        1. [Windows Non-SR-IOV Automated Install](#windows-non-sr-iov-automated-install)
 1. [Launching Windows VM](#launching-windows-vm)
 
 # Automated Windows VM Installation
@@ -36,7 +36,7 @@ Host platform DUT setup:
 - Host platform date/time is set up properly to current date/time.
 - Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
 
-### NoPrompt Windows10 Installation ISO Creation
+### NoPrompt Windows Installation ISO Creation
 Windows installation iso as downloaded from Windows direct is not suitable for unattended install as it requires human intervention to respond to a "Press Any Key To Boot From..." prompt from iso installation.
 To get around this, an NoPrompt Windows installation iso needs to be generated once from the actual installation iso provided by Windows download for unattended Windows installation. The created NoPrompt iso could be reused for all subsequent unattended Windows VM creation from same Windows ISO.
 
@@ -49,6 +49,7 @@ Take note of ADK installation destination path for later use.
 | Windows Version | Window ADK Download |
 | :-- | :-- |
 | Windows 10 IOT Enterprise LTSC 21H2 | [Windows ADK for Windows 10, version 2004](https://go.microsoft.com/fwlink/?linkid=2120254)</br>[Windows PE add-on for the ADK, version 2004](https://go.microsoft.com/fwlink/?linkid=2120253)|
+| Windows 11 IOT Enterprise 22H2 | [Windows ADK for Windows 11, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196127)</br>[Windows PE add-on for the ADK, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196224)|
 
 2. Download and save Create-NoPromptISO.ps1 script from [here](https://github.com/DeploymentResearch/DRFiles/raw/906151a1cdd55a14bc226196a3f597b0538273dd/Scripts/Create-NoPromptISO.ps1)
 
@@ -75,34 +76,43 @@ Take note of ADK installation destination path for later use.
 The noprompt installation iso will be generated at path specified by WinPE_OutputISOfile variable in CreateNoPromptISO.ps1 script. This can be used for all subsequent Windows unattended installations.
 
 ### Getting Ready for Automated Install
-1. Copy windows noprompt installer iso to the Intel host machine which is to run the guest VM.
+#### Copy required files to unattend_winxx folder on the Intel host machine which is to run the guest VM.
+#### Please take note:
+#### - All the folders mentioned below are relative to the git repository
+#### - For Windows 10, use folder "./guest_setup/ubuntu/unattend_win10"
+#### - For Windows 11, use folder "./guest_setup/ubuntu/unattend_win11"
+1. Go to the git repository folder.
 
-        cp <windowsNoPrompt.iso> guest_setup/ubuntu/unattend_win10/windowsNoPrompt.iso
+        cd <git repository>
 
-2. Copy required Windows update OS patch msu file to guest_setup/ubuntu/unattend_win folder, renaming as below.
+2. Copy windows noprompt installer iso to unattend_winxx folder, ensure renaming as below.
 
-        cp windows-kbxxxxxxx-x64_xxxxxxxxxxx.msu ./guest_setup/ubuntu/unattend_win10/windows-updates.msu
+        cp <windowsNoPrompt.iso> ./guest_setup/ubuntu/<unattend_winxx>/windowsNoPrompt.iso
 
-3. Copy required Intel GPU GFX driver archive to guest_setup/ubuntu/unattend_win folder, ensure renaming as below.
+3. Copy required Windows update OS patch msu file to unattend folder, ensure renaming as below.
 
-        cp <Driver-Release-64-bit.zip> ./guest_setup/ubuntu/unattend_win10/Driver-Release-64-bit.zip
+        cp <windows-kbxxxxxxx-x64_xxxxxxxxxxx.msu> ./guest_setup/ubuntu/<unattend_winxx>/windows-updates.msu
+
+4. Copy required Intel GPU GFX driver archive to unattend folder, ensure renaming as below.
+
+        cp <Driver-Release-64-bit.zip> ./guest_setup/ubuntu/<unattend_winxx>/Driver-Release-64-bit.zip
         OR
-        cp <Driver-Release-64-bit.7z> ./guest_setup/ubuntu/unattend_win10/Driver-Release-64-bit.7z
+        cp <Driver-Release-64-bit.7z> ./guest_setup/ubuntu/<unattend_winxx>/Driver-Release-64-bit.7z
 
-4. Copy required Intel GPU SR-IOV Zero-copy driver build or installer archive to guest_setup/ubuntu/unattend_win folder, renaming as below.
+5. Copy required Intel GPU SR-IOV Zero-copy driver build or installer archive to unattend folder, ensure renaming as below.
 
-        cp <ZCBuild_xxxx_MSFT_Signed.zip> ./guest_setup/ubuntu/unattend_win10/ZCBuild_MSFT_Signed.zip
+        cp <ZCBuild_xxxx_MSFT_Signed.zip> ./guest_setup/ubuntu/<unattend_winxx>/ZCBuild_MSFT_Signed.zip
         OR
-        cp <ZC_Installer_xxxx.zip> ./guest_setup/ubuntu/unattend_win10/ZC_Installer.zip
+        cp <ZCBuild_xxxx_MSFT_Signed_Installer.zip> ./guest_setup/ubuntu/<unattend_winxx>/ZCBuild_MSFT_Signed_Installer.zip
 
-5. Configure any additional driver/windows installations by modifying ./guest_setup/ubuntu/unattend_win10/additional_installs.yaml.
+6. Configure any additional driver/windows installations by modifying ./guest_setup/ubuntu/<unattend_winxx>/additional_installs.yaml.
    Only installations which are capable of silent install without any user intervention required are supported for auto install.  
    Additional_install.yaml file has the format as below. 
 
         installations:
           - name: # unique name for this installation in yaml
             description: # description of installation
-            filename: # filename of file in guest_setup/ubuntu/unattend_win10 folder containing install file.  
+            filename: # filename of file in ./guest_setup/ubuntu/<unattend_winxx> folder containing install file.
                       # If file is not present, attempt to download from download_url and rename as filename.
                       # If download fails, auto install will be aborted.
             download_url: # Empty string or download url to download installation file
@@ -116,22 +126,23 @@ The noprompt installation iso will be generated at path specified by WinPE_Outpu
    - Intel® Wireless Bluetooth® for IT Administrators version
    - Intel® PROSet/Wireless Software and Drivers for IT Admins
    - Intel® Ethernet Adapter Complete Driver Pack
-   If do not wish to have any of above additional installations, please remove accordingly in guest_setup/ubuntu/unattend_win10/additional_installs.yaml file prior to starting Windows Automated install.
+
+   If do not wish to have any of above additional installations, please remove accordingly in guest_setup/ubuntu/<unattend_winxx>/additional_installs.yaml file prior to starting Windows Automated install.
 
 Now system is ready to run Windows Automated install. Run Windows automated install as per following sections based on what type of VM support is desired and whether provided Intel GPU GFX driver used for installation is WHQL certifed or non-WHQL certified aka attest-signed.
 
 Refer to here for information on WHQL certified vs Intel attest-signed graphics driver: [What Is the Difference between WHQL and Non-WHQL Certified Graphics Drivers?](https://www.intel.com/content/www/us/en/support/articles/000093158/graphics.html#summary)
 
-## Running Windows10 Automated Install
+## Running Windows Automated Install
 **Note: VM will restart multiple times and finally shutdown automatically after completion. Installation may take some time, please be patient. 
 As part of windows installation process VM may be restarted in SR-IOV mode for installation of SR-IOV required drivers in the background. At this stage VM will no longer have display on virt-viewer UI nor on VNC. Instead VM display could be found on host platform physical monitor.
 DO NOT interfere or use VM before setup script exits successfully.**
 
         Command Reference:
-        win10_setup.sh [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]
+        <winxx_setup.sh> [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]
         Create Windows vm required images and data to dest folder /var/lib/libvirt/images/windows.qcow2
-        Place required Windows installation files as listed below in guest_setup/ubuntu/unattend_win10 folder prior to running.
-        (windowsNoPrompt.iso4, windows-updates.msu4, ZCBuild_MSFT_Signed.zip4, Driver-Release-64-bit.[zip|7z])
+        Place required Windows installation files as listed below in ./guest_setup/ubuntu/<unattend_winxx> folder prior to running.
+        (windowsNoPrompt.iso, windows-updates.msu, ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip, Driver-Release-64-bit.[zip|7z])
         Options:
                 -h                show this help message
                 -p                specific platform to setup for, eg. "-p client "
@@ -147,25 +158,26 @@ DO NOT interfere or use VM before setup script exits successfully.**
 
 This command will start Windows guest VM install from Windows installer. Installation progress can be tracked in the following ways:
 - "--viewer" option which display VM on virt-viewer
-- via remote VNC viewer of your choice by connect to <VM_IP>:5902. VM ip address can be found using the command:
-    virsh domifaddr windows
+- via remote VNC viewer of your choice by connect to <Host_IP>:<VNC_PORT>, eg.
+  for Windows10, <Host_IP>:5902
+  for Windows11, <Host_IP>:5905
 
 ### Automated SRIOV Install with WHQL Certified Graphics Driver
 If platform Intel GPU driver available for platform is WHQL certified, run below command to start Windows VM automated install from a GUI terminal on host platform.
 
-        ./guest_setup/ubuntu/win10_setup.sh -p client --force --viewer
+        ./guest_setup/ubuntu/<winxx_setup.sh> -p client --force --viewer
 
 
 ### Automated SRIOV Install with Intel Attest-signed Graphics Driver
 If platform Intel GPU driver available for platform is non-WHQL certified (Intel attest-signed driver), run below command to start Windows VM automated install from a GUI terminal on host platform.
 
-        ./guest_setup/ubuntu/win10_setup.sh -p client --non-whql-gfx --force --viewer
+        ./guest_setup/ubuntu/<winxx_setup>.sh -p client --non-whql-gfx --force --viewer
 
 
-### Windows10 Non-SR-IOV Automated Install 
+### Windows Non-SR-IOV Automated Install
 For Windows guest VM without Intel GPU SR-IOV drivers, run below command to start Windows VM automated install from a terminal.
 
-        ./guest_setup/ubuntu/win10_setup.sh -p client --no-sriov --force --viewer
+        ./guest_setup/ubuntu/<winxx_setup.sh> -p client --no-sriov --force --viewer
 
 
 # Launching Windows VM
@@ -174,12 +186,15 @@ Refer to [here](README.md#vm-management) for more details on VM managment.
 
 <table>
     <tr><th align="center">Example</th><th>Description</th></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows</td><td>To launch Windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows</td><td>To force launch windows guest VM with VNC display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows guest VM configured with SR-IOV display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g gvtd windows</td><td>To force launch windows guest VM configured with GVT-d display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --usb keyboard</td><td>To force launch windows and passthrough USB Keyboard to windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --pci wi-fi</td><td>To force launch windows VM and passthrough PCI WiFi to windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --pci network controller 2</td><td>To force launch windows VM and passthrough the 2nd PCI Network Controller in lspci list to windows guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows--xml xxxx.xml</td><td>To force launch windows VM and passthrough the device(s) in the XML file to windows guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows</td><td>To launch Windows10 guest VM with VNC and SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows</td><td>To force launch windows10 guest VM with VNC and SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows10 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g gvtd windows</td><td>To force launch windows10 guest VM configured with GVT-d display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --usb keyboard</td><td>To force launch windows10 guest VM and passthrough USB Keyboard to windows10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --pci wi-fi</td><td>To force launch windows10 guest VM and passthrough PCI WiFi to windows10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows --pci network controller 2</td><td>To force launch windows10 guest VM and passthrough the 2nd PCI Network Controller in lspci list to windows10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -p windows--xml xxxx.xml</td><td>To force launch windows10 guest VM and passthrough the device(s) in the XML file to windows10 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11</td><td>To launch Windows11 guest VM with VNC and SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11</td><td>To force launch windows11 guest VM with VNC and SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g sriov windows11</td><td>To force launch windows11 guest VM configured with SR-IOV display</td></tr>
 </table>

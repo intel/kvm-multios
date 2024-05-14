@@ -197,7 +197,8 @@ Steps:
         sudo reboot now
 
 # Launching Ubuntu/Ubuntu RT VM
-Ubuntu/Ubuntu RT VM can be started with different display support as per below examples.
+Ubuntu VM can be started with different display support as per below examples.  
+Ubuntu RT VM can only be started without display support and access is via virsh console as mentioned in section [VM Misc Operations](README.md#vm-misc-operations)  
 Refer to [here](README.md#vm-management) more details on VM managment.  
 
 **Note:**  
@@ -207,10 +208,10 @@ Refer to [here](README.md#vm-management) more details on VM managment.
 
 <table>
     <tr><th align="center">Example</th><th>Description</th></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d &lt;domain&gt;</td><td>To launch ubuntu/ubuntu RT guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt;</td><td>To force launch ubuntu/ubuntu RT guest VM with VNC display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -g sriov &lt;domain&gt;</td><td>To force launch ubuntu/ubuntu RT guest VM configured with SR-IOV display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -g gvtd &lt;domain&gt;</td><td>To force launch ubuntu/ubuntu RT guest VM configured with GVT-d display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d &lt;domain&gt;</td><td>To launch ubuntu with VNC and SPICE display or launch ubuntu_rt without display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt;</td><td>To force launch ubuntu/ubuntu RT guest</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -g sriov &lt;domain&gt;</td><td>To force launch ubuntu guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -g gvtd &lt;domain&gt;</td><td>To force launch ubuntu guest VM configured with GVT-d display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -p &lt;domain&gt; --usb keyboard</td><td>To launch ubuntu/ubuntu RT guest VM and passthrough USB Keyboard to it</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -p &lt;domain&gt; --pci wi-fi</td><td>To force launch ubuntu/ubuntu RT guest VM and passthrough PCI WiFi to it</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d &lt;domain&gt; -p &lt;domain&gt; --pci network controller 2</td><td>To force launch ubuntu/ubuntu RT guest VM and passthrough the 2nd PCI Network Controller in lspci list to it</td></tr>
