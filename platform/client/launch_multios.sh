@@ -380,10 +380,10 @@ function cleanup_domain() {
   local domain="$1"
   echo "Shutting down and undefining domain $domain"
   virsh shutdown "$domain" >/dev/null 2>&1 || :
-  # check if VM has shutdown at 5s interval, timeout 60s
-  for (( x=0; x<12; x++ )); do
+  # check if VM has shutdown at 15s interval, timeout 60s
+  for (( x=0; x<4; x++ )); do
       echo "Wait for $domain to shutdown: $x"
-      sleep 5
+      sleep 15
       state=$(virsh list --all | grep " $domain " | awk '{ print $3}')
       if [[ "$state" == "shut" ]];then
           break

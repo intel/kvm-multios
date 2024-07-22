@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2023 Intel Corporation.
+ Copyright (c) 2023-2024 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu='http://libvirt.org/schemas/domain/qemu/1.0'>
@@ -125,4 +125,7 @@
     <qemu:arg value='-device'/>
     <qemu:arg value='intel-iommu,device-iotlb=on,caching-mode=on'/>
   </qemu:commandline>
+  <qemu:capabilities>
+    <qemu:del capability='usb-host.hostdevice'/>
+  </qemu:capabilities>
 </domain>

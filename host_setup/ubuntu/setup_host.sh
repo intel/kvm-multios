@@ -222,8 +222,10 @@ EOF
     fi
 
     check_file_valid_nonzero "/etc/profile.d/mesa_driver.sh"
+    # Add source mesa_driver.sh to first line of bash.bashrc so that it will be called even for non interactive shell
+    sudo sed -i '$ s:source /etc/profile.d/mesa_driver.sh::g' /etc/bash.bashrc
     if ! grep -Fq 'source /etc/profile.d/mesa_driver.sh' /etc/bash.bashrc; then
-        echo 'source /etc/profile.d/mesa_driver.sh' | sudo tee -a /etc/bash.bashrc
+        sudo sed -i '1s:^:source /etc/profile.d/mesa_driver.sh\n:' /etc/bash.bashrc
     fi
     reboot_required=1
 }
@@ -332,7 +334,7 @@ log_success() {
 }
 
 function ask_reboot() {
-    if [ $reboot_required -eq 1 ];then
+    if [[ $reboot_required -eq 1 ]];then
         read -r -t "$reboot_timeout" -p "System reboot will take place in $reboot_timeout sec, do you want to continue? [Y/n]" res || (echo)
         if [[ "$res" == 'n' || "$res" == 'N' ]];  then
             echo "Warning: Please reboot system for changes to take effect"
@@ -423,6 +425,13 @@ echo "Setting up for power management"
 source "$scriptpath/setup_swap.sh"
 # shellcheck source-path=SCRIPTDIR
 source "$scriptpath/setup_pm_mgmt.sh"
+echo "Setting up for OpenVINO"
+openvino_setup_cmd="source $scriptpath/setup_openvino.sh --neo"
+if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9] [0-9]* for 0000:00:0b.0 on minor 0'; then
+    openvino_setup_cmd="$openvino_setup_cmd --npu"
+fi
+# shellcheck source-path=SCRIPTDIR
+$openvino_setup_cmd
 
 log_success
 ask_reboot

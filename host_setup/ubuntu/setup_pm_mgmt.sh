@@ -9,7 +9,9 @@ set -Eeuo pipefail
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
 
-LOG_FILE=${LOG_FILE:="/tmp/host_setup_ubuntu.log"}
+script=$(realpath "${BASH_SOURCE[0]}")
+LOGTAG=$(basename "$script")
+LOG_FILE=${LOG_FILE:="/tmp/$LOGTAG.log"}
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then

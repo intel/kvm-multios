@@ -155,15 +155,18 @@ autoinstall:
     - wget --no-proxy -O /target/tmp/setup_pm_mgmt.sh $FILE_SERVER_URL/setup_pm_mgmt.sh
     - curtin in-target -- chmod +x /tmp/setup_pm_mgmt.sh
     - curtin in-target -- bash /tmp/setup_pm_mgmt.sh
+    - wget --no-proxy -O /target/tmp/setup_openvino.sh $FILE_SERVER_URL/setup_openvino.sh
+    - curtin in-target -- chmod +x /tmp/setup_openvino.sh
+    - curtin in-target -- bash /tmp/setup_openvino.sh $OPENVINO_INSTALL_OPTIONS
     - rm /target/tmp/setup_bsp.sh
     - rm /target/tmp/setup_pm_mgmt.sh
+    - rm /target/tmp/setup_openvino.sh
     - cp /var/log/syslog /target/root/syslog_setup
 
   error-commands:
     - cp /var/log/syslog /target/root/syslog_setup  # back up setup log in guest on error
     - /usr/bin/tail -n 250 /var/log/syslog
-    - echo "ERROR" | nc -q1 $HOST_SERVER_IP $HOST_SERVER_NC_PORT
-    - shutdown
+    # more error handling here
 
   # Additional cloud-init configuration affecting the target
   # system can be supplied underneath a user-data section inside of

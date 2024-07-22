@@ -199,48 +199,59 @@
         </RunSynchronousCommand>
         <!-- Enable Windows SSHD -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Add-WindowsCapability -Online -Name 'OpenSSH.Server~~~~0.0.1.0'</Path>
-          <Description>Install the OpenSSH Server</Description>
-          <Order>4</Order>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64.msi' "%FILE_SERVER_URL%/OpenSSH-Win64.msi"</Path>
+          <Description>Download Windows Powershell OpenSSH installation</Description>
           <WillReboot>OnRequest</WillReboot>
+          <Order>4</Order>
         </RunSynchronousCommand>
-        <!-- Retry Windows SSHD -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command if (-not(get-service sshd)) {Add-WindowsCapability -Online -Name 'OpenSSH.Server~~~~0.0.1.0'}</Path>
-          <Description>Re-try 1 Install the OpenSSH Server</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64_setup.ps1' "%FILE_SERVER_URL%/OpenSSH-Win64_setup.ps1"</Path>
+          <Description>Download Windows OpenSSH (SCP/SFTP) setup script</Description>
           <Order>5</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command if (-not(get-service sshd)) {Add-WindowsCapability -Online -Name 'OpenSSH.Server~~~~0.0.1.0'}</Path>
-          <Description>Re-try 2 Install the OpenSSH Server</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Temp\OpenSSH-Win64.msi /quiet'</Path>
+          <Description>Install Windows OpenSSH</Description>
           <Order>6</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\OpenSSH-Win64_setup.ps1"</Path>
+          <Description>Run setup for Windows OpenSSH (SCP/SFTP)</Description>
+          <Order>7</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <RunSynchronousCommand wcm:action="add">
+          <Path>netsh advfirewall firewall add rule name=sshd dir=in action=allow protocol=TCP localport=22</Path>
+          <Description>Setup firewall for SSHD service</Description>
+          <Order>8</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Service sshd</Path>
           <Description>Start SSHD service</Description>
-          <Order>7</Order>
+          <Order>9</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Set-Service -Name sshd -StartupType 'Automatic'</Path>
           <Description>Configure SSHD for automatic start</Description>
-          <Order>8</Order>
+          <Order>10</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Install QEMU Guest agent -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\guest-agent\qemu-ga-x86_64.msi /quiet'</Path>
           <Description>Install QEMU guest agent</Description>
-          <Order>9</Order>
+          <Order>11</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Install Windows OS Patch -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates.msu', '/quiet', '/norestart'</Path>
           <Description>Install Windows OS Patch</Description>
-          <Order>10</Order>
+          <Order>12</Order>
           <WillReboot>Always</WillReboot>
         </RunSynchronousCommand>
         <!-- Setup for additional installations order 20-80 -->
