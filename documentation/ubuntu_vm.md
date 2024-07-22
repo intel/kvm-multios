@@ -7,7 +7,7 @@
 
 # Automated Ubuntu/Ubuntu RT VM Installation
 The automated Ubuntu/Ubuntu RT VM installation will perform the following:
-- install Intel IOT Ubuntu from release ISO installer
+- install Intel IoT Ubuntu from release ISO installer
 - install Intel BSP overlay release for hardware platform into VM
 - configure VM for KVM MultiOS Portfolio release supported features.
 
@@ -118,6 +118,9 @@ DO NOT interfere or use VM before setup script exits successfully.**
         # To install Ubuntu VM
         ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer
 
+        # The default storage size of the Ubuntu VM created is 60 GiB. To customize the size of the Ubuntu VM, add the option --disk-size <size in GiB>
+        ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --disk-size <size in GiB>
+
         # To install Ubuntu RT VM (RT VM functionality is only applicable if running on RT host)
         ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --rt
 
@@ -137,8 +140,9 @@ DO NOT interfere or use VM before setup script exits successfully.**
     - guest VM Intel overlay linux-firmware package version to be installed from PPA.<\br>
     Only use --force-xxx options judiciously.**
 
-        Command Reference:
-        Ubuntu_setup.sh [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]
+Command Reference:
+
+        Ubuntu_setup.sh [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]
         Create Ubuntu vm required image to dest /var/lib/libvirt/images/ubuntu.qcow2
         Or create Ubuntu RT vm required image to dest /var/lib/libvirt/images/ubuntu_rt.qcow2
 
@@ -148,6 +152,7 @@ DO NOT interfere or use VM before setup script exits successfully.**
             -h                          show this help message
             --force                     force clean if Ubuntu vm qcow file is already present
             --viewer                    show installation display
+            --disk-size                 disk storage size of Ubuntu vm in GiB, default is 60 GiB
             --rt                        install Ubuntu RT
             --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
             --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version

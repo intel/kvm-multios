@@ -1,7 +1,7 @@
 # Table of Contents
 1. [Introduction](#introduction)
 1. [Features Supported](#features-supported)
-1. [Intel IOT Platforms Supported](#intel-iot-platforms-supported)
+1. [Intel IoT Platforms Supported](#intel-iot-platforms-supported)
 1. [Virtual Machine Device Model Supported](#virtual-machine-device-model-supported)
 1. [Repository Layout and Naming Conventions](#repository-layout-and-naming-conventions)
 1. [Host Setup](#host-setup)
@@ -24,9 +24,9 @@
 # Introduction
 This document contains setup and user guides for KVM (Kernel-based Virtual Machine) MultiOS Portfolio release.
 
-KVM MultiOS Portfolio release provides configuration, setup and user guides for running virtual machines(VM) on Intel IOT platforms using [libvirt toolkit](https://libvirt.org/) on [KVM/QEMU](https://libvirt.org/drvqemu.html) hypervisor/emulator.
+KVM MultiOS Portfolio release provides configuration, setup and user guides for running virtual machines(VM) on Intel IoT platforms using [libvirt toolkit](https://libvirt.org/) on [KVM/QEMU](https://libvirt.org/drvqemu.html) hypervisor/emulator.
 
-Intel IOT platform has a portfolio of graphics virtualization technologies trademarked as [Intel® Graphics Virtualization Technology™ (Intel GVT)](https://www.intel.com/content/www/us/en/virtualization/virtualization-technology/intel-virtualization-technology.html) for accelerating virtual machine workloads with GPU.
+Intel IoT platform has a portfolio of graphics virtualization technologies trademarked as [Intel® Graphics Virtualization Technology™ (Intel GVT)](https://www.intel.com/content/www/us/en/virtualization/virtualization-technology/intel-virtualization-technology.html) for accelerating virtual machine workloads with GPU.
 These virtualization technologies are accomplished using Intel’s foundational hardware virtualization features like [Intel® Virtualization Technology for Directed I/O (VT-d)](https://cdrdv2.intel.com/v1/dl/getContent/671081)
 
 The different graphics virtualization technologies are:
@@ -47,24 +47,23 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
     - Ubuntu 22.04
-    - Windows 10 IOT Enterprise LTSC 21H2
-    - Windows 11 IOT Enterprise 22H2
+    - Windows 10 IoT Enterprise LTSC 21H2
+    - Windows 11 IoT Enterprise 22H2
     - Android Celadon 12
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 
-# Intel IOT Platforms Supported
-| Supported Intel IOT platform | Supported Host and Guest OS Details | Comment
-| :-- | :-- | :--
-| Arrow Lake | [refer here](platforms.md#arrow-lake) |
-| Amston Lake | [refer here](platforms.md#amston-lake-and-alder-lake-n) |
-| Meteor Lake | [refer here](platforms.md#meteor-lake) |
-| Raptor Lake PS | [refer here](platforms.md#raptor-lake-ps) |
-| Alder Lake N | [refer here](platforms.md#amston-lake-and-alder-lake-n) |
-| Alder Lake | [refer here](platforms.md#alder-lake) | Not officially supported for KVM MultiOS Portfolio release. N-1 platform for development only.
+# Intel IoT Platforms Supported
+| Supported Intel IoT platform | Detailed Name |
+| :-- | :--
+| ARL | Arrow Lake |
+| ASL | Amston Lake |
+| MTL | Meteor Lake |
+| RPL-PS | Raptor Lake PS |
+| ADL-N | Alder Lake N |
 
-For internal only platforms, refer [here](intel_internal/platforms.md)
-
-**Note: each hardware platform may support different default combination of guest OS domains.**
+Note:
+- Please contact your Intel representative for details on host IoT platform configuration and setup.
+- Each hardware platform may support different default combination of guest OS domains.
 
 # Virtual Machine Device Model Supported
 KVM MultiOS Portfolio release provides easy configuration and setup for device virtualization/pass through to virtual machines.
@@ -79,7 +78,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
     <tr><td>guest_setup</td><td>Guest VM image creation scripts for supported guest operating system</td></tr>
     <tr><td>host_setup</td><td>Host setup scripts for supported host operating system</td></tr>
     <tr><td>libvirt_scripts</td><td>Host scripts using libvirt toolkit for ease of use</td></tr>
-    <tr><td>platform/&ltplatform_name&gt/libvirt_xml</td><td> Intel IOT hardware platform supported VM definition xmls</td></tr>
+    <tr><td>platform/&ltplatform_name&gt/libvirt_xml</td><td> Intel IoT hardware platform supported VM definition xmls</td></tr>
 </table>
 
 ## Host OS Naming Convention
@@ -89,16 +88,13 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | Redhat | redhat |
 
 ## Platform Naming Convention
-| Supported Intel IOT platform | Platform name to use with KVM MultiOS Portfolio Release
+| Supported Intel IoT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
 | Arrow Lake | client
 | Amston Lake | client
 | Meteor Lake | client
 | Raptor Lake PS | client
 | Alder Lake N | client
-| Alder Lake | client
-
-For Intel internal only platforms, refer [here](intel_internal/platforms.md)
 
 ## Guest OS Domain Naming Convention, MAC and IP Address
 | VM Operating System | domain name in KVM MultiOS Portfolio Release | MAC address | IP address |
@@ -134,25 +130,25 @@ For Intel internal only platforms, refer [here](intel_internal/platforms.md)
 | windows11_sriov_seabios.xml | Windows 11 | Local Display | SR-IOV | BIOS | No (for reference only) |
 
 # Host Setup
-The Intel IOT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.
+The Intel IoT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.
 
 ## Host Setup (for VMs using GVT-d)
-Refer [here](setup_gvtd.md) for steps on setting up Intel IOT hardware platform for VMs using GVT-d for GPU device acceleration in VM.
+Refer [here](setup_gvtd.md) for steps on setting up Intel IoT hardware platform for VMs using GVT-d for GPU device acceleration in VM.
 
 ## Host Setup (for VMs using GPU SR-IOV)
-Refer [here](setup_sriov.md) for steps on setting up Intel IOT hardware platform for VMs using SR-IOV for GPU device acceleration in VM.
+Refer [here](setup_sriov.md) for steps on setting up Intel IoT hardware platform for VMs using SR-IOV for GPU device acceleration in VM.
 
 # Virtual Machine Image Creation
 This section is a guide on how to install and configure the different operating systems supported for using them as virtual machine images on the supported Intel platforms, for the supported feature set.
 
 ## Ubuntu/Ubuntu RT VM Image Creation
-Refer [here](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) for steps on creating Ubuntu/Ubuntu RT VM image for using GPU virtualization technologies for Intel IOT platforms.
+Refer [here](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) for steps on creating Ubuntu/Ubuntu RT VM image for using GPU virtualization technologies for Intel IoT platforms.
 
 ## Windows VM Image Creation 
-Refer [here](windows_vm.md#automated-windows-vm-installation) for steps on creating Window VM image for using GPU virtualization technologies for Intel IOT platforms.
+Refer [here](windows_vm.md#automated-windows-vm-installation) for steps on creating Window VM image for using GPU virtualization technologies for Intel IoT platforms.
 
 ## Android VM Image Creation
-Refer [here](android_vm.md#android-vm-auto-installation) for steps on creating Android VM image for using GPU virtualization technologies for Intel IOT platforms.
+Refer [here](android_vm.md#android-vm-auto-installation) for steps on creating Android VM image for using GPU virtualization technologies for Intel IoT platforms.
 
 # VM Definition
 KVM MultiOS Portfolio release provides default VM configurations for supported guest operating system and GPU/display virtualization desired as per libvirt XML schema.

@@ -18,6 +18,7 @@ ENABLE_SUSPEND="false" # or true
 ENABLE_QEMU_FROM_SRC=0 # do not overwrite BSP default qemu
 DUPXML=0
 PLATFORM_NAME=""
+SETUP_DISK_SIZE=40 # size in GiB
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
 
@@ -269,7 +270,7 @@ function setup_android_images() {
     if [[ -f "$tmp_folder_path/android.qcow2" ]]; then
         rm "$tmp_folder_path/android.qcow2"
     fi
-    if ! qemu-img create -f qcow2 "$tmp_folder_path/android.qcow2" 40G; then
+    if ! qemu-img create -f qcow2 "$tmp_folder_path/android.qcow2" ${SETUP_DISK_SIZE}G; then
         echo "Error: Unable to create qcow2 image."
         return 255
     fi
@@ -693,7 +694,7 @@ function invoke_platform_android_setup() {
 function show_help() {
     local platforms=()
 
-    printf "%s [-h] [-f] [-n] [-p] [-r] [-t] [--noinstall] [--forceclean] [--dupxml] [--qemufromsrc]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [-f] [-n] [-p] [-r] [-t] [--disk-size] [--noinstall] [--forceclean] [--dupxml] [--qemufromsrc]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Installs Celadon system dependencies and create android vm images from CIV releasefiles archive to dest folder %s/<vm_domain_name>\n" "$LIBVIRT_DEFAULT_IMAGES_PATH"
     printf "Options:\n"
     printf "\t-h            Show this help message\n"
@@ -707,6 +708,7 @@ function show_help() {
     for p in "${platforms[@]}"; do
     printf "\t                %s\n" "$(basename "$p")"
     done
+    printf "\t--disk-size   Disk storage size of Android vm in GiB, default is 40 GiB\n"
     printf "\t--noinstall   Only rebuild Android per vm required images and data output. Needs folder specified by -t option to be present and with valid contents.\n"
     printf "\t--forceclean  Delete android VM dest folder if exists. Default not enabled\n"
     printf "\t--dupxml      Duplicate Android guest XM xmls for this VM (when not using \"-n android\")\n"
@@ -744,6 +746,11 @@ function parse_arg() {
 
             -p)
                 set_platform_name "$2" || return 255
+                shift
+                ;;
+
+            --disk-size)
+                SETUP_DISK_SIZE="$2"
                 shift
                 ;;
 
@@ -804,6 +811,10 @@ fi
 if [[ -d "$LIBVIRT_DEFAULT_IMAGES_PATH/$LIBVIRT_DOMAIN_NAME" && "$FORCECLEAN" != "1" ]]; then
     echo "VM domain($LIBVIRT_DOMAIN_NAME) images already exists! Use --forceclean to overwrite or create new domain name."
     show_help
+    exit 255
+fi
+if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
+    echo "Invalid input disk size"
     exit 255
 fi
 

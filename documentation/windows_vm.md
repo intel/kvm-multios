@@ -48,8 +48,8 @@ Take note of ADK installation destination path for later use.
 
 | Windows Version | Window ADK Download |
 | :-- | :-- |
-| Windows 10 IOT Enterprise LTSC 21H2 | [Windows ADK for Windows 10, version 2004](https://go.microsoft.com/fwlink/?linkid=2120254)</br>[Windows PE add-on for the ADK, version 2004](https://go.microsoft.com/fwlink/?linkid=2120253)|
-| Windows 11 IOT Enterprise 22H2 | [Windows ADK for Windows 11, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196127)</br>[Windows PE add-on for the ADK, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196224)|
+| Windows 10 IoT Enterprise LTSC 21H2 | [Windows ADK for Windows 10, version 2004](https://go.microsoft.com/fwlink/?linkid=2120254)</br>[Windows PE add-on for the ADK, version 2004](https://go.microsoft.com/fwlink/?linkid=2120253)|
+| Windows 11 IoT Enterprise 22H2 | [Windows ADK for Windows 11, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196127)</br>[Windows PE add-on for the ADK, version 22H2](https://go.microsoft.com/fwlink/?linkid=2196224)|
 
 2. Download and save Create-NoPromptISO.ps1 script from [here](https://github.com/DeploymentResearch/DRFiles/raw/906151a1cdd55a14bc226196a3f597b0538273dd/Scripts/Create-NoPromptISO.ps1)
 
@@ -110,7 +110,7 @@ The noprompt installation iso will be generated at path specified by WinPE_Outpu
    Additional_install.yaml file has the format as below. 
 
         installations:
-          - name: # unique name for this installation in yaml
+          - name: # unique name (in single word) for this installation in yaml
             description: # description of installation
             filename: # filename of file in ./guest_setup/ubuntu/<unattend_winxx> folder containing install file.
                       # If file is not present, attempt to download from download_url and rename as filename.
@@ -138,8 +138,9 @@ Refer to here for information on WHQL certified vs Intel attest-signed graphics 
 As part of windows installation process VM may be restarted in SR-IOV mode for installation of SR-IOV required drivers in the background. At this stage VM will no longer have display on virt-viewer UI nor on VNC. Instead VM display could be found on host platform physical monitor.
 DO NOT interfere or use VM before setup script exits successfully.**
 
-        Command Reference:
-        <winxx_setup.sh> [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]
+Command Reference:
+
+        <winxx_setup.sh> [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug] [--dl-fail-exit]
         Create Windows vm required images and data to dest folder /var/lib/libvirt/images/windows.qcow2
         Place required Windows installation files as listed below in ./guest_setup/ubuntu/<unattend_winxx> folder prior to running.
         (windowsNoPrompt.iso, windows-updates.msu, ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip, Driver-Release-64-bit.[zip|7z])
@@ -149,11 +150,13 @@ DO NOT interfere or use VM before setup script exits successfully.**
                                   Accepted values:
                                     client
                                     server
+                --disk-size       disk storage size of windows vm in GiB, default is 60 GiB
                 --no-sriov        Non-SR-IOV windows install. No GFX/SRIOV support to be installed
                 --non-whql-gfx    GFX driver to be installed is non-WHQL signed but test signed
                 --force           force clean if windows vm qcow is already present
                 --viewer          show installation display
                 --debug           Do not remove temporary files. For debugging only.
+                --dl-fail-exit    Do not continue on any additional installation file download failure.
 
 
 This command will start Windows guest VM install from Windows installer. Installation progress can be tracked in the following ways:
@@ -167,6 +170,9 @@ If platform Intel GPU driver available for platform is WHQL certified, run below
 
         ./guest_setup/ubuntu/<winxx_setup.sh> -p client --force --viewer
 
+The default storage size of the Windows VM created is 60 GiB. To customize the size of the Windows VM, add the option --disk-size <size in GiB>
+
+        ./guest_setup/ubuntu/<winxx_setup.sh> -p client --force --viewer --disk-size <size in GiB>
 
 ### Automated SRIOV Install with Intel Attest-signed Graphics Driver
 If platform Intel GPU driver available for platform is non-WHQL certified (Intel attest-signed driver), run below command to start Windows VM automated install from a GUI terminal on host platform.

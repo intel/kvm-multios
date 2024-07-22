@@ -22,7 +22,7 @@
   </memoryBacking>
   <vcpu>2</vcpu>
   <os>
-    <type arch="x86_64">hvm</type>
+    <type arch="x86_64" machine="q35">hvm</type>
     <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE_4M.fd</loader>
     <nvram template="/usr/share/OVMF/OVMF_VARS_4M.fd"/>
     <boot dev="hd"/>
@@ -49,6 +49,22 @@
       <source file="/var/lib/libvirt/images/windows11.qcow2"/>
       <target dev="vda" bus="virtio"/>
     </disk>
+    <controller type="usb" model="qemu-xhci" ports="15"/>
+    <controller type="pci" model="pcie-root"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
+    <controller type="pci" model="pcie-root-port"/>
     <interface type="network">
       <source network="default"/>
       <mac address="52:54:00:ab:cd:55"/>

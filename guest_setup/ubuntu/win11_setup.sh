@@ -15,7 +15,8 @@ WIN_VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads
 WIN_VIRTIO_ISO=virtio-win.iso
 WIN_UNATTEND_ISO=$WIN_DOMAIN_NAME-unattend-win11.iso
 WIN_UNATTEND_FOLDER=unattend_win11
-WIN_DISK_SIZE=60 # size in GiB
+WIN_OPENSSH_MSI_URL='https://github.com/PowerShell/Win32-OpenSSH/releases/download/v9.5.0.0p1-Beta/OpenSSH-Win64-v9.5.0.0.msi'
+WIN_OPENSSH_MSI='OpenSSH-Win64.msi'
 
 # files required to be in $WIN_UNATTEND_FOLDER folder for installation
 REQUIRED_FILES=( "$WIN_INSTALLER_ISO" "windows-updates.msu" )
@@ -25,12 +26,14 @@ TMP_FILES=()
 FORCECLEAN=0
 VIEWER=0
 PLATFORM_NAME=""
+SETUP_DISK_SIZE=60 # size in GiB
 SETUP_NO_SRIOV=0
 SETUP_NON_WHQL_GFX_DRV=0
 SETUP_DEBUG=0
 SETUP_DISABLE_SECURE_BOOT=0
 SETUP_ZC_GUI_INSTALLER=0
 SETUP_ZC_FILENAME=''
+ADD_INSTALL_DL_FAIL_EXIT=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
@@ -128,8 +131,9 @@ function clean_windows_images() {
   sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}"
 
   echo "Remove and rebuild unattend_win11.iso"
-  sudo rm -f "/tmp/${WIN_UNATTEND_ISO}"
+  rm -f "/tmp/${WIN_UNATTEND_ISO}"
   sudo rm -f "/tmp/${WIN_VIRTIO_ISO}"
+  rm -f "/tmp/${WIN_OPENSSH_MSI_URL}"
 }
 
 function check_prerequisites() {
@@ -279,12 +283,35 @@ function setup_additional_installs() {
   fi
 
   local step_id=20      # should be after end of basic install step_ids
-  #for installation in "${installations[@]}"; do
-  #  echo $installation
-  #done
+  local -a names_arr=()
+  for installation in "${installations[@]}"; do
+    #echo $installation
+    local name
+    name=$(echo "$installation" | yq e '.name' -)
+    local cnt
+    cnt=$(wc -w <<< "$name")
+    if [[ $cnt -gt 1 ]]; then
+      local newname
+      newname="${name%% *}"
+      echo "WARNING: $name is multi-word string. Using first word $newname only"
+      name=$newname
+    fi
+    if echo "${names_arr[@]}" | grep -q -w -F "$name"; then
+      echo "ERROR: duplicate section name $name found in additional installs."
+      return 255
+    else
+      names_arr+=("$name")
+    fi
+  done
   for installation in "${installations[@]}"; do
     local name
     name=$(echo "$installation" | yq e '.name' -)
+    local cnt
+    cnt=$(wc -w <<< "$name")
+    if [[ $cnt -gt 1 ]]; then
+      echo "WARNING: $name is multi word string. Using first word only"
+      name="${name%% *}"
+    fi
     local desc
     desc=$(echo "$installation" | yq e '.description' -)
     local dl_url
@@ -300,11 +327,17 @@ function setup_additional_installs() {
       echo "$fpath not present/zero sized. Attempt to download from $dl_url"
       if ! curl --connect-timeout 10 --output "$fileserverdir/$fname" "$dl_url"; then
         # attempt again with proxy enabled except for localhost
+        echo "INFO: Download connection timed out. Attempting download with proxy for all (except localhost)."
         if ! curl --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$fileserverdir/$fname" "$dl_url"; then
           # attempt again without proxy
+          echo "INFO: Download connection timed out. Attempting download without proxy for all."
           if ! curl --noproxy '*' --connect-timeout 10 --output "$fileserverdir/$fname" "$dl_url"; then
-            echo "Unable download $dl_url. Check internet connection or $name additional installation configuration validity."
-            return 255
+            echo "WARNING: Unable to download $dl_url for $name installation."
+            echo "WARNING: Check internet connection or $name additional installation configuration validity."
+            if [[ $ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
+              return 255
+            fi
+            continue
           fi
         fi
       fi
@@ -364,7 +397,7 @@ function setup_additional_installs() {
       ifname_win_esc=$(echo "$ifname" | sed -r -e 's|\\|\\\\|g')
       echo "$ifname_lin"
       if [[ "$iftype" == "[.]inf" ]]; then
-        if ! unzip -l "$fpath" | grep -e "$iftype"; then
+        if ! unzip -l "$fpath" | grep -i -e "$iftype"; then
           echo "No $ifname found inside $fpath zip archive."
           return 255
         fi
@@ -391,7 +424,7 @@ function setup_additional_installs() {
       fi
       if [[ "$iftype" == "[.]inf" || "$iftype" == "inf" ]]; then
         if [[ "$iftype" == "[.]inf" ]]; then
-          if ! cabextract -l "$fpath" | grep -q -e "$iftype"; then
+          if ! cabextract -l "$fpath" | grep -q -i -e "$iftype"; then
             echo "No $ifname found inside $fpath cabinet archive."
             return 255
           fi
@@ -404,8 +437,12 @@ function setup_additional_installs() {
       fi
     else
       file -r "$fpath"
-      echo "Unsupported filename=\"$fname\". Supported file types: zip|cab|exe."
-      return 255
+      echo "Unsupported filename=\"$fname\" not of supported file type: zip|cab|exe."
+      if [[ $ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
+        return 255
+      else
+        continue
+      fi
     fi
 
     if [[ -f "$fileserverdir/$name-install.ps1" ]]; then
@@ -1037,6 +1074,10 @@ EOF
       "$fileserverdir" "$file_server_url" "$dest_tmp_path/autounattend.xml" || return 255
   fi
 
+  if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" ]]; then
+    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}"
+    cp "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" "/tmp/${WIN_VIRTIO_ISO}"
+  fi
   if [[ ! -f "/tmp/${WIN_VIRTIO_ISO}" ]]; then
     echo "Download virtio-win iso"
     local is_200_okay
@@ -1048,6 +1089,43 @@ EOF
     fi
   else
     check_file_valid_nonzero "/tmp/${WIN_VIRTIO_ISO}"
+  fi
+
+  if [[ ! -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
+    echo "Download Powershell OpenSSH msi release."
+    local is_200_okay
+    is_200_okay=$(wget --server-response --content-on-error=off -O "$fileserverdir/${WIN_OPENSSH_MSI}" "${WIN_OPENSSH_MSI_URL}" 2>&1 | grep -c '200 OK')
+    TMP_FILES+=("$fileserverdir/${WIN_OPENSSH_MSI}")
+    if [[ "$is_200_okay" -ne 1 || ! -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
+        echo "Error: download ${WIN_OPENSSH_MSI} failure!"
+        if [[ ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
+          return 255
+        fi
+    fi
+  else
+    if [[ ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
+      check_file_valid_nonzero "$fileserverdir/${WIN_OPENSSH_MSI}"
+    else
+      check_non_symlink "$fileserverdir/${WIN_OPENSSH_MSI}"
+    fi
+  fi
+
+  if [[ -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
+    local win_openssh_ftype
+    win_openssh_ftype=$(file -r "$fileserverdir/${WIN_OPENSSH_MSI}")
+    if echo "$win_openssh_ftype" | grep -q "MSI Installer"; then
+      local win_openssh_fname
+      win_openssh_fname="${WIN_OPENSSH_MSI%.*}"
+      tee "$fileserverdir/${win_openssh_fname}_setup.ps1" &>/dev/null <<EOF
+[Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path",[System.EnvironmentVariableTarget]::Machine) + ';' + \${Env:ProgramFiles} + '\OpenSSH', [System.EnvironmentVariableTarget]::Machine)
+EOF
+      TMP_FILES+=("$(realpath "$fileserverdir/${win_openssh_fname}_setup.ps1")")
+    else
+      echo "WARNING: \"$fileserverdir/${WIN_OPENSSH_MSI}\" not of expected MSI installer file type"
+      if [[ ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
+        return 255
+      fi
+    fi
   fi
 
   mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
@@ -1074,7 +1152,7 @@ EOF
   --cdrom "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_INSTALLER_ISO}" \
   --disk "/tmp/${WIN_VIRTIO_ISO}",device=cdrom \
   --disk "/tmp/${WIN_UNATTEND_ISO}",device=cdrom \
-  --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${WIN_DISK_SIZE},bus=virtio,cache=none \
+  --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none \
   --os-variant win11 \
   --boot loader="$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd",loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$ovmf_option \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
@@ -1178,7 +1256,7 @@ function show_help() {
 
     required_files_help+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
     required_files_help+=("Driver-Release-64-bit.[zip|7z]") 
-    printf "%s [-h] [-p] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug] [--dl-fail-exit]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Windows vm required images and data to dest folder %s.qcow2\n" "$LIBVIRT_DEFAULT_IMAGES_PATH/${WIN_DOMAIN_NAME}"
     printf "Place required Windows installation files as listed below in guest_setup/ubuntu/%s folder prior to running.\n" "$WIN_UNATTEND_FOLDER"
     printf "("
@@ -1197,11 +1275,13 @@ function show_help() {
     for p in "${platforms[@]}"; do
     printf "\t                    %s\n" "$(basename "$p")"
     done
+    printf "\t--disk-size       disk storage size of windows11 vm in GiB, default is 60 GiB\n"
     printf "\t--no-sriov        Non-SR-IOV windows11 install. No GFX/SRIOV support to be installed\n"
     printf "\t--non-whql-gfx    GFX driver to be installed is non-WHQL signed but test signed\n"
     printf "\t--force           force clean if windows11 vm qcow is already present\n"
     printf "\t--viewer          show installation display\n"
     printf "\t--debug           Do not remove temporary files. For debugging only.\n"
+    printf "\t--dl-fail-exit    Do not continue on any additional installation file download failure.\n"
 }
 
 function parse_arg() {
@@ -1214,6 +1294,11 @@ function parse_arg() {
 
             -p)
                 set_platform_name "$2" || return 255
+                shift
+                ;;
+
+            --disk-size)
+                SETUP_DISK_SIZE="$2"
                 shift
                 ;;
 
@@ -1235,6 +1320,10 @@ function parse_arg() {
 
             --debug)
                 SETUP_DEBUG=1
+                ;;
+
+            --dl-fail-exit)
+                ADD_INSTALL_DL_FAIL_EXIT=1
                 ;;
 
             -?*)
@@ -1295,6 +1384,11 @@ fi
 if [[ -z "${PLATFORM_NAME+x}" || -z "$PLATFORM_NAME" ]]; then
 	echo "Error: valid platform name required"
     show_help
+    exit 255
+fi
+
+if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
+    echo "Invalid input disk size"
     exit 255
 fi
 

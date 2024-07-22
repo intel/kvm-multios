@@ -11,6 +11,8 @@ OVMF_DEFAULT_PATH=/usr/share/OVMF
 LIBVIRT_DEFAULT_LOG_PATH="/var/log/libvirt/qemu"
 UBUNTU_DOMAIN_NAME=ubuntu
 UBUNTU_IMAGE_NAME=$UBUNTU_DOMAIN_NAME.qcow2
+UBUNTU_INSTALLER_ISO_URL='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
+UBUNTU_INSTALLER_SHA256SUMS_URL='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
 UBUNTU_INSTALLER_ISO=ubuntu.iso
 UBUNTU_SEED_ISO=ubuntu-seed.iso
 
@@ -21,6 +23,7 @@ TMP_FILES=()
 
 FORCECLEAN=0
 VIEWER=0
+SETUP_DISK_SIZE=60 # size in GiB
 RT=0
 KERN_INSTALL_FROM_LOCAL=0
 FORCE_KERN_FROM_DEB=0
@@ -78,7 +81,7 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
 function copy_setup_files() {
     # copy required files for use in guest
     local dest=$1
-    local host_scripts=("setup_swap.sh")
+    local host_scripts=("setup_swap.sh" "setup_openvino.sh" )
 
     if [[ $# -ne 1 || -z "$dest" ]]; then
         echo "error: invalid params"
@@ -123,6 +126,9 @@ function copy_setup_files() {
     local -a dest_files=()
     mapfile -t dest_files < <(find "$dest_path/" -maxdepth 1 -mindepth 1 -type f)
     for file in "${dest_files[@]}"; do
+        if grep -Eq 'sudo(\s)+(-[ABbEHnPS]\s)+' "$file"; then
+            sed -i -r "s|sudo(\s)+(-[ABbEHnPS]\s)+||" "$file"
+        fi
         if grep -Fq 'sudo' "$file"; then
             sed -i -r "s|sudo(\s)+||" "$file"
         fi
@@ -226,13 +232,14 @@ function download_ubuntu_iso() {
     echo "$count: Download Ubuntu 22.04 iso"
     #sudo wget -O ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO} https://releases.ubuntu.com/22.04.2/ubuntu-22.04.2-live-server-amd64.iso
     
-    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" 'https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso' || return 255
-    wget -O "$dest_tmp_path/SHA256SUMS" 'https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS' || return 255
+    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URL}" || return 255
+    wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URL}" || return 255
     local isochksum
     isochksum=$(sha256sum "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" | awk '{print $1}')
     local verifychksum
-    #verifychksum=$(cat "$dest_tmp_path/SHA256SUMS" | grep ubuntu-22.04-live-server-amd64+intel-iot.iso | awk '{print $1}')
-    verifychksum=$(grep "ubuntu-22.04-live-server-amd64+intel-iot.iso" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
+    local iso_fname
+    iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URL}")
+    verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
     if [[ "$isochksum" == "$verifychksum" ]]; then
       # downloaded iso is okay.
       echo "Verified Ubuntu iso checksum as expected: $isochksum"
@@ -246,6 +253,40 @@ function download_ubuntu_iso() {
     return 255
   fi
   return 0
+}
+
+function verify_ubuntu_iso() {
+  local maxcount=10
+  local count=0
+
+  if [[ -z "${1+x}" || -z "$1" ]]; then
+    echo "Error: no dest tmp path provided"
+    return 255
+  fi
+  local dest_tmp_path=$1
+  if [[ -z "${2+x}" || -z "$2" ]]; then
+    echo "Error: no Ubuntu iso path provided"
+    return 255
+  fi
+  local iso_to_check
+  iso_to_check=$(realpath "$2")
+
+  wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URL}" || return 255
+  local isochksum
+  isochksum=$(sha256sum "$iso_to_check" | awk '{print $1}')
+  local verifychksum
+  local iso_fname
+  iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URL}")
+  verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
+  if [[ "$isochksum" == "$verifychksum" ]]; then
+    # downloaded iso is okay.
+    echo "Verified Ubuntu iso checksum as expected: $isochksum"
+    sudo mv "$iso_to_check" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+    sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+  else
+    echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match that of ${UBUNTU_INSTALLER_ISO_URL}"
+    return 255
+  fi
 }
 
 function install_ubuntu() {
@@ -286,6 +327,11 @@ function install_ubuntu() {
   fi
   mkdir -p "$dest_tmp_path"
   TMP_FILES+=("$dest_tmp_path")
+
+  if [[ -f "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" ]]; then
+    check_file_valid_nonzero "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"
+    verify_ubuntu_iso "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" || return 255
+  fi
 
   if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
     download_ubuntu_iso "$dest_tmp_path" || return 255
@@ -347,11 +393,28 @@ function install_ubuntu() {
   fi
   sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$linux_fw_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
+  if [[ $SETUP_DEBUG -ne 1 ]]; then
+    sed -i "/\# more error handling here/a\    - echo \"ERROR\" | nc -q1 \$HOST_SERVER_IP \$HOST_SERVER_NC_PORT\n    - shutdown" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+  fi
+
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   sed -i "s|\$FILE_SERVER_URL|$file_server_url|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   sed -i "s|\$HOST_SERVER_IP|$FILE_SERVER_IP|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   sed -i "s|\$HOST_SERVER_NC_PORT|$host_nc_port|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+
+  local openvino_install_opt="--neo"
+  if [[ $SETUP_DEBUG -eq 1 ]]; then
+    openvino_install_opt="$openvino_install_opt --debug"
+  fi
+  if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9] [0-9]* for 0000:00:0b.0 on minor 0'; then
+    local host_kern_version
+    host_kern_version=$(uname -r | sed -re 's/-intel//' | sed -re 's/(^[0-9]*\.[0-9]*\.[0-9]*-[0-9]*)(.*)/\1/')
+    if ! awk -v a="$host_kern_version" -v b="6.8" ' BEGIN { if (  a < b ) exit 0; else exit 1  } '; then
+      openvino_install_opt="$openvino_install_opt --npu"
+    fi
+  fi
+  sed -i "s|\$OPENVINO_INSTALL_OPTIONS|$openvino_install_opt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   sudo cloud-localds -v "$dest_tmp_path"/${UBUNTU_SEED_ISO} "$scriptpath/auto-install-ubuntu-parsed.yaml" meta-data
 
@@ -367,7 +430,7 @@ function install_ubuntu() {
   --cpu host \
   --network network=default,model=virtio \
   --graphics vnc,listen=0.0.0.0,port=5901 \
-  --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME},format=qcow2,size=60,bus=virtio,cache=none" \
+  --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
   --disk "path=$dest_tmp_path/${UBUNTU_SEED_ISO},device=cdrom" \
   --location "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO},initrd=casper/initrd,kernel=casper/vmlinuz" \
   --os-variant ubuntu22.04 \
@@ -416,7 +479,7 @@ function install_ubuntu() {
 }
 
 function show_help() {
-    printf "%s [-h] [--force] [--viewer] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Ubuntu vm required image to dest %s/ubuntu.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Or create Ubuntu RT vm required image to dest %s/ubuntu_rt.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb,linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.\n"
@@ -425,6 +488,7 @@ function show_help() {
     printf "\t-h                          show this help message\n"
     printf "\t--force                     force clean if Ubuntu vm qcow file is already present\n"
     printf "\t--viewer                    show installation display\n"
+    printf "\t--disk-size                 disk storage size of Ubuntu vm in GiB, default is 60 GiB\n"
     printf "\t--rt                        install Ubuntu RT\n"
     printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
     printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
@@ -446,6 +510,11 @@ function parse_arg() {
 
             --viewer)
                 VIEWER=1
+                ;;
+
+            --disk-size)
+                SETUP_DISK_SIZE="$2"
+                shift
                 ;;
 
             --rt)
@@ -523,6 +592,12 @@ function cleanup () {
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
+
+if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
+    echo "Invalid input disk size"
+    exit 255
+fi
+
 if [[ $FORCE_KERN_FROM_DEB == "1" && -n $FORCE_KERN_APT_VER ]]; then
     echo "--force-kern-from-deb and --force-kern-apt-version cannot be used together"
     exit 255

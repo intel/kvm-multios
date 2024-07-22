@@ -8,7 +8,7 @@ This setup guide provide the procedures to configure the host and VMs for using 
 
 # Host Hardware and OS Setup
 ## BIOS Setup
-Ensure the following options are enabled in the BIOS for Intel IOT host platform
+Ensure the following options are enabled in the BIOS for Intel IoT host platform
 - Intel Virtualization Technology (VMX)
 - Intel VT for Directed I/O (VT-d)
 

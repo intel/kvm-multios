@@ -361,9 +361,6 @@ function update_ubuntu_cfg() {
     # Setup SRIOV graphics
     # Switch to Xorg
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
-    if ! grep -Fq 'source /etc/profile.d/mesa_driver.sh' /etc/bash.bashrc; then
-        echo 'source /etc/profile.d/mesa_driver.sh' | sudo tee -a /etc/bash.bashrc
-    fi
     if ! grep -Fq 'needs_root_rights=no' /etc/X11/Xwrapper.config; then
         echo 'needs_root_rights=no' | sudo tee -a /etc/X11/Xwrapper.config
     fi
