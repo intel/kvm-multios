@@ -410,14 +410,19 @@ if [[ $INSTALL_NPU -eq 1 ]]; then
     log_func setup_openvino_npu || exit 255
 fi
 if [[ $INSTALL_NEO -eq 1 ]]; then
-    installed_neo_ver=$(apt list --installed | grep "intel-opencl-icd" | awk '{print $2}')
-    if [[ -z "$installed_neo_ver" || (-n "$installed_neo_ver" && "$installed_neo_ver" < "${COMPUTE_RUNTIME_REL['version']}") ]]; then
-        if [[ -n "$installed_neo_ver" ]]; then
-            echo "INFO: Intel compute-runtime intel-opencl-icd ver: $installed_neo_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+    if apt list --installed | grep "intel-opencl-icd"; then
+        installed_neo_ver=$(apt list --installed | grep "intel-opencl-icd" | awk '{print $2}')
+        if [[ -z "$installed_neo_ver" || (-n "$installed_neo_ver" && "$installed_neo_ver" < "${COMPUTE_RUNTIME_REL['version']}") ]]; then
+            if [[ -n "$installed_neo_ver" ]]; then
+                echo "INFO: Intel compute-runtime intel-opencl-icd ver: $installed_neo_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+            fi
+            log_func setup_neo || exit 255
+        else
+            echo "INFO: Intel compute-runtime intel-opencl-icd version $installed_neo_ver already installed" | tee -a "$LOG_FILE"
         fi
-        log_func setup_neo || exit 255
     else
-        echo "INFO: Intel compute-runtime intel-opencl-icd version $installed_neo_ver already installed" | tee -a "$LOG_FILE"
+        echo "INFO: Installing Intel compute-runtime intel-opencl-icd version ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+        log_func setup_neo || exit 255
     fi
 fi
 
