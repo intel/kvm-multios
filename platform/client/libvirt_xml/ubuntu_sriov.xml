@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2023 Intel Corporation.
+ Copyright (c) 2023-2024 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
@@ -75,14 +75,11 @@
       <source mode="bind"/>
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
-    <channel type="spicevmc">
-      <target type="virtio" name="com.redhat.spice.0"/>
-    </channel>
     <input type="tablet" bus="usb"/>
     <sound model="ich9">
       <codec type="duplex"/>
       <audio id="1"/>
-      <alias name='sound0'/>
+      <alias name="sound0"/>
     </sound>
     <audio id="1" type="pulseaudio" timerPeriod="5000" serverName="unix:/tmp/pulseaudio-socket">
       <input mixingEngine="yes" fixedSettings="no"/>
@@ -94,16 +91,14 @@
       </source>
       <address type="pci" domain="0" bus="0" slot="2" function="0"/>
     </hostdev>
-    <redirdev bus="usb" type="spicevmc"/>
-    <redirdev bus="usb" type="spicevmc"/>
     <memballoon model="virtio"/>
     <rng model="virtio">
       <backend model="random">/dev/urandom</backend>
     </rng>
     <video>
       <!-- blob='on' requires libvirt 9.2 and beyond, so add custom qemu cmdline below for now-->
-      <model type='virtio' heads='1' blob='on'/>
-      <driver name='qemu'/>
+      <model type="virtio" heads="1" blob="on"/>
+      <driver name="qemu"/>
     </video>
   </devices>
   <qemu:commandline>
@@ -112,5 +107,5 @@
     <qemu:arg value="-display"/>
     <qemu:arg value="gtk,gl=on"/>
     <qemu:env name="DISPLAY" value=":0"/>
-  </qemu:commandline>  
+  </qemu:commandline>
 </domain>

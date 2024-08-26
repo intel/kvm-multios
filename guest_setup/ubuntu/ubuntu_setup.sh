@@ -11,10 +11,21 @@ OVMF_DEFAULT_PATH=/usr/share/OVMF
 LIBVIRT_DEFAULT_LOG_PATH="/var/log/libvirt/qemu"
 UBUNTU_DOMAIN_NAME=ubuntu
 UBUNTU_IMAGE_NAME=$UBUNTU_DOMAIN_NAME.qcow2
-UBUNTU_INSTALLER_ISO_URL='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
-UBUNTU_INSTALLER_SHA256SUMS_URL='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
 UBUNTU_INSTALLER_ISO=ubuntu.iso
 UBUNTU_SEED_ISO=ubuntu-seed.iso
+declare -A UBUNTU_INSTALLER_ISO_URLS=(
+  ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
+  ['24.04']='https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso'
+)
+declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
+  ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
+  ['24.04']='https://releases.ubuntu.com/24.04/SHA256SUMS'
+)
+declare -A UBUNTU_SNAP_GNOME_VERSIONS=(
+  ['22.04']='gnome-3-38-2004'
+  ['24.04']='gnome-42-2204'
+)
+UBUNTU_INSTALL_OS_TYPE=""
 
 # files required to be in unattend_ubuntu folder for installation
 REQUIRED_DEB_FILES=( "linux-headers.deb" "linux-image.deb" )
@@ -29,6 +40,7 @@ KERN_INSTALL_FROM_LOCAL=0
 FORCE_KERN_FROM_DEB=0
 FORCE_KERN_APT_VER=""
 FORCE_LINUX_FW_APT_VER=""
+FORCE_UBUNTU_VER=""
 SETUP_DEBUG=0
 
 VIEWER_DAEMON_PID=
@@ -162,7 +174,7 @@ function kill_by_pid() {
         local pid=$1
         if [[ -n "$(ps -p "$pid" -o pid=)" ]]; then
             sudo kill -9 "$pid"
-        fi 
+        fi
     fi
 }
 
@@ -171,7 +183,7 @@ function install_dep() {
   which virt-install > /dev/null || sudo apt install -y virtinst
   which virt-viewer > /dev/null || sudo apt install -y virt-viewer
   which yamllint > /dev/null || sudo apt install -y yamllint
-  which nc > /dev/null || sudo apt install -y netcat
+  which nc > /dev/null || sudo apt install -y netcat-openbsd
   which envsubst > /dev/null || sudo apt install -y gettext-base
   which sha256sum > /dev/null || sudo apt install -y coreutils
 }
@@ -227,18 +239,18 @@ function download_ubuntu_iso() {
     return 255
   fi
   local dest_tmp_path=$1
+  local ubuntu_ver
+  ubuntu_ver=$(lsb_release -rs)
   while [[ $count -lt $maxcount ]]; do
     count=$((count+1))
-    echo "$count: Download Ubuntu 22.04 iso"
-    #sudo wget -O ${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO} https://releases.ubuntu.com/22.04.2/ubuntu-22.04.2-live-server-amd64.iso
-    
-    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URL}" || return 255
-    wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URL}" || return 255
+    echo "$count: Download Ubuntu $ubuntu_ver iso"
+    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}" || return 255
+    wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
     local isochksum
     isochksum=$(sha256sum "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" | awk '{print $1}')
     local verifychksum
     local iso_fname
-    iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URL}")
+    iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}")
     verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
     if [[ "$isochksum" == "$verifychksum" ]]; then
       # downloaded iso is okay.
@@ -271,12 +283,14 @@ function verify_ubuntu_iso() {
   local iso_to_check
   iso_to_check=$(realpath "$2")
 
-  wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URL}" || return 255
+  local ubuntu_ver
+  ubuntu_ver=$(lsb_release -rs)
+  wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
   local isochksum
   isochksum=$(sha256sum "$iso_to_check" | awk '{print $1}')
   local verifychksum
   local iso_fname
-  iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URL}")
+  iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}")
   verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
   if [[ "$isochksum" == "$verifychksum" ]]; then
     # downloaded iso is okay.
@@ -284,9 +298,29 @@ function verify_ubuntu_iso() {
     sudo mv "$iso_to_check" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
     sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
   else
-    echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match that of ${UBUNTU_INSTALLER_ISO_URL}"
+    echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match that of ${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}"
     return 255
   fi
+}
+
+function is_npu_supported() {
+  local host_kern
+  local allowed_kern
+
+  # Only capture and compare kernel version x.y
+  # Only allow kernel version 6.9 or above
+  IFS=" " read -r -a host_kern <<< "$(uname -r | cut -d '-' -f1 | tr '.' ' ')"
+  IFS=" " read -r -a allowed_kern <<< "$(echo "6.9" | tr '.' ' ')"
+
+  for i in {0..1}; do
+    if [[ ${allowed_kern[$i]} -lt ${host_kern[$i]} ]]; then
+      return 0
+    elif [[ ${allowed_kern[$i]} -gt ${host_kern[$i]} ]]; then
+      return 1
+    fi
+  done
+
+  return 0
 }
 
 function install_ubuntu() {
@@ -296,13 +330,23 @@ function install_ubuntu() {
   scriptpath=$(dirname "$script")
   local dest_tmp_path
   dest_tmp_path=$(realpath "/tmp/${UBUNTU_DOMAIN_NAME}_install_tmp_files")
+  local ubuntu_ver
+
+  UBUNTU_INSTALL_OS_TYPE='desktop'
+  if [[ -z "${FORCE_UBUNTU_VER+x}" || -z "${FORCE_UBUNTU_VER}" ]]; then
+    ubuntu_ver=$(lsb_release -rs)
+  else
+    ubuntu_ver=$FORCE_UBUNTU_VER
+  fi
+
+  local auto_install_yaml_fname="auto-install-ubuntu-$UBUNTU_INSTALL_OS_TYPE"
 
   # install dependencies
   install_dep || return 255
 
   # check yaml file
-  if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/auto-install-ubuntu.yaml"; then
-    echo "Error: Yaml file $scriptpath/auto-install-ubuntu.yaml has formatting error!"
+  if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/$auto_install_yaml_fname.yaml"; then
+    echo "Error: Yaml file $scriptpath/$auto_install_yaml_fname.yaml has formatting error!"
     return 255
   fi
 
@@ -359,7 +403,7 @@ function install_ubuntu() {
   sudo rm -f meta-data
   touch meta-data
   # shellcheck disable=SC2016
-  envsubst '$http_proxy,$ftp_proxy,$https_proxy,$socks_server,$no_proxy' < "$scriptpath/auto-install-ubuntu.yaml" > "$scriptpath/auto-install-ubuntu-parsed.yaml"
+  envsubst '$http_proxy,$ftp_proxy,$https_proxy,$socks_server,$no_proxy' < "$scriptpath/$auto_install_yaml_fname.yaml" > "$scriptpath/auto-install-ubuntu-parsed.yaml"
   # Update for RT install
   if [[ "$RT" == "1" ]]; then
     sed -i "s|\$RT_SUPPORT|--rt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
@@ -397,6 +441,13 @@ function install_ubuntu() {
     sed -i "/\# more error handling here/a\    - echo \"ERROR\" | nc -q1 \$HOST_SERVER_IP \$HOST_SERVER_NC_PORT\n    - shutdown" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   fi
 
+  # update for drm driver selection install based on host
+  drm_drv_target=""
+  if lspci -D -k -s 0000:00:02.0 | grep "Kernel driver in use"; then
+    drm_drv_target=$(lspci -D -k  -s 00:02.0 | grep "Kernel driver in use" | awk -F ':' '{print $2}' | xargs)
+  fi
+  sed -i "s|\$DRM_DRV_OPTION|-drm \'$drm_drv_target\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   sed -i "s|\$FILE_SERVER_URL|$file_server_url|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
@@ -408,13 +459,14 @@ function install_ubuntu() {
     openvino_install_opt="$openvino_install_opt --debug"
   fi
   if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9] [0-9]* for 0000:00:0b.0 on minor 0'; then
-    local host_kern_version
-    host_kern_version=$(uname -r | sed -re 's/-intel//' | sed -re 's/(^[0-9]*\.[0-9]*\.[0-9]*-[0-9]*)(.*)/\1/')
-    if ! awk -v a="$host_kern_version" -v b="6.8" ' BEGIN { if (  a < b ) exit 0; else exit 1  } '; then
+    if  is_npu_supported ; then
       openvino_install_opt="$openvino_install_opt --npu"
     fi
   fi
   sed -i "s|\$OPENVINO_INSTALL_OPTIONS|$openvino_install_opt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+
+  sed -i "s|\$UBUNTU_SNAP_GNOME_VERSION|${UBUNTU_SNAP_GNOME_VERSIONS[$ubuntu_ver]}|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+  sed -i "s|\$UBUNTU_VERSION|$ubuntu_ver|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   sudo cloud-localds -v "$dest_tmp_path"/${UBUNTU_SEED_ISO} "$scriptpath/auto-install-ubuntu-parsed.yaml" meta-data
 
@@ -433,7 +485,7 @@ function install_ubuntu() {
   --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
   --disk "path=$dest_tmp_path/${UBUNTU_SEED_ISO},device=cdrom" \
   --location "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO},initrd=casper/initrd,kernel=casper/vmlinuz" \
-  --os-variant ubuntu22.04 \
+  --os-variant "ubuntu${ubuntu_ver}" \
   --noautoconsole \
   --boot "loader=$OVMF_DEFAULT_PATH/OVMF_CODE_4M.fd,loader.readonly=yes,loader.type=pflash,nvram.template=$OVMF_DEFAULT_PATH/OVMF_VARS_4M.fd" \
   --extra-args "autoinstall" \
@@ -479,7 +531,7 @@ function install_ubuntu() {
 }
 
 function show_help() {
-    printf "%s [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Ubuntu vm required image to dest %s/ubuntu.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Or create Ubuntu RT vm required image to dest %s/ubuntu_rt.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb,linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.\n"
@@ -493,7 +545,8 @@ function show_help() {
     printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
     printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
     printf "\t--force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware pkg from PPA with given version\n"
-    printf "\t--debug                     Do not remove temporary files. For debugging only.\n"
+    printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"22.04\" Default: same as host.\n"
+    printf "\t--debug                     For debugging only. Does not remove temporary files.\n"
 }
 
 function parse_arg() {
@@ -538,6 +591,30 @@ function parse_arg() {
                 shift
                 ;;
 
+            --force-ubuntu-ver)
+                if [[ -z ${2+x} || -z $2 ]]; then
+                  echo "Error: missing/null param for --force-ubuntu-ver"
+                  show_help
+                  return 255
+                else
+                  local supported=0
+                  for ver in "${!UBUNTU_INSTALLER_ISO_URLS[@]}"; do
+                    if [[ "$ver" == "$2" ]]; then
+                      supported=1
+                      break
+                    fi
+                  done
+                  if [[ $supported -eq 1 ]]; then
+                    FORCE_UBUNTU_VER="$2"
+                  else
+                    echo "Error: $2 unsupported. Supported versions: ${!UBUNTU_INSTALLER_ISO_URLS[*]}"
+                    show_help
+                    return 255
+                  fi
+                fi
+                shift
+                ;;
+
             --debug)
                 SETUP_DEBUG=1
                 ;;
@@ -557,19 +634,6 @@ function parse_arg() {
 }
 
 function cleanup () {
-    for f in "${TMP_FILES[@]}"; do
-      if [[ $SETUP_DEBUG -ne 1 ]]; then
-        local fowner
-        fowner=$(stat -c "%U" "$f")
-        if [[ "$fowner" == "$USER" ]]; then
-            rm -rf "$f"
-        else
-            sudo rm -rf "$f"
-        fi
-      fi
-    done
-    kill_by_pid "$FILE_SERVER_DAEMON_PID"
-    kill_by_pid "$HOST_NC_DAEMON_PID"
     local state
     state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
     if [[ -n "${state+x}" && "$state" == "running" ]]; then
@@ -585,6 +649,27 @@ function cleanup () {
     if virsh list --name --all | grep -q -w "$UBUNTU_DOMAIN_NAME"; then
         virsh undefine --nvram "$UBUNTU_DOMAIN_NAME"
     fi
+    local poolname
+    poolname="${UBUNTU_DOMAIN_NAME}_install_tmp_files"
+    if virsh pool-list | grep -q "$poolname"; then
+        virsh pool-destroy "$poolname"
+        if virsh pool-list --all | grep -q "$poolname"; then
+            virsh pool-undefine "$poolname"
+        fi
+    fi
+    for f in "${TMP_FILES[@]}"; do
+      if [[ $SETUP_DEBUG -ne 1 ]]; then
+        local fowner
+        fowner=$(stat -c "%U" "$f")
+        if [[ "$fowner" == "$USER" ]]; then
+            rm -rf "$f"
+        else
+            sudo rm -rf "$f"
+        fi
+      fi
+    done
+    kill_by_pid "$FILE_SERVER_DAEMON_PID"
+    kill_by_pid "$HOST_NC_DAEMON_PID"
     kill_by_pid "$VIEWER_DAEMON_PID"
 }
 

@@ -54,6 +54,8 @@ KERN_INSTALL_FROM_PPA=0
 KERN_PPA_VER=""
 LINUX_FW_PPA_VER=""
 RT=0
+DRM_DRV_SUPPORTED=('i915' 'xe')
+DRM_DRV_SELECTED=""
 
 script=$(realpath "${BASH_SOURCE[0]}")
 #scriptpath=$(dirname "$script")
@@ -113,6 +115,29 @@ function check_url() {
 			return 255
 		fi
     fi
+}
+
+function set_drm_drv() {
+    $LOGD "${FUNCNAME[0]} begin"
+    local drm_drv=""
+
+    if [[ -z "${1+x}" || -z "$1" ]]; then
+        $LOGE "${BASH_SOURCE[0]}: invalid drm_drv param"
+        return 255
+    fi
+    for idx in "${!DRM_DRV_SUPPORTED[@]}"; do
+        if [[ "$1" == "${DRM_DRV_SUPPORTED[$idx]}" ]]; then
+            drm_drv="${DRM_DRV_SUPPORTED[$idx]}"
+            break
+        fi
+    done
+    DRM_DRV_SELECTED="$drm_drv"
+    if [[ -z "${drm_drv+x}" || -z "$drm_drv" ]]; then
+        $LOGE "ERROR: unsupported intel integrated GPU driver option $drm_drv."
+        return 255
+    fi
+
+    $LOGD "${FUNCNAME[0]} end"
 }
 
 function install_kernel_from_deb() {
@@ -282,17 +307,25 @@ function update_cmdline() {
     $LOGD "${FUNCNAME[0]} begin"
     local updated=0
     local cmdline
+    local drm_drv
+
+    if [[ -z "${DRM_DRV_SELECTED+x}" || -z "$DRM_DRV_SELECTED" ]]; then
+        drm_drv=$(lspci -D -k  -s 0000:00:02.0 | grep "Kernel driver in use" | awk -F ':' '{print $2}' | xargs)
+        set_drm_drv "$drm_drv" || return 255
+    else
+        drm_drv="$DRM_DRV_SELECTED"
+    fi
 
     if [[ "$RT" == "0" ]]; then
-        cmds=("i915.force_probe=*"
-              "udmabuf.list_limit=8192"
-              "i915.enable_guc=(0x)?(0)*3"
-              "i915.max_vfs=(0x)?(0)*0")
+        cmds=("$drm_drv.force_probe=*"
+              "$drm_drv.enable_guc=(0x)?(0)*3"
+              "$drm_drv.max_vfs=(0x)?(0)*0"
+              "udmabuf.list_limit=8192")
     else
-        cmds=("i915.force_probe=*"
+        cmds=("$drm_drv.force_probe=*"
+              "$drm_drv.enable_guc=(0x)?(0)*3"
+              "$drm_drv.max_vfs=(0x)?(0)*0"
               "udmabuf.list_limit=8192"
-              "i915.enable_guc=(0x)?(0)*3"
-              "i915.max_vfs=(0x)?(0)*0"
               "processor.max_cstate=0"
               "intel.max_cstate=0"
               "processor_idle.max_cstate=0"
@@ -308,9 +341,9 @@ function update_cmdline() {
               "rcupdate.rcu_cpu_stall_suppress=1"
               "rcu_nocb_poll"
               "irqaffinity=0"
-              "i915.enable_rc6=0"
-              "i915.enable_dc=0"
-              "i915.disable_power_well=0"
+              "$drm_drv.enable_rc6=0"
+              "$drm_drv.enable_dc=0"
+              "$drm_drv.disable_power_well=0"
               "mce=off"
               "hpet=disable"
               "numa_balancing=disable"
@@ -324,19 +357,36 @@ function update_cmdline() {
               "console=ttyS0,115200n8"
               "intel_iommu=on")
     fi
+
     cmdline=$(sed -n -e "/.*\(GRUB_CMDLINE_LINUX=\).*/p" /etc/default/grub)
     cmdline=$(awk -F '"' '{print $2}' <<< "$cmdline")
 
+    if [[ "${#DRM_DRV_SUPPORTED[@]}" -gt 1 ]]; then
+        for drv in "${DRM_DRV_SUPPORTED[@]}"; do
+            cmdline=$(sed -r -e "s/\<modprobe\.blacklist=$drv\>//g" <<< "$cmdline")
+        done
+        for drv in "${DRM_DRV_SUPPORTED[@]}"; do
+            if [[ "$drv" != "$drm_drv" ]]; then
+                $LOGD "INFO: force $drm_drv drm driver over others"
+                cmds+=("modprobe.blacklist=$drv")
+            fi
+        done
+    fi
+
     for cmd in "${cmds[@]}"; do
         if [[ ! "$cmdline" =~ $cmd ]]; then
-            # Special handling for i915.enable_guc
-            if [[ "$cmd" == "i915.enable_guc=(0x)?(0)*3" ]]; then
-                cmdline=$(sed -r -e "s/\<i915.enable_guc=(0x)?([A-Fa-f0-9])*\>//g" <<< "$cmdline")
-                cmd="i915.enable_guc=0x3"
+            # Special handling for drm driver
+            if [[ "$cmd" == "$drm_drv.enable_guc=(0x)?(0)*3" ]]; then
+                for drv in "${DRM_DRV_SUPPORTED[@]}"; do
+                    cmdline=$(sed -r -e "s/\<$drv.enable_guc=(0x)?([A-Fa-f0-9])*\>//g" <<< "$cmdline")
+                done
+                cmd="$drm_drv.enable_guc=0x3"
             fi
-            if [[ "$cmd" == "i915.max_vfs=(0x)?(0)*0" ]]; then
-                cmdline=$(sed -r -e "s/\<i915.max_vfs=(0x)?([0-9])*\>//g" <<< "$cmdline")
-                cmd="i915.max_vfs=0"
+            if [[ "$cmd" == "$drm_drv.max_vfs=(0x)?(0)*0" ]]; then
+                for drv in "${DRM_DRV_SUPPORTED[@]}"; do
+                    cmdline=$(sed -r -e "s/\<$drv.max_vfs=(0x)?([0-9])*\>//g" <<< "$cmdline")
+                done
+                cmd="$drm_drv.max_vfs=0"
             fi
 
             cmdline="$cmdline $cmd"
@@ -369,13 +419,45 @@ function update_ubuntu_cfg() {
     fi
     # Enable for SW cursor
     if ! grep -Fq 'VirtIO-GPU' /usr/share/X11/xorg.conf.d/20-modesetting.conf; then
-        # Enable SW cursor for Ubuntu guest
-        echo -e "Section \"Device\"" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
-        echo -e "Identifier \"VirtIO-GPU\"" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
-        echo -e "Driver \"modesetting\"" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
-        echo -e "#BusID \"PCI:0:4:0\" #virtio-gpu" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
-        echo -e "Option \"SWcursor\" \"true\"" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
-        echo -e "EndSection" | sudo tee -a /usr/share/X11/xorg.conf.d/20-modesetting.conf
+        sudo tee -a "/usr/share/X11/xorg.conf.d/20-modesetting.conf" &>/dev/null <<EOF
+Section "Device"
+Identifier "VirtIO-GPU"
+Driver "modesetting"
+#BusID "PCI:0:4:0" #virtio-gpu
+Option "SWcursor" "true"
+EndSection
+EOF
+    fi
+    # Add script to dynamically enable/disable SW cursor
+    if ! grep -Fq '/dev/virtio-ports/com.redhat.spice.0' /usr/local/bin/setup_sw_cursor.sh; then
+        sudo tee -a "/usr/local/bin/setup_sw_cursor.sh" &>/dev/null <<EOF
+#!/bin/bash
+if [[ -e /dev/virtio-ports/com.redhat.spice.0 ]]; then
+    if grep -F '"SWcursor" "true"' /usr/share/X11/xorg.conf.d/20-modesetting.conf; then
+        sed -i "s/Option \"SWcursor\" \"true\"/Option \"SWcursor\" \"false\"/g" /usr/share/X11/xorg.conf.d/20-modesetting.conf
+    fi
+else
+    if grep -F '"SWcursor" "false"' /usr/share/X11/xorg.conf.d/20-modesetting.conf; then
+        sed -i "s/Option \"SWcursor\" \"false\"/Option \"SWcursor\" \"true\"/g" /usr/share/X11/xorg.conf.d/20-modesetting.conf
+    fi
+fi
+EOF
+        sudo chmod 744 /usr/local/bin/setup_sw_cursor.sh
+    fi
+    # Add startup service to run script during boot up
+    if ! grep -Fq 'ExecStart=/usr/local/bin/setup_sw_cursor.sh' /etc/systemd/system/setup_sw_cursor.service; then
+        sudo tee -a "/etc/systemd/system/setup_sw_cursor.service" &>/dev/null <<EOF
+[Unit]
+Description=Script to dynamically enable/disable SW cursor for SPICE gstreamer
+After=sysinit.target
+[Service]
+ExecStart=/usr/local/bin/setup_sw_cursor.sh
+[Install]
+WantedBy=default.target
+EOF
+        sudo chmod 664 /etc/systemd/system/setup_sw_cursor.service
+        sudo systemctl daemon-reload
+        sudo systemctl enable setup_sw_cursor.service
     fi
     # Disable GUI for RT guest
     if [[ "$RT" == "1" ]]; then
@@ -385,7 +467,7 @@ function update_ubuntu_cfg() {
 }
 
 function show_help() {
-    printf "%s [-k kern_deb_path | -kp kern_ver] [-fw fw_ver] [--no-install-bsp] [--rt]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-k kern_deb_path | -kp kern_ver] [-fw fw_ver] [-drm drm_drv] [--no-install-bsp] [--rt]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t-k\tpath to location of bsp kernel files linux-headers.deb and linux-image.deb\n"
@@ -393,6 +475,10 @@ function show_help() {
     printf "\t-fw\tversion string of linux-firmware overlay to select from Intel PPA. Eg \"20220329.git681281e4-0ubuntu3.17-1ppa1~jammy3\"\n"
     printf "\t--rt\tinstall for Ubuntu RT version\n"
     printf "\t--no-bsp-install\tDo not preform bsp overlay related install(kernel and userspace)\n"
+    printf "\t-drm\tspecify drm driver to use for Intel gpu:\n"
+    for d in "${DRM_DRV_SUPPORTED[@]}"; do
+        printf '\t\t\t%s\n' "$(basename "$d")"
+    done
 }
 
 function parse_arg() {
@@ -417,6 +503,11 @@ function parse_arg() {
 
             -fw)
                 LINUX_FW_PPA_VER=$2
+                shift
+                ;;
+
+            -drm)
+                set_drm_drv "$2" || return 255
                 shift
                 ;;
 

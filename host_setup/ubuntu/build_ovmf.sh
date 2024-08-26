@@ -52,7 +52,7 @@ which iasl > /dev/null || sudo apt install -y acpica-tools
 git clone https://github.com/tianocore/edk2.git
 
 cd "$WORK_DIR"/edk2
-git checkout -b stable202202 edk2-stable202202
+git checkout -b stable202205 edk2-stable202205
 wget https://raw.githubusercontent.com/projectceladon/vendor-intel-utils/master/host/ovmf/0001-OvmfPkg-add-IgdAssignmentDxe.patch
 patch -p1 < 0001-OvmfPkg-add-IgdAssignmentDxe.patch
 git submodule update --init
@@ -74,6 +74,7 @@ sudo cp Build/OvmfX64/DEBUG_GCC5/FV/OVMF_VARS.fd $LIBVIRT_DEFAULT_IMAGES_PATH/OV
 sudo cp Build/OvmfX64/DEBUG_GCC5/FV/OVMF.fd $LIBVIRT_DEFAULT_IMAGES_PATH/OVMF_4M_custom_gvtd.fd
 
 # Clean up leftovers
+cd -
 rm -rf "$WORK_DIR/edk2"
 
 echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

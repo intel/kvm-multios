@@ -36,6 +36,9 @@ TPM_ATTACH_SCRIPT="./libvirt_scripts/libvirt_attach_tpm.sh"
 # Set multi display script name
 MULTI_DISPLAY_SCRIPT="./libvirt_scripts/libvirt_multi_display.sh"
 
+# Set libvirt xml script name
+SETUP_LIBVIRT_XML_SCRIPT="./host_setup/ubuntu/setup_libvirt_xml.sh"
+
 # Set default domain force launch option
 FORCE_LAUNCH="false"
 
@@ -90,7 +93,7 @@ function log_error() {
 
 # Function to show help info
 function show_help() {
-	printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|sriov|gvtd> <domain>] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
+	printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                                         Show the help message and exit\n"
@@ -98,7 +101,8 @@ function show_help() {
   printf "                                                    if it's already running\n"
   printf "  -a                                                Launch all defined VM domains\n"
   printf "  -d <domain(s)>                                    Name of the VM domain(s) to launch\n"
-  printf "  -g <headless|vnc|spice|sriov|gvtd> <domain(s)>    Type of display model use by the VM domain\n"
+  printf "  -g <headless|vnc|spice|spice-gst|sriov|gvtd>      Type of display model use by the VM domain\n"
+  printf "      <domain(s)>                                   \n"
   printf "  -p <domain>                                       Name of the VM domain for device passthrough\n"
   printf "      --usb | --pci                                 Options of interface (eg. --usb or --pci)\n"
   printf "      <device>                                      Name of the device (eg. mouse, keyboard, bluetooth, etc\n"
@@ -172,9 +176,9 @@ function parse_arg() {
           exit 255
         fi
         shift
-        if [[ "$1" == "gvtd" || "$1" == "sriov" || "$1" == "vnc" || "$1" == "spice" || "$1" == "headless" ]]; then
+        if [[ "$1" == "gvtd" || "$1" == "sriov" || "$1" == "vnc" || "$1" == "spice" || "$1" == "spice-gst" || "$1" == "headless" ]]; then
           display="$1"
-          if [[ "$1" == "sriov" ]]; then
+          if [[ "$1" == "sriov" || "$1" == "spice-gst" ]]; then
             SRIOV_ENABLE="true"
           else
             SRIOV_ENABLE="false"
@@ -195,8 +199,8 @@ function parse_arg() {
             fi
             # No VNC/SPICE/headless display support for Android
             if [[ "$1" == "android" ]]; then
-              if [[ "${display}" == "vnc" || "${display}" == "spice" || "${display}" == "headless" ]]; then
-                log_error "VNC/SPICE/headless display for Android is not supported."
+              if [[ "${display}" == "vnc" || "${display}" == "spice" || "${display}" == "spice-gst" || "${display}" == "headless" ]]; then
+                log_error "VNC/SPICE/SPICE-GST/headless display for Android is not supported."
                 show_help
                 exit 255
               fi
@@ -415,8 +419,9 @@ function launch_domains() {
   done
 
   for domain in "$@"; do
-    # Define domain
     check_file_valid_nonzero "$XML_DIR/${VM_DOMAIN[$domain]}"
+
+    # Define domain
     echo "Define domain $domain"
     virsh define "$XML_DIR/${VM_DOMAIN[$domain]}"
 
@@ -561,6 +566,9 @@ if [[ "$SRIOV_ENABLE" == "true" ]]; then
   export DISPLAY=:0
   xhost +
 fi
+
+"$SETUP_LIBVIRT_XML_SCRIPT"
+
 # Launch domain(s)
 launch_domains "${domains[@]}" || exit 255
 exit 0

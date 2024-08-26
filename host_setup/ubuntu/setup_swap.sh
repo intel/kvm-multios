@@ -123,7 +123,7 @@ function setup_swapfile() {
     # check if current swap fulfills required size
     # check if current swapfile fulfills required size
     if [ -f "$swapfile" ]; then
-        swapfile_cur=$(swapon --show | awk '{ if ($1 ~ "$swapfile") { print int($3) }}')
+        swapfile_cur=$(swapon --show | awk -v sf="$swapfile" '$1 ~ sf { print int($3) }')
     else
         swapfile_cur=0
     fi
@@ -204,6 +204,20 @@ function setup_swapfile() {
     if ! grep -Fq "resume=UUID=$swap_uuid" /etc/initramfs-tools/conf.d/resume; then
         echo "resume=UUID=$swap_uuid" | sudo tee /etc/initramfs-tools/conf.d/resume
         sudo update-initramfs -u -k all
+    fi
+
+    if [[ "$(lsb_release -rs)" = "24.04" ]] && [[ "$swapfile" = "/swap.img" ]]; then
+        maj_min=$(df / | awk 'NR==2 {print $1}' | xargs stat -c '%Hr:%Lr')
+        echo "For Ubuntu 24.04, updating $maj_min to /sys/power/resume"
+        echo "$maj_min" | sudo tee /sys/power/resume > /dev/null
+        # create configuration file in tmpfiles.d
+        check_dir_valid "/etc/tmpfiles.d"
+        config_file="/etc/tmpfiles.d/hibernation_resume.conf"
+        # value in /sys/power/resume resets to 0:0 at reboot, use conf file to restore the setting;
+        {
+           echo "# Path                   Mode UID  GID  Age Argument"
+           echo "w    /sys/power/resume       -    -    -    -   $maj_min"
+        } | sudo tee "$config_file" > /dev/null
     fi
 
     reboot_required=1

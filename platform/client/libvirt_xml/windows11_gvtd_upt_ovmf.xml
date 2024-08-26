@@ -1,12 +1,12 @@
 <!--
- Copyright (c) 2023-2024 Intel Corporation.
+ Copyright (c) 2024 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
-  <name>windows</name>
+  <name>windows11</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-      <libosinfo:os id="http://microsoft.com/win/10"/>
+      <libosinfo:os id="http://microsoft.com/win/11"/>
     </libosinfo:libosinfo>
   </metadata>
   <memory>4194304</memory>
@@ -37,12 +37,12 @@
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
     <disk type="file" device="disk">
       <driver name="qemu" type="qcow2" cache="none" discard="unmap"/>
-      <source file="/var/lib/libvirt/images/windows.qcow2"/>
+      <source file="/var/lib/libvirt/images/windows11.qcow2"/>
       <target dev="vda" bus="virtio"/>
     </disk>
     <interface type="network">
       <source network="default"/>
-      <mac address="52:54:00:ab:cd:22"/>
+      <mac address="52:54:00:ab:cd:55"/>
       <model type="virtio"/>
     </interface>
     <console type="pty"/>
@@ -51,12 +51,16 @@
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
     <input type="tablet" bus="usb"/>
+    <graphics type="vnc" port="5905" listen="0.0.0.0"/>
     <sound model="ich9"/>
+    <video>
+      <model type="qxl"/>
+    </video>
     <hostdev mode="subsystem" type="pci" managed="yes">
       <source>
         <address domain="0" bus="0" slot="2" function="0"/>
       </source>
-      <address type="pci" domain="0" bus="0" slot="2" function="0"/>
+      <address type="pci" domain="0" bus="0" slot="4" function="0"/>
       <alias name="ua-igpu"/>
     </hostdev>
   </devices>
@@ -65,6 +69,6 @@
     <qemu:arg value="device.ua-igpu.x-igd-opregion=on"/>
     <qemu:arg value='-set'/>
     <qemu:arg value='device.ua-igpu.x-igd-gms=2'/>
-  </qemu:commandline>  
+  </qemu:commandline>
 </domain>
 

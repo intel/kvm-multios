@@ -142,7 +142,7 @@ DO NOT interfere or use VM before setup script exits successfully.**
 
 Command Reference:
 
-        Ubuntu_setup.sh [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--debug]
+        Ubuntu_setup.sh [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--debug]
         Create Ubuntu vm required image to dest /var/lib/libvirt/images/ubuntu.qcow2
         Or create Ubuntu RT vm required image to dest /var/lib/libvirt/images/ubuntu_rt.qcow2
 
@@ -157,7 +157,8 @@ Command Reference:
             --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
             --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version
             --force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware from PPA with given version
-            --debug                     Do not remove temporary files. For debugging only.
+            --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "22.04" Default: same as host.
+            --debug                     For debugging only. Does not remove temporary files.
 
     Above command starts Ubuntu/Ubuntu RT guest VM install from installer. Installation progress can be tracked in the following ways:
     - "--viewer" option which display the progress using virt-viewer

@@ -1341,18 +1341,6 @@ function parse_arg() {
 }
 
 function cleanup () {
-    for f in "${TMP_FILES[@]}"; do
-      if [[ $SETUP_DEBUG -ne 1 ]]; then
-        local fowner
-        fowner=$(stat -c "%U" "$f")
-        if [[ "$fowner" == "$USER" ]]; then
-            rm -rf "$f"
-        else
-            sudo rm -rf "$f"
-        fi
-      fi
-    done
-    kill_by_pid "$FILE_SERVER_DAEMON_PID"
     local state
     state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
     if [[ -n ${state+x} && "$state" == "running" ]]; then
@@ -1369,6 +1357,33 @@ function cleanup () {
     if virsh list --name --all | grep -q -w $WIN_DOMAIN_NAME; then
         virsh undefine --nvram "$WIN_DOMAIN_NAME"
     fi
+    local poolname
+    poolname=$(basename '/tmp')
+    if virsh pool-list | grep -q "$poolname"; then
+        virsh pool-destroy "$poolname"
+        if virsh pool-list --all | grep -q "$poolname"; then
+            virsh pool-undefine "$poolname"
+        fi
+    fi
+    poolname=$(basename "$WIN_UNATTEND_FOLDER")
+    if virsh pool-list | grep -q "$poolname"; then
+        virsh pool-destroy "$poolname"
+        if virsh pool-list --all | grep -q "$poolname"; then
+            virsh pool-undefine "$poolname"
+        fi
+    fi
+    for f in "${TMP_FILES[@]}"; do
+      if [[ $SETUP_DEBUG -ne 1 ]]; then
+        local fowner
+        fowner=$(stat -c "%U" "$f")
+        if [[ "$fowner" == "$USER" ]]; then
+            rm -rf "$f"
+        else
+            sudo rm -rf "$f"
+        fi
+      fi
+    done
+    kill_by_pid "$FILE_SERVER_DAEMON_PID"
     kill_by_pid "$VIEWER_DAEMON_PID"
 }
 
