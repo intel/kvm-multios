@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2023 Intel Corporation.
+ Copyright (c) 2023-2024 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm">
@@ -71,13 +71,8 @@
       <source mode="bind"/>
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
-    <channel type="spicevmc">
-      <target type="virtio" name="com.redhat.spice.0"/>
-    </channel>
     <input type="tablet" bus="usb"/>
     <sound model="ich9"/>
-    <redirdev bus="usb" type="spicevmc"/>
-    <redirdev bus="usb" type="spicevmc"/>
     <memballoon model="virtio"/>
     <rng model="virtio">
       <backend model="random">/dev/urandom</backend>

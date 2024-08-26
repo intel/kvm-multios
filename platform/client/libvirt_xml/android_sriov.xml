@@ -34,8 +34,8 @@
     <pmu state="off"/>
     <ioapic driver="kvm"/>
   </features>
-   <cpu mode="host-passthrough"  migratable="on">
-     <feature policy="disable" name="waitpkg"/>
+  <cpu mode="host-passthrough" migratable="on">
+    <feature policy="disable" name="waitpkg"/>
   </cpu>
   <clock offset="utc">
     <timer name="rtc" tickpolicy="catchup"/>
@@ -48,13 +48,13 @@
   </pm>
   <devices>
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
-  <!-- TODO: use iommu model instead of hardcode in qemu:arg -->
+    <!-- TODO: use iommu model instead of hardcode in qemu:arg -->
     <!--
     <iommu model="intel">
       <driver caching_mode="on" iotlb="on"/>
     </iommu>
     -->
-     <hostdev mode="subsystem" type="pci" managed="yes">
+    <hostdev mode="subsystem" type="pci" managed="yes">
       <source>
         <address domain="0" bus="0" slot="2" function="3"/>
       </source>
@@ -95,7 +95,7 @@
       <source file="/var/lib/libvirt/images/android/android.qcow2"/>
       <target dev="vda" bus="virtio"/>
     </disk>
-    <controller type="usb" index="0" model="qemu-xhci" id="xhci" ports="8" />
+    <controller type="usb" index="0" model="qemu-xhci" id="xhci" ports="8"/>
     <input type="mouse" bus="usb"/>
     <input type="keyboard" bus="usb"/>
     <interface type="network">
@@ -103,7 +103,7 @@
       <mac address="52:54:00:ab:cd:33"/>
       <model type="e1000"/>
     </interface>
-     <!-- For debugging only. Enabling serial console could impact performance. 
+    <!-- For debugging only. Enabling serial console could impact performance. 
     <console type="pty">
       <log file="/var/log/libvirt/qemu/android-sriov-serial0.log" append="off"/>
     </console>  -->
@@ -134,6 +134,6 @@
     <qemu:arg value="intel-iommu,device-iotlb=on,caching-mode=on"/>
   </qemu:commandline>
   <qemu:capabilities>
-    <qemu:del capability='usb-host.hostdevice'/>
+    <qemu:del capability="usb-host.hostdevice"/>
   </qemu:capabilities>
 </domain>

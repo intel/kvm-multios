@@ -3,10 +3,10 @@
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
-  <name>windows11</name>
+  <name>windows</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-      <libosinfo:os id="http://microsoft.com/win/11"/>
+      <libosinfo:os id="http://microsoft.com/win/10"/>
     </libosinfo:libosinfo>
   </metadata>
   <memory>4194304</memory>
@@ -23,6 +23,8 @@
   <vcpu>2</vcpu>
   <os>
     <type arch="x86_64" machine="q35">hvm</type>
+    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE_4M.fd</loader>
+    <nvram template="/usr/share/OVMF/OVMF_VARS_4M.fd"/>
     <boot dev="hd"/>
   </os>
   <features>
@@ -65,7 +67,7 @@
     <controller type="pci" model="pcie-root-port"/>
     <interface type="network">
       <source network="default"/>
-      <mac address="52:54:00:ab:cd:55"/>
+      <mac address="52:54:00:ab:cd:22"/>
       <model type="virtio"/>
     </interface>
     <console type="pty"/>
@@ -73,6 +75,17 @@
       <source mode="bind"/>
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
+    <channel type="spicevmc">
+      <target type="virtio" name="com.redhat.spice.0"/>
+    </channel>
+    <redirdev bus="usb" type="spicevmc"/>
+    <redirdev bus="usb" type="spicevmc"/>
+    <graphics type="spice" autoport="yes" listen="0.0.0.0">
+      <gl enable="yes" rendernode="/dev/dri/renderD128"/>
+      <streaming mode="filter"/>
+      <mouse mode="client"/>
+      <clipboard copypaste="yes"/>
+    </graphics>
     <input type="tablet" bus="usb"/>
     <sound model="ich9">
       <codec type="duplex"/>
@@ -89,9 +102,6 @@
       </source>
       <address type="pci" domain="0" bus="0" slot="2" function="0"/>
     </hostdev>
-    <tpm model="tpm-crb">
-      <backend type="emulator" version="2.0"/>
-    </tpm>
     <video>
       <!-- blob='on' requires libvirt 9.2 and beyond, so add custom qemu cmdline below for now-->
       <model type="virtio" heads="1" blob="on"/>
@@ -101,8 +111,9 @@
   <qemu:commandline>
     <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
     <qemu:arg value="device.video0.blob=true"/>
-    <qemu:arg value="-display"/>
-    <qemu:arg value="gtk,gl=on"/>
+    <qemu:arg value="-spice"/>
+    <qemu:arg value="preferred-codec=gstreamer:h264"/>
+    <qemu:env name="SPICE_CONVERTER_PREFERRED_FORMAT" value="NV12"/>
     <qemu:env name="DISPLAY" value=":0"/>
   </qemu:commandline>
 </domain>

@@ -75,8 +75,15 @@ Use VNC display to install GPU graphics driver and verify installed driver is in
 
 1. Launch Windows VM in UPT mode
 
+   for Windows 10
+
         sudo virsh define ./platform/client/libvirt_xml/windows_gvtd_upt_ovmf.xml
         sudo virsh start windows
+
+   for Windows 11
+
+        sudo virsh define ./platform/client/libvirt_xml/windows11_gvtd_upt_ovmf.xml
+        sudo virsh start windows11
 
 2. Install Intel Graphics GPU graphic driver.
 

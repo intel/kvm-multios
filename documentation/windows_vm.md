@@ -203,4 +203,5 @@ Refer to [here](README.md#vm-management) for more details on VM managment.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11</td><td>To launch Windows11 guest VM with VNC and SPICE display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11</td><td>To force launch windows11 guest VM with VNC and SPICE display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g sriov windows11</td><td>To force launch windows11 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g gvtd windows11</td><td>To force launch windows11 guest VM configured with GVT-d display</td></tr>
 </table>

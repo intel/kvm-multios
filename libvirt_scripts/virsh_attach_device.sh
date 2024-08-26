@@ -14,6 +14,7 @@ NR_DEVICE=""
 USB_VENDOR_ID=""
 USB_PRODUCT_ID=""
 
+PCI_DOMAIN=""
 PCI_BUS=""
 PCI_SLOT=""
 PCI_FUNC=""
@@ -55,7 +56,7 @@ EOF
 
 function attach_pci() {
   #check devices belong to same iommu group
-  pci_iommu=$(sudo virsh nodedev-dumpxml pci_0000_"${PCI_BUS}"_"${PCI_SLOT}"_"${PCI_FUNC}" | grep address)
+  pci_iommu=$(sudo virsh nodedev-dumpxml pci_"${PCI_DOMAIN}"_"${PCI_BUS}"_"${PCI_SLOT}"_"${PCI_FUNC}" | grep address)
   mapfile pci_array <<< "$pci_iommu"
 
   for pci in "${pci_array[@]}";do
@@ -146,14 +147,15 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 parse_arg "$@" || exit 255
 
 if [[ "--pci" == "$INTERFACE" ]]; then
-  DEVICE_FOUND=$(lspci -nn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk "$NR_DEVICE")
+  DEVICE_FOUND=$(lspci -Dnn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk "$NR_DEVICE")
   if [[ -z "$DEVICE_FOUND" ]]; then
     echo "No device $DEVICE_NAME found"
     exit 255
   fi
-  PCI_BUS=$(echo "$DEVICE_FOUND" | cut -d':' -f1)
-  PCI_SLOT=$(echo "$DEVICE_FOUND" | cut -d':' -f2 | cut -d '.' -f1)
-  PCI_FUNC=$(echo "$DEVICE_FOUND" | cut -d':' -f2 | cut -d '.' -f2)
+  PCI_DOMAIN=$(echo "$DEVICE_FOUND" | cut -d':' -f1)
+  PCI_BUS=$(echo "$DEVICE_FOUND" | cut -d':' -f2)
+  PCI_SLOT=$(echo "$DEVICE_FOUND" | cut -d':' -f3 | cut -d '.' -f1)
+  PCI_FUNC=$(echo "$DEVICE_FOUND" | cut -d':' -f3 | cut -d '.' -f2)
   attach_pci
 elif [[ "--usb" == "$INTERFACE" ]]; then
   DEVICE_FOUND=$(lsusb | grep -i "$DEVICE_NAME" | awk "$NR_DEVICE" | grep -o "ID ....:....")

@@ -89,6 +89,12 @@ if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; 
   sudo sed -i "s+#    \"/dev/ptmx\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
 fi
 
+# Disable seccomp for SPICE with gstreamer integration feature
+UPDATE_LINE='seccomp_sandbox = 0'
+if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
+  sudo sed -i "s/^#seccomp_sandbox.*/$UPDATE_LINE/g" "$UPDATE_FILE"
+fi
+
 # Update /etc/sysctl.conf
 
 UPDATE_FILE="/etc/sysctl.conf"
@@ -151,41 +157,63 @@ VM_XML=\$(cat -)
 # Setup iGPU SRIOV VF
 if [[ "\${2}" == "prepare" ]]; then
   sriov_vf_hex=\$(xmllint --xpath "string(//domain/devices/hostdev/source/address[@domain='0x0000' and @bus='0x00' and @slot='0x02']/@function)" - <<<"\$VM_XML" )
-  sriov_vf_num=\$((\$sriov_vf_hex))
+  sriov_vf_num=\$((sriov_vf_hex))
   if [[ \$sriov_vf_num -gt 0 ]]; then
     sriov_vfs=\$(cat /sys/class/drm/card0/device/sriov_numvfs)
     if [[ \$sriov_vfs -eq 0 ]]; then
       totalvfs=\$(cat /sys/class/drm/card0/device/sriov_totalvfs)
       vendor=\$(cat /sys/bus/pci/devices/0000:00:02.0/vendor)
       device=\$(cat /sys/bus/pci/devices/0000:00:02.0/device)
+      drm_drv=\$(lspci -D -k  -s 00:02.0 | grep "Kernel driver in use" | awk -F ':' '{print \$2}' | xargs)
+      if [[ "\$drm_drv" == "xe" ]]; then
+        gtt_spare_pf=\$((500 * 1024 * 1024)) # MB
+        contex_spare_pf=9216
+        doorbell_spare_pf=32
+        echo \$gtt_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/ggtt_spare
+        echo \$contex_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/contexts_spare
+        echo \$doorbell_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/doorbells_spare
+      fi
       modprobe i2c-algo-bit
       modprobe video
-      echo '0' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
-      echo \$totalvfs | tee -a /sys/class/drm/card0/device/sriov_numvfs
-      echo '1' | tee -a /sys/bus/pci/devices/0000\:00\:02.0/sriov_drivers_autoprobe
+      echo '0' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
+      echo "\$totalvfs" | tee -a /sys/class/drm/card0/device/sriov_numvfs
+      echo '1' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
       modprobe vfio-pci || :
-      echo "\$vendor \$device" | tee -a /sys/bus/pci/drivers/vfio-pci/new_id
+      echo "\$vendor \$device" | tee /sys/bus/pci/drivers/vfio-pci/new_id
       vfschedexecq=25
       vfschedtimeout=500000
-      iov_path="/sys/class/drm/card0/iov"
-      if [[ -d "/sys/class/drm/card0/prelim_iov" ]]; then
-        iov_path="/sys/class/drm/card0/prelim_iov"
+      if [[ "\$drm_drv" == "i915" ]]; then
+        iov_path="/sys/class/drm/card0/iov"
+        if [[ -d "/sys/class/drm/card0/prelim_iov" ]]; then
+          iov_path="/sys/class/drm/card0/prelim_iov"
+        fi
+        for (( i = 1; i <= totalvfs; i++ )); do
+          if [[ -d "\${iov_path}/vf\$i/gt" ]]; then
+            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt/exec_quantum_ms"
+            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt/preempt_timeout_us"
+          fi
+          if [[ -d "\${iov_path}/vf\$i/gt0" ]]; then
+            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt0/exec_quantum_ms"
+            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt0/preempt_timeout_us"
+          fi
+          if [[ -d "\${iov_path}/vf\$i/gt1" ]]; then
+            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt1/exec_quantum_ms"
+            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt1/preempt_timeout_us"
+          fi
+        done
+      elif [[ "\$drm_drv" == "xe"  ]]; then
+        iov_path="/sys/kernel/debug/dri/0000:00:02.0"
+        for (( i = 1; i <= totalvfs; i++ )); do
+          if [[ -d "\${iov_path}/gt0/vf\$i" ]]; then
+            echo "\$vfschedexecq" | tee "\${iov_path}/gt0/vf\$i/exec_quantum_ms"
+            echo "\$vfschedtimeout" | tee "\${iov_path}/gt0/vf\$i/preempt_timeout_us"
+          fi
+          if [[ -d "\${iov_path}/gt1/vf\$i" ]]; then
+            echo "\$vfschedexecq" | tee "\${iov_path}/gt1/vf\$i/exec_quantum_ms"
+            echo "\$vfschedtimeout" | tee "\${iov_path}/gt1/vf\$i/preempt_timeout_us"
+          fi
+        done
       fi
-      for (( i = 1; i <= \$totalvfs; i++ ))
-      do
-        if [[ -d "\${iov_path}/vf\$i/gt" ]]; then
-          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt/exec_quantum_ms
-          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt/preempt_timeout_us
-        fi
-        if [[ -d "\${iov_path}/vf\$i/gt0" ]]; then
-          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt0/exec_quantum_ms
-          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt0/preempt_timeout_us
-        fi
-        if [[ -d "\${iov_path}/vf\$i/gt1" ]]; then
-          echo \$vfschedexecq | tee -a \${iov_path}/vf\$i/gt1/exec_quantum_ms
-          echo \$vfschedtimeout | tee -a \${iov_path}/vf\$i/gt1/preempt_timeout_us
-        fi
-      done
     fi
   fi
 fi
@@ -196,10 +224,10 @@ tee -a qemu &>/dev/null <<EOF
 
 # Allocate hugepage on demand
 if [[ "\${2}" == "prepare" ]]; then
-  memory_size=\$(echo /tmp/domain_xml | xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
+  memory_size=\$(xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
   hugepage_size=\$(xmllint --xpath "string(//domain/memoryBacking/hugepages/page/@size)" - <<<"\$VM_XML")
   if [[ "\$hugepage_size" == "2048" ]]; then
-    required_hugepage_nr=\$((\$memory_size/2048))
+    required_hugepage_nr=\$((memory_size/2048))
     free_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/free_hugepages)
     if [[ \$required_hugepage_nr -gt \$free_hugepages ]]; then
         current_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
@@ -227,8 +255,7 @@ if [[ "\${2}" == "prepare" ]]; then
           # Check and wait for hugepages to be allocated
           read_hugepages=0
           count=0
-          while [[ \$read_hugepages -ne \$new_hugepages ]]
-          do
+          while [[ \$read_hugepages -ne \$new_hugepages ]]; do
             if [[ \$((count++)) -ge 20 ]]; then
                 echo "Insufficient memory to allocate \$required_hugepage_nr hugepages" >&2
                 exit 1
@@ -243,10 +270,10 @@ fi
 
 # Release hugepage on demand
 if [[ "\${2}" == "release" ]]; then
-  memory_size=\$(echo /tmp/domain_xml | xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
+  memory_size=\$(xmllint --xpath "string(//domain/memory)" - <<<"\$VM_XML")
   hugepage_size=\$(xmllint --xpath "string(//domain/memoryBacking/hugepages/page/@size)" - <<<"\$VM_XML")
   if [[ "\$hugepage_size" == "2048" ]]; then
-    release_hugepage_nr=\$((\$memory_size/2048))
+    release_hugepage_nr=\$((memory_size/2048))
     current_hugepages=\$(</sys/kernel/mm/hugepages/hugepages-2048kB/nr_hugepages)
     if [[ \$release_hugepage_nr -gt \$current_hugepages ]]; then
       new_hugepages=0
@@ -270,16 +297,16 @@ if [[ "\${1}" == "ubuntu" ]]; then
   HOST_PORT=1111
  
   if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-    /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-    /sbin/iptables -t nat -D PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -D OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+    /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
   fi
   if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-    /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-    /sbin/iptables -t nat -I PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -I OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+    /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
   fi
 
 elif [[ "\${1}" == "windows" ]]; then
@@ -291,16 +318,16 @@ elif [[ "\${1}" == "windows" ]]; then
 
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
     if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
     if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
   done
 
@@ -313,16 +340,16 @@ elif [[ "\${1}" == "android" ]]; then
 
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
     if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
     if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP "--dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP "--dport "\$GUEST_PORT" -j MASQUERADE
     fi
   done
 
@@ -334,16 +361,16 @@ elif [[ "\${1}" == "ubuntu_rt" ]]; then
   HOST_PORT=4444
 
   if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-    /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-    /sbin/iptables -t nat -D PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -D OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+    /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
   fi
   if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-    /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-    /sbin/iptables -t nat -I PREROUTING -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -I OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-    /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+    /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+    /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\$HOST_PORT" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+    /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
   fi
 
 elif [[ "\${1}" == "windows11" ]]; then
@@ -355,16 +382,16 @@ elif [[ "\${1}" == "windows11" ]]; then
 
   for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
     if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
     if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
+      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
+      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
   done
 
@@ -416,5 +443,9 @@ EOF
 	fi
 done
 sudo chmod 440 /etc/sudoers.d/multios-sudo
+
+echo "Setting up libvirt xml"
+# shellcheck source-path=SCRIPTDIR
+source "$scriptpath/setup_libvirt_xml.sh"
 
 echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

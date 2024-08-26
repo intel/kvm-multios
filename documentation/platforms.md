@@ -19,30 +19,32 @@
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
 | Arrow Lake – S UDIMM DDR5 RVP | Arrow Lake – S Silicon B0 and beyond | Arrow Lake -S PCH B0 and beyond |
+| Arrow Lake – H SODIMM DDR5 CRB | Arrow Lake – H Silicon A0 and beyond | NA |
+| Arrow Lake – U SODIMM DDR5 CRB | Arrow Lake – U Silicon A0 and beyond | NA |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 22.04 Intel IoT release</br></td>
+      <td rowspan="4" align="left">Ubuntu 24.04 Intel IoT release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>NA</td><td>Yes</td>
+      <td align="left">Ubuntu 24.04 Intel IoT release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2023/05/windows10.0-kb5026361-x64_961f439d6b20735f067af766e1813936bf76cb94.msu">Windows10.0 kb5026361</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5424</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>No</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 22H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/396ddabf-b27a-451e-a898-31d0427a36f7/public/windows11.0-kb5035942-x64_3f37174fadabd9d29ffe92a92b3422557586f645.msu">Windows11.0 kb5035942</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5424</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>No</td>
     </tr>
 </table>
 
@@ -60,7 +62,7 @@ Windows Zero-copy driver release: 4.0.0.1574</br>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>Yes</td><td>Yes</td>
+      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr><td align="left">Celadon IoT Android12 release 2024</td><td>No</td><td>Yes</td></tr>
     <tr>
@@ -68,14 +70,14 @@ Windows Zero-copy driver release: 4.0.0.1574</br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2023/05/windows10.0-kb5026361-x64_961f439d6b20735f067af766e1813936bf76cb94.msu">Windows10.0 kb5026361</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5382</br>
 Windows Zero-copy driver release: 4.0.0.1574</a>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 22H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/396ddabf-b27a-451e-a898-31d0427a36f7/public/windows11.0-kb5035942-x64_3f37174fadabd9d29ffe92a92b3422557586f645.msu">Windows11.0 kb5035942</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5382</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
 
@@ -94,21 +96,21 @@ Windows Zero-copy driver release: 4.0.0.1574</br>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 22.04 Intel IoT release</br></td>
+      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2023/05/windows10.0-kb5026361-x64_961f439d6b20735f067af766e1813936bf76cb94.msu">Windows10.0 kb5026361</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5445</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 22H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/396ddabf-b27a-451e-a898-31d0427a36f7/public/windows11.0-kb5035942-x64_3f37174fadabd9d29ffe92a92b3422557586f645.msu">Windows11.0 kb5035942</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5445</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
 
@@ -125,7 +127,7 @@ Windows Zero-copy driver release: 4.0.0.1574</br>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>NA</td><td>Yes</td>
+      <td align="left">Ubuntu 22.04 Intel IoT release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr><td align="left">Celadon IoT Android12 release 2024</td><td>No</td><td>Yes</td></tr>
     <tr>
@@ -133,13 +135,17 @@ Windows Zero-copy driver release: 4.0.0.1574</br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2023/05/windows10.0-kb5026361-x64_961f439d6b20735f067af766e1813936bf76cb94.msu">Windows10.0 kb5026361</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5382</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 22H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/396ddabf-b27a-451e-a898-31d0427a36f7/public/windows11.0-kb5035942-x64_3f37174fadabd9d29ffe92a92b3422557586f645.msu">Windows11.0 kb5035942</a></br>
 Integrated GPU Intel(R) Graphics driver version: 101.5382</br>
 Windows Zero-copy driver release: 4.0.0.1574</br>
-      </td><td>NA</td><td>Yes</td>
+      </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
+
+Notes:
+* GVT-d can only be applied for one running VM while other runnings VMs will be using VNC/SPICE or no display.
+  GVT-d is not fully validated in this release.

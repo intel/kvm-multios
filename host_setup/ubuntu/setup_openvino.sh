@@ -18,33 +18,44 @@ TMP_FILES=()
 
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
-  ['version']='2024.1.0'
-  ['ubuntu_version_supported']='22.04'
-  ['openvino_archive']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.1/linux/l_openvino_toolkit_ubuntu22_2024.1.0.15008.f4afc983258_x86_64.tgz'
+  ['version']='2024.2.0'
+  ['ubuntu_version_supported']='22.04, 24.04'
+  ['openvino_archive']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.2/linux/l_openvino_toolkit_ubuntu22_2024.2.0.15519.5c0f38f83f6_x86_64.tgz'
 )
 
 INSTALL_NPU=0
+declare -A _LINUX_NPU_DRV_REL_2204=(
+	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-driver-compiler-npu_1.5.1.20240708-9842236399_ubuntu22.04_amd64.deb'
+	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-fw-npu_1.5.1.20240708-9842236399_ubuntu22.04_amd64.deb'
+	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-level-zero-npu_1.5.1.20240708-9842236399_ubuntu22.04_amd64.deb'
+	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.6/level-zero_1.17.6+u22.04_amd64.deb'
+)
+declare -A _LINUX_NPU_DRV_REL_2404=(
+	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-driver-compiler-npu_1.5.1.20240708-9842236399_ubuntu24.04_amd64.deb'
+	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-fw-npu_1.5.1.20240708-9842236399_ubuntu24.04_amd64.deb'
+	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.5.1/intel-level-zero-npu_1.5.1.20240708-9842236399_ubuntu24.04_amd64.deb'
+	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.6/level-zero_1.17.6+u22.04_amd64.deb'
+)
 declare -A LINUX_NPU_DRV_REL=(
-  ['version']="v1.2.0"
-  ['ubuntu_version_supported']='22.04'
-  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.2.0/intel-driver-compiler-npu_1.2.0.20240404-8553879914_ubuntu22.04_amd64.deb'
-  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.2.0/intel-fw-npu_1.2.0.20240404-8553879914_ubuntu22.04_amd64.deb'
-  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.2.0/intel-level-zero-npu_1.2.0.20240404-8553879914_ubuntu22.04_amd64.deb'
-  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.16.1/level-zero_1.16.1+u22.04_amd64.deb'
+  ['version']="v1.5.1"
+  ['ubuntu_version_supported']='22.04, 24.04'
+  ['22.04']="_LINUX_NPU_DRV_REL_2204"
+  ['24.04']="_LINUX_NPU_DRV_REL_2404"
 )
 
 INSTALL_NEO=0
 declare -A COMPUTE_RUNTIME_REL=(
-  ['version']='24.13.29138.7'
-  ['igc-version']='1.0.16510.2'
-  ['gmmlib-version']='22.3.18'
-  ['ubuntu_version_supported']='22.04'
-  ['intel-igc-core']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.16510.2/intel-igc-core_1.0.16510.2_amd64.deb'
-  ['intel-igc-opencl']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.16510.2/intel-igc-opencl_1.0.16510.2_amd64.deb'
-  ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.13.29138.7/intel-level-zero-gpu_1.3.29138.7_amd64.deb'
-  ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.13.29138.7/intel-opencl-icd_24.13.29138.7_amd64.deb'
-  ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.13.29138.7/libigdgmm12_22.3.18_amd64.deb'
-  ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.13.29138.7/libigdgmm-dev_22.3.18_amd64.deb'
+  ['version']='24.22.29735.20'
+  ['level-zero-version']='1.3.29735.20'
+  ['igc-version']='1.0.16900.23'
+  ['gmmlib-version']='22.3.19'
+  ['ubuntu_version_supported']='22.04, 24.04'
+  ['intel-igc-core']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.16900.23/intel-igc-core_1.0.16900.23_amd64.deb'
+  ['intel-igc-opencl']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.16900.23/intel-igc-opencl_1.0.16900.23_amd64.deb'
+  ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.22.29735.20/intel-level-zero-gpu_1.3.29735.20_amd64.deb'
+  ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.22.29735.20/intel-opencl-icd_24.22.29735.20_amd64.deb'
+  ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.22.29735.20/libigdgmm12_22.3.19_amd64.deb'
+  ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.22.29735.20/libigdgmm-dev_22.3.19_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -112,7 +123,7 @@ function check_os() {
     # Check OS
     local version
     version=$(cat /proc/version)
-    if [[ ! "$version" =~ "Ubuntu" ]]; then
+    if [[ ! "$version" == *"Ubuntu"* ]]; then
         echo "Error: Only Ubuntu is supported" | tee -a "$LOG_FILE"
         return 255
     fi
@@ -120,11 +131,11 @@ function check_os() {
     # Check Ubuntu version
     req_version=$1
     cur_version=$(lsb_release -rs)
-    if [[ "$cur_version" != "$req_version" ]]; then
-        echo "Error: Ubuntu $cur_version is not supported" | tee -a "$LOG_FILE"
-        echo "Error: Please use Ubuntu $req_version" | tee -a "$LOG_FILE"
+    if ! [[ "$req_version" == *"$cur_version"* ]]; then
+        echo "INFO: Ubuntu $cur_version is not supported" | tee -a "$LOG_FILE"
         return 255
     fi
+
 }
 
 function install_dep() {
@@ -135,8 +146,10 @@ function setup_openvino_npu() {
     local dest_tmp_path
     dest_tmp_path=$(realpath "/tmp/linux_npu_driver_install")
 
-    log_func check_os "${LINUX_NPU_DRV_REL["ubuntu_version_supported"]}" || return 255
-
+    log_func check_os "${LINUX_NPU_DRV_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${LINUX_NPU_DRV_REL['ubuntu_version_supported']} for OpenVino NPU driver support" | tee -a "$LOG_FILE"; return 0)
+    local osver
+    osver=$(lsb_release -rs)
+    declare -n LINUX_NPU_DRV_REL_BIN="${LINUX_NPU_DRV_REL[$osver]}"
     if [[ -d "$dest_tmp_path" ]]; then
       rm -rf "$dest_tmp_path"
     fi
@@ -144,17 +157,17 @@ function setup_openvino_npu() {
     TMP_FILES+=("$dest_tmp_path")
     # Linux NPU driver release
     sudo dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu level-zero
-    echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL["version"]}" | tee -a "$LOG_FILE"
-    wget -O "$dest_tmp_path/intel-driver-compiler-npu.deb" "${LINUX_NPU_DRV_REL["intel-driver-compiler-npu"]}" || return 255
+    echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
+    wget -O "$dest_tmp_path/intel-driver-compiler-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-driver-compiler-npu']}" || return 255
     check_file_valid_nonzero "$dest_tmp_path/intel-driver-compiler-npu.deb"
-    wget -O "$dest_tmp_path/intel-fw-npu.deb" "${LINUX_NPU_DRV_REL["intel-fw-npu"]}" || return 255
+    wget -O "$dest_tmp_path/intel-fw-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-fw-npu']}" || return 255
     check_file_valid_nonzero "$dest_tmp_path/intel-fw-npu.deb"
-    wget -O "$dest_tmp_path/intel-level-zero-npu.deb" "${LINUX_NPU_DRV_REL["intel-level-zero-npu"]}" || return 255
+    wget -O "$dest_tmp_path/intel-level-zero-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-level-zero-npu']}" || return 255
     check_file_valid_nonzero "$dest_tmp_path/intel-level-zero-npu.deb"
-    wget -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL["level-zero"]}" || return 255
+    wget -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL_BIN['level-zero']}" || return 255
     check_file_valid_nonzero "$dest_tmp_path/level-zero.deb"
 
-    echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL["version"]}" | tee -a "$LOG_FILE"
+    echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
     sudo apt install -y libtbb12
     sudo dpkg -i "$dest_tmp_path"/*.deb
 
@@ -260,8 +273,7 @@ function download_url_checksum() {
 function setup_openvino() {
     local dest_tmp_path
     dest_tmp_path=$(realpath "/tmp/linux_openvino_install")
-
-    log_func check_os "${OPENVINO_REL["ubuntu_version_supported"]}" || return 255
+    log_func check_os "${OPENVINO_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino support" | tee -a "$LOG_FILE"; return 0)
 
     if [[ -d "$dest_tmp_path" ]]; then
         rm -rf "$dest_tmp_path"
@@ -269,10 +281,10 @@ function setup_openvino() {
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
 
-    echo "INFO: Installing Openvino ${OPENVINO_REL["version"]} from archive" | tee -a "$LOG_FILE"
-    download_url_checksum "$dest_tmp_path/${OPENVINO_REL["version"]}.tgz" "${OPENVINO_REL["openvino_archive"]}" "${OPENVINO_REL["openvino_archive"]}.sha256" || return 255
+    echo "INFO: Installing Openvino ${OPENVINO_REL['version']} from archive" | tee -a "$LOG_FILE"
+    download_url_checksum "$dest_tmp_path/${OPENVINO_REL['version']}.tgz" "${OPENVINO_REL['openvino_archive']}" "${OPENVINO_REL['openvino_archive']}.sha256" || return 255
 
-    tar -xf "$dest_tmp_path/${OPENVINO_REL["version"]}.tgz" -C "$dest_tmp_path" || return 255
+    tar -xf "$dest_tmp_path/${OPENVINO_REL['version']}.tgz" -C "$dest_tmp_path" || return 255
     if [[ ! -d /opt/intel ]]; then
         sudo mkdir /opt/intel
     fi
@@ -280,22 +292,21 @@ function setup_openvino() {
     local extracted_folder
     extracted_folder=$(find "$dest_tmp_path" -name "l_openvino_toolkit_ubuntu*")
     extracted_folder=$(realpath "$extracted_folder")
-    if [[ -d "/opt/intel/openvino_${OPENVINO_REL["version"]}" ]]; then
-        sudo rm -rf "/opt/intel/openvino_${OPENVINO_REL["version"]}"
+    if [[ -d "/opt/intel/openvino_${OPENVINO_REL['version']}" ]]; then
+        sudo rm -rf "/opt/intel/openvino_${OPENVINO_REL['version']}"
     fi
-    sudo mv "$extracted_folder" "/opt/intel/openvino_${OPENVINO_REL["version"]}"
-    cd "/opt/intel/openvino_${OPENVINO_REL["version"]}"
+    sudo mv "$extracted_folder" "/opt/intel/openvino_${OPENVINO_REL['version']}"
+    cd "/opt/intel/openvino_${OPENVINO_REL['version']}"
     sudo -E ./install_dependencies/install_openvino_dependencies.sh -y || return 255
-    python3 -m pip install -r ./python/requirements.txt || return 255
     cd -
 
     local -a ver
-    mapfile -td ' ' ver <<< "${OPENVINO_REL["version"]//./ }"
+    mapfile -td ' ' ver <<< "${OPENVINO_REL['version']//./ }"
     cd /opt/intel
     if [[ -L "/opt/intel/openvino_${ver[0]}" ]]; then
         sudo unlink "/opt/intel/openvino_${ver[0]}"
     fi
-    sudo ln -s "openvino_${OPENVINO_REL["version"]}" "openvino_${ver[0]}"
+    sudo ln -s "openvino_${OPENVINO_REL['version']}" "openvino_${ver[0]}"
     cd -
     if ! grep -Fq  "source /opt/intel/openvino_${ver[0]}/setupvars.sh" /etc/bash.bashrc; then
         # Added to first line of bash.bashrc so that it will be called even for non interactive shell
@@ -306,11 +317,42 @@ function setup_openvino() {
 
 }
 
+# Function to compare package version
+# $1: current installed packare version, maybe with -, i.e. 22.3.19-1ppa1~noble1
+# $2: plan to install package version
+# $3: number of elements to compare, versoin could split into 2, 3 or 4 numbers, deduct 1 as index starts from 0
+function is_new_version_avail() {
+    # Split version strings into array
+    IFS=" " read -r -a v1_arr <<< "$(echo "$1" | cut -d '-' -f1 | tr '.' ' ')"
+    IFS=" " read -r -a v2_arr <<< "$(echo "$2" | cut -d '-' -f1 | tr '.' ' ')"
+
+    # get shorter array lenth so element to compare is defined
+    local v1_len
+    local v2_len
+    local len
+    v1_len=${#v1_arr[@]}
+    v2_len=${#v2_arr[@]}
+    if [[ $v1_len -lt $v2_len ]]; then
+        len=$v1_len
+    else
+        len=$v2_len
+    fi
+
+    for ((i=0;i<len;i++)); do
+        if [[ ${v1_arr[$i]} -lt ${v2_arr[$i]} ]]; then
+            return 0
+        elif [[ ${v1_arr[$i]} -gt ${v2_arr[$i]} ]]; then
+            return 1
+       fi
+    done
+    return 1
+}
+
 function setup_neo() {
     local dest_tmp_path
-    dest_tmp_path=$(realpath "/tmp/linux_compute_runtime_install-${COMPUTE_RUNTIME_REL["version"]}")
+    dest_tmp_path=$(realpath "/tmp/linux_compute_runtime_install-${COMPUTE_RUNTIME_REL['version']}")
 
-    log_func check_os "${COMPUTE_RUNTIME_REL["ubuntu_version_supported"]}" || return 255
+    log_func check_os "${COMPUTE_RUNTIME_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino GPU support" | tee -a "$LOG_FILE"; return 0)
 
     if [[ -d "$dest_tmp_path" ]]; then
         rm -rf "$dest_tmp_path"
@@ -318,31 +360,126 @@ function setup_neo() {
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
 
-    local installed_igc_ver
-    installed_igc_ver=$(apt list --installed | grep "intel-igc-core" | awk '{print $2}')
-    if [[ -z "$installed_igc_ver" || (-n "$installed_igc_ver" && "$installed_igc_ver" < "${COMPUTE_RUNTIME_REL['igc-version']}") ]]; then
-        if [[ -n "$installed_igc_ver" ]]; then
-            echo "INFO: Intel intel-graphics-compiler ver: $installed_igc_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
+    local installed_igc_core_ver
+    # check if installed and compare version
+    if apt list --installed | grep "intel-igc-core"; then
+        installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core" | awk '{print $2}')
+        if [[ -z "$installed_igc_core_ver" ]] || ( [[ -n "$installed_igc_core_ver" ]] && ( is_new_version_avail "$installed_igc_core_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
+            echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core']}" || return 255
+        else
+            echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver is already up to-date" | tee -a "$LOG_FILE"
         fi
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-igc-core"]}" || return 255
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-igc-opencl"]}" || return 255
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-graphics-compiler-core installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core']}" || return 255
     fi
-    download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-level-zero-gpu"]}" || return 255
-    download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-opencl-icd"]}" || return 255
-    local installed_gmmlib_ver
-    installed_gmmlib_ver=$(apt list --installed | grep "libigdgmm12" | awk '{print $2}')
-    if [[ -z "$installed_gmmlib_ver" || (-n "$installed_gmmlib_ver" && "$installed_gmmlib_ver" < "${COMPUTE_RUNTIME_REL['gmmlib-version']}") ]]; then
-        if [[ -n "$installed_gmmlib_ver" ]]; then
-            echo "INFO: Intel gmmlib ver: $installed_gmmlib_ver. Installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
+    # refresh final installed version
+    installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core" | awk '{print $2}')
+
+    local installed_igc_opencl_ver
+    # check if installed and compare version
+    if apt list --installed | grep "intel-igc-opencl"; then
+        installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl" | awk '{print $2}')
+        if [[ -z "$installed_igc_opencl_ver" ]] || ( [[ -n "$installed_igc_opencl_ver" ]] && ( is_new_version_avail "$installed_igc_opencl_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
+            echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl']}" || return 255
+        else
+            echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver is already up to-date" | tee -a "$LOG_FILE"
         fi
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-gmmlib"]}" || return 255
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-gmmlib-dev"]}" || return 255
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-graphics-compiler-opencl installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl']}" || return 255
+    fi
+    # refresh final installed version
+    installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl" | awk '{print $2}')
+
+    if [[ "$installed_igc_core_ver" != "$installed_igc_opencl_ver" ]]; then
+        echo "WARNING: Intel intel-igc-core and intel-igc-opencl version does not macth" | tee -a "$LOG_FILE"
+    fi
+
+    local installed_level_zero_ver
+    # check if installed and compare version
+    if apt list --installed | grep "intel-level-zero-gpu"; then
+        installed_level_zero_ver=$(apt list --installed | grep "intel-level-zero-gpu" | awk '{print $2}')
+        if [[ -z "$installed_level_zero_ver" ]] || ( [[ -n "$installed_level_zero_ver" ]] && ( is_new_version_avail "$installed_level_zero_ver" "${COMPUTE_RUNTIME_REL['level-zero-version']}" )) ; then
+            echo "INFO: Intel intel-level-zero-gpu ver: $installed_level_zero_ver. Installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu']}" || return 255
+        else
+            echo "INFO: Intel intel-level-zero-gpu ver: $installed_level_zero_ver is already up to-date" | tee -a "$LOG_FILE"
+        fi
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-level-zero-gpu installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu']}" || return 255
+    fi
+    # refresh final installed version
+    installed_level_zero_ver=$(apt list --installed | grep "intel-level-zero-gpu" | awk '{print $2}')
+
+    local installed_opencl_icd_ver
+    # check if installed and compare version
+    if apt list --installed | grep "intel-opencl-icd"; then
+        installed_opencl_icd_ver=$(apt list --installed | grep "intel-opencl-icd" | awk '{print $2}')
+        if [[ -z "$installed_opencl_icd_ver" ]] || ( [[ -n "$installed_opencl_icd_ver" ]] && ( is_new_version_avail "$installed_opencl_icd_ver" "${COMPUTE_RUNTIME_REL['version']}" )) ; then
+            echo "INFO: Intel intel-opencl-icd ver: $installed_opencl_icd_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd']}" || return 255
+        else
+            echo "INFO: Intel intel-opencl-icd ver: $installed_opencl_icd_ver is already up to-date" | tee -a "$LOG_FILE"
+        fi
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-opencl-icd installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd']}" || return 255
+    fi
+    # refresh final installed version
+    installed_opencl_icd_ver=$(apt list --installed | grep "intel-opencl-icd" | awk '{print $2}')
+
+    local installed_gmmlib_ver
+    # check if installed and compare version
+    if apt list --installed | grep "libigdgmm12"; then
+        installed_gmmlib_ver=$(apt list --installed | grep "libigdgmm12" | awk '{print $2}')
+        if [[ -z "$installed_gmmlib_ver" ]] || ( [[ -n "$installed_gmmlib_ver" ]] && ( is_new_version_avail "$installed_gmmlib_ver" "${COMPUTE_RUNTIME_REL['gmmlib-version']}" )); then
+            echo "INFO: Intel intel-gmmlib ver: $installed_gmmlib_ver. Installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib']}" || return 255
+        else
+            echo "INFO: Intel intel-gmmlib ver: $installed_gmmlib_ver is already up to-date" | tee -a "$LOG_FILE"
+        fi
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-gmmlib installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib']}" || return 255
+    fi
+    # refresh final installed version
+    installed_gmmlib_ver=$(apt list --installed | grep "libigdgmm12" | awk '{print $2}')
+
+    local installed_gmmlib_dev_ver
+    # check if installed and compare version
+    if apt list --installed | grep "libigdgmm-dev"; then
+        installed_gmmlib_dev_ver=$(apt list --installed | grep "libigdgmm-dev" | awk '{print $2}')
+        if [[ -z "$installed_gmmlib_dev_ver" ]] || ( [[ -n "$installed_gmmlib_dev_ver" ]] && ( is_new_version_avail "$installed_gmmlib_dev_ver" "${COMPUTE_RUNTIME_REL['gmmlib-version']}" )) ; then
+            echo "INFO: Intel intel-gmmlib-dev ver: $installed_gmmlib_dev_ver. Installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-gmmlib-dev"]}" || return 255
+        else
+            echo "INFO: Intel intel-gmmlib-dev ver: $installed_gmmlib_dev_ver is already up to-date" | tee -a "$LOG_FILE"
+        fi
+    else
+        # not yet install, then install from public release
+        echo "INFO: Intel intel-gmmlib-dev installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib-dev']}" || return 255
+    fi
+    # refresh final installed version
+    installed_gmmlib_dev_ver=$(apt list --installed | grep "libigdgmm-dev" | awk '{print $2}')
+
+    if [[ "$installed_gmmlib_ver" != "$installed_gmmlib_dev_ver" ]]; then
+        echo "WARNING: Intel intel-gmmlib and intel-gmmlib-dev version does not macth" | tee -a "$LOG_FILE"
     fi
 
     for fname in "$dest_tmp_path"/*.deb; do
         check_file_valid_nonzero "$fname"
     done
-    echo "INFO: Installing Intel compute-runtime ${COMPUTE_RUNTIME_REL["version"]}" | tee -a "$LOG_FILE"
+    echo "INFO: Installing Intel compute-runtime ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
     sudo dpkg -i "$dest_tmp_path"/*.deb
 }
 
@@ -368,6 +505,10 @@ function parse_arg() {
 
             --neo)
                 INSTALL_NEO=1
+                ;;
+
+            --debug)
+                SETUP_DEBUG=1
                 ;;
 
             -?*)
@@ -412,10 +553,8 @@ fi
 if [[ $INSTALL_NEO -eq 1 ]]; then
     if apt list --installed | grep "intel-opencl-icd"; then
         installed_neo_ver=$(apt list --installed | grep "intel-opencl-icd" | awk '{print $2}')
-        if [[ -z "$installed_neo_ver" || (-n "$installed_neo_ver" && "$installed_neo_ver" < "${COMPUTE_RUNTIME_REL['version']}") ]]; then
-            if [[ -n "$installed_neo_ver" ]]; then
-                echo "INFO: Intel compute-runtime intel-opencl-icd ver: $installed_neo_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
-            fi
+        if [[ -z "$installed_neo_ver" ]] || ( [[ -n "$installed_neo_ver" ]] && ( is_new_version_avail "$installed_neo_ver" "${COMPUTE_RUNTIME_REL['version']}" )) ; then
+            echo "INFO: Intel compute-runtime intel-opencl-icd ver: $installed_neo_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
             log_func setup_neo || exit 255
         else
             echo "INFO: Intel compute-runtime intel-opencl-icd version $installed_neo_ver already installed" | tee -a "$LOG_FILE"
