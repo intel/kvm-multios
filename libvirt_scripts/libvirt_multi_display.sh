@@ -15,30 +15,16 @@ GUEST_CONNECTORS=""
 
 #---------      Functions    -------------------
 function edit_xml() {
-
-    # Convert domain existing qemu commandline to arg and env strings
-    # Example:
-    #  <qemu:commandline>
-    #    <qemu:arg value='-set'/>
-    #    <qemu:arg value='device.video0.blob=true'/>
-    #    <qemu:arg value='-display'/>
-    #    <qemu:arg value='gtk,gl=on'/>
-    #  </qemu:commandline>
-    # will be convert to: "-set device.video0.blob=true -display gtk,gl=on"
-    qemu_arg=$(sudo virsh dumpxml "$GUEST_DOMAIN" | grep "qemu:arg" | grep -P "'\K[^'/>]+" | tr '\n' ' ')
-    qemu_arg=$(echo "$qemu_arg" | sed -e 's/<//g' -e 's/qemu:arg value=//g' -e "s/'//g" -e 's/\/>//g')
-
-    if [[ "$qemu_arg" =~ "-display gtk,gl=on" ]]; then
-      # shellcheck disable=SC2001
-      qemu_arg=$(sed "s/-display gtk,gl=on\S*/$GUEST_DISP_TYPE/" <<< "$qemu_arg")
-    else
-      qemu_arg+=" $GUEST_DISP_TYPE"
+    local display
+    display=$(who | grep -o ' :.' | xargs)
+    if [[ -z $display ]]; then
+      echo "Error: Please log in to the host's graphical login screen on the physical display."
+      return 255
     fi
-    
+
     sudo virt-xml "$GUEST_DOMAIN" -q --edit --video model.heads="$GUEST_MAX_OUTPUTS"
-    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline clearxml=yes
-    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline args="$qemu_arg"
-    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline env="DISPLAY=:0"
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline args="$GUEST_DISP_TYPE"
+    sudo virt-xml "$GUEST_DOMAIN" -q --edit --qemu-commandline env="DISPLAY=$display"
 }
 
 function show_help() {

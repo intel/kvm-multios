@@ -346,10 +346,10 @@ elif [[ "\${1}" == "android" ]]; then
       /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
     if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP "--dport "\$GUEST_PORT" -j ACCEPT
+      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
       /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
       /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP "--dport "\$GUEST_PORT" -j MASQUERADE
+      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
     fi
   done
 

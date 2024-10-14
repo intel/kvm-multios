@@ -71,7 +71,7 @@
     </channel>
     <input type="tablet" bus="usb"/>
     <graphics type="vnc" port="5905" listen="0.0.0.0"/>
-    <graphics type="spice" autoport="yes" listen="0.0.0.0"/>
+    <graphics type="spice" port="5955" listen="0.0.0.0"/>
     <sound model="ich9">
       <codec type="duplex"/>
       <audio id="1"/>

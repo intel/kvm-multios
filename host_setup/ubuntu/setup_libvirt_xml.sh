@@ -88,18 +88,42 @@ function install_dep() {
 }
 
 function setup_xml() {
+    local xmlpath="$scriptpath/../../platform/client/libvirt_xml"
+    check_dir_valid "$xmlpath"
+    local -a xmlfiles=()
+    mapfile -t xmlfiles < <(find "$xmlpath" -maxdepth 1 -mindepth 1 -type f -name "*.xml")
+
+    local display
+    display=$(who | grep -o ' :.' | xargs)
+
+    if [[ -n $display ]]; then
+        for file in "${xmlfiles[@]}"; do
+            check_file_valid_nonzero "$file"
+            if grep -q 'name="DISPLAY" value="' "$file"; then
+                sed -i -e "s/.*name=\"DISPLAY\" value=.*/    <qemu:env name=\"DISPLAY\" value=\"$display\"\/>/" "$file"
+            fi
+        done
+    fi
+
     if check_libvirt_version '8.2'; then
         # Libvirt 8.2 and above does not support -set qemu:arg in qemu:commandline"
-        local xmlpath="$scriptpath/../../platform/client/libvirt_xml"
-        check_dir_valid "$xmlpath"
-        local -a xmlfiles=()
-        mapfile -t xmlfiles < <(find "$xmlpath" -maxdepth 1 -mindepth 1 -type f -name "*.xml")
         for file in "${xmlfiles[@]}"; do
             check_file_valid_nonzero "$file"
             if grep -q "device.video0.blob=true" "$file"; then
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="-set"]' "$file"
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.blob=true"]' "$file"
-            fi
+                xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=false"]' "$file"
+                # Insert the new <qemu:override> section
+                sed -i '/<\/domain>/i \
+  <qemu:override>\
+    <qemu:device alias="video0">\
+      <qemu:frontend>\
+        <qemu:property name="blob" type="bool" value="true"/>\
+        <qemu:property name="render_sync" type="bool" value="false"/>\
+      </qemu:frontend>\
+    </qemu:device>\
+  </qemu:override>' "$file"
+	    fi
             if grep -q "device.ua-igpu.x-igd-opregion=on" "$file"; then
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="-set"]' "$file"
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.ua-igpu.x-igd-opregion=on"]' "$file"

@@ -62,7 +62,7 @@ tee default_network.xml >& /dev/null <<EOF
       <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.122.11'/>
       <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.122.22'/>
       <host mac='52:54:00:ab:cd:33' name='redhat' ip='192.168.122.33'/>
-      <host mac='52:54:00:ab:cd:33' name='centos' ip='192.168.122.44'/>
+      <host mac='52:54:00:ab:cd:44' name='centos' ip='192.168.122.44'/>
     </dhcp>
   </ip>
 </network>

@@ -46,11 +46,12 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - Automatic suspend/hibernate/resume of running guest VMs during host suspend/hibernate/resume.(Ubuntu/Windows only)
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
-    - Ubuntu 22.04
+    - Ubuntu 22.04/24.04
     - Windows 10 IoT Enterprise LTSC 21H2
-    - Windows 11 IoT Enterprise 22H2
+    - Windows 11 IoT Enterprise 24H2
     - Android Celadon 12
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
+- Cloning of VMs with SR-IOV Multi-Display support enabled.
 
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
@@ -96,16 +97,20 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | Raptor Lake PS | client
 | Alder Lake N | client
 
-## Guest OS Domain Naming Convention, MAC and IP Address
-| VM Operating System | domain name in KVM MultiOS Portfolio Release | MAC address | IP address |
-| :-- | :-- | :-- | :-- |
-| Ubuntu | ubuntu | 52:54:00:ab:cd:11 | 192.168.122.11 |
-| Windows 10 | windows | 52:54:00:ab:cd:22 | 192.168.122.22 |
-| Android | android | 52:54:00:ab:cd:33 | 192.168.122.33 |
-| Ubuntu RT | ubuntu_rt | 52:54:00:ab:cd:44 | 192.168.122.44 |
-| Windows 11 | windows11 | 52:54:00:ab:cd:55 | 192.168.122.55 |
-| Redhat | redhat | TBD | TBD |
-| CentOS | centos | TBD | TBD |
+## Guest OS Domain Naming Convention, MAC/IP Address and Ports
+***Notes***
+- VM IP is corresponding default VM MAC address as defined in VM definition XML files provided in this release when used with launch_multios.sh helper script VM launch.
+- Host is accessible to guest VMs launched in host via 192.168.122.1
+
+| VM Operating System | Domain name | MAC address | IP address | VNC port | SPICE port |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Ubuntu | ubuntu | 52:54:00:ab:cd:11 | 192.168.122.11 | 5901 | 5951 |
+| Windows 10 | windows | 52:54:00:ab:cd:22 | 192.168.122.22 | 5902 | 5952 |
+| Android | android | 52:54:00:ab:cd:33 | 192.168.122.33 | - | - |
+| Ubuntu RT | ubuntu_rt | 52:54:00:ab:cd:44 | 192.168.122.44 | - | - |
+| Windows 11 | windows11 | 52:54:00:ab:cd:55 | 192.168.122.55 | 5905 | 5955 |
+| Redhat | redhat | 52:54:00:ab:cd:33 | 192.168.122.33 | 5903 | 5953 |
+| CentOS | centos | 52:54:00:ab:cd:44 | 192.168.122.44 | 5904 | 5954 |
 
 ## Guest OS libvirt Domain XML Naming Convention
 | XML filename | VM Operating System | display | GPU virtualization | OS boot (BIOS/UEFI) | default used in launch_multios.sh |
@@ -300,12 +305,14 @@ Follow the command below to get names of hardware display ports **connected** on
 | virsh list | list running domains |
 | virsh list --all | list all domains (including running) |
 | virsh domifaddr \<domain\> | Get domain network info |
+| virsh domdisplay --type vnc \<domain\> | Get domain vnc port info |
+| virsh domdisplay --type spice \<domain\> | Get domain spice port info |
 | virsh console \<domain\>| Attach to VM virtual serial console (if available, such as on Ubuntu) |
 | virsh shutdown \<domain\>| Trigger VM to shutdown |
 | virsh destroy \<domain\>| Force kill VM |
 | virsh reboot \<domain\>| Run a reboot command in guest domain |
 
-Use "virsh --help" for more help information or refer to libvirt documentation for more commands.
+Use "virsh --help" for more help information or refer to [libvirt virsh manpage](https://www.libvirt.org/manpages/virsh.html) documentation for more commands.
 
 ## VM Power Management
 KVM MultiOS Portfolio release provides an ease of use script (libvirt_scripts/libvirt-guests-sleep.sh) to suspend/hibernate/resume all running supported guest VM domains (Ubuntu/Windows only).

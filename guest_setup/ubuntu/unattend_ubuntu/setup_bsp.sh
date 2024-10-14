@@ -9,7 +9,7 @@ set -Eeuo pipefail
 # PPA url for Intel overlay installation
 # Add each required entry on new line
 PPA_URLS=(
-    "https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia"
+    "https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia kernels"
 )
 # corresponding GPG key to use for each PPA_URL entry above in same sequence.
 # If GPG key is not set correctly,

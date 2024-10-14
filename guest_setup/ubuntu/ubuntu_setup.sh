@@ -15,11 +15,11 @@ UBUNTU_INSTALLER_ISO=ubuntu.iso
 UBUNTU_SEED_ISO=ubuntu-seed.iso
 declare -A UBUNTU_INSTALLER_ISO_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
-  ['24.04']='https://releases.ubuntu.com/24.04/ubuntu-24.04-live-server-amd64.iso'
+  ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.1-live-server-amd64.iso'
 )
 declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
-  ['24.04']='https://releases.ubuntu.com/24.04/SHA256SUMS'
+  ['24.04']='https://releases.ubuntu.com/noble/SHA256SUMS'
 )
 declare -A UBUNTU_SNAP_GNOME_VERSIONS=(
   ['22.04']='gnome-3-38-2004'
@@ -46,7 +46,7 @@ SETUP_DEBUG=0
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
 FILE_SERVER_IP="192.168.122.1"
-FILE_SERVER_PORT=8000
+FILE_SERVER_PORT=8001
 HOST_NC_DAEMON_PID=
 
 #---------      Functions    -------------------
@@ -235,15 +235,18 @@ function download_ubuntu_iso() {
   local count=0
 
   if [[ -z "${1+x}" || -z "$1" ]]; then
+    echo "Error: no ubuntu version provided"
+    return 255
+  fi
+  local ubuntu_ver=$1
+  if [[ -z "${2+x}" || -z "$2" ]]; then
     echo "Error: no dest tmp path provided"
     return 255
   fi
-  local dest_tmp_path=$1
-  local ubuntu_ver
-  ubuntu_ver=$(lsb_release -rs)
+  local dest_tmp_path=$2
   while [[ $count -lt $maxcount ]]; do
     count=$((count+1))
-    echo "$count: Download Ubuntu $ubuntu_ver iso"
+    echo "$count: Download Ubuntu $ubuntu_ver iso to $dest_tmp_path"
     wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}" || return 255
     wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
     local isochksum
@@ -254,7 +257,7 @@ function download_ubuntu_iso() {
     verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
     if [[ "$isochksum" == "$verifychksum" ]]; then
       # downloaded iso is okay.
-      echo "Verified Ubuntu iso checksum as expected: $isochksum"
+      echo "Verified Ubuntu $ubuntu_ver iso checksum as expected: $isochksum"
       sudo mv "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
       sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
       break
@@ -272,19 +275,23 @@ function verify_ubuntu_iso() {
   local count=0
 
   if [[ -z "${1+x}" || -z "$1" ]]; then
+    echo "Error: no ubuntu version provided"
+    return 255
+  fi
+  local ubuntu_ver=$1
+  if [[ -z "${2+x}" || -z "$2" ]]; then
     echo "Error: no dest tmp path provided"
     return 255
   fi
-  local dest_tmp_path=$1
-  if [[ -z "${2+x}" || -z "$2" ]]; then
+  local dest_tmp_path=$2
+  if [[ -z "${3+x}" || -z "$3" ]]; then
     echo "Error: no Ubuntu iso path provided"
     return 255
   fi
   local iso_to_check
-  iso_to_check=$(realpath "$2")
+  iso_to_check=$(realpath "$3")
 
-  local ubuntu_ver
-  ubuntu_ver=$(lsb_release -rs)
+  echo "INFO: Verifying $ubuntu_ver iso: $iso_to_check"
   wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
   local isochksum
   isochksum=$(sha256sum "$iso_to_check" | awk '{print $1}')
@@ -294,8 +301,8 @@ function verify_ubuntu_iso() {
   verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
   if [[ "$isochksum" == "$verifychksum" ]]; then
     # downloaded iso is okay.
-    echo "Verified Ubuntu iso checksum as expected: $isochksum"
-    sudo mv "$iso_to_check" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+    echo "Verified Ubuntu $ubuntu_ver iso checksum as expected: $isochksum"
+    sudo cp "$iso_to_check" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
     sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
   else
     echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match that of ${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}"
@@ -374,11 +381,11 @@ function install_ubuntu() {
 
   if [[ -f "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" ]]; then
     check_file_valid_nonzero "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"
-    verify_ubuntu_iso "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" || return 255
+    verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" || return 255
   fi
 
   if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
-    download_ubuntu_iso "$dest_tmp_path" || return 255
+    download_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" || return 255
   fi
 
   copy_setup_files "$dest_tmp_path" || return 255
@@ -458,7 +465,7 @@ function install_ubuntu() {
   if [[ $SETUP_DEBUG -eq 1 ]]; then
     openvino_install_opt="$openvino_install_opt --debug"
   fi
-  if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9] [0-9]* for 0000:00:0b.0 on minor 0'; then
+  if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then
     if  is_npu_supported ; then
       openvino_install_opt="$openvino_install_opt --npu"
     fi
