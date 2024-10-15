@@ -563,7 +563,12 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 parse_arg "$@" || exit 255
 
 if [[ "$SRIOV_ENABLE" == "true" ]]; then
-  export DISPLAY=:0
+  display_num=$(who | grep -o ' :.' | xargs)
+  if [[ -z $display_num ]]; then
+    echo "Error: Please log in to the host's graphical login screen on the physical display."
+    return 255
+  fi
+  export DISPLAY=$display_num
   xhost +
 fi
 

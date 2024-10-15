@@ -80,7 +80,7 @@
     </channel>
     <redirdev bus="usb" type="spicevmc"/>
     <redirdev bus="usb" type="spicevmc"/>
-    <graphics type="spice" autoport="yes" listen="0.0.0.0">
+    <graphics type="spice" port="5951" listen="0.0.0.0">
       <gl enable="yes" rendernode="/dev/dri/renderD128"/>
       <streaming mode="filter"/>
       <mouse mode="client"/>

@@ -73,8 +73,8 @@
         <OSImage>
           <InstallFrom>
             <MetaData wcm:action="add">
-              <Key>/IMAGE/INDEX</Key>
-              <Value>2</Value>
+              <Key>/IMAGE/NAME</Key>
+              <Value>Windows 11 IoT Enterprise</Value>
             </MetaData>
           </InstallFrom>
           <InstallTo>
@@ -95,21 +95,27 @@
     </component>
     <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Microsoft-Windows-PnpCustomizationsWinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <DriverPaths>
+        <!-- vioscsi unable to be loaded for 24H2 -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="1">
           <Path>E:\amd64\w11\</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="2">
           <Path>E:\NetKVM\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="3">
           <Path>E:\Balloon\w11\amd64</Path>
         </PathAndCredentials>
+        <!-- 24H2 have problems with qxldod/virgpudo -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="4">
           <Path>E:\qxldod\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="5">
           <Path>E:\viogpudo\w11\amd64</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="6">
           <Path>E:\pvpanic\w11\amd64</Path>
         </PathAndCredentials>
@@ -122,9 +128,12 @@
         <PathAndCredentials wcm:action="add" wcm:keyValue="9">
           <Path>E:\viorng\w11\amd64</Path>
         </PathAndCredentials>
+        <!-- vioscsi unable to be loaded for 24H2 -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="10">
           <Path>E:\vioscsi\w11\amd64</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="11">
           <Path>E:\vioserial\w11\amd64</Path>
         </PathAndCredentials>
@@ -253,6 +262,13 @@
           <Description>Install Windows OS Patch</Description>
           <Order>12</Order>
           <WillReboot>Always</WillReboot>
+        </RunSynchronousCommand>
+        <!-- vioscsi unable to be loaded for 24H2 at boot. Install here -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\virtio-win-gt-x64.msi /QN ADDLOCAL=FE_vioscsi_driver'</Path>
+          <Description>Install vioscsi</Description>
+          <Order>13</Order>
+          <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Setup for additional installations order 20-80 -->
         <!-- Setup for graphics driver + Zero-Copy Driver installation -->

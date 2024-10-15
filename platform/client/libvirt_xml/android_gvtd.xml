@@ -40,6 +40,7 @@
   <devices>
     <emulator>/usr/bin/qemu-system-x86_64</emulator>
     <!-- TODO: use iommu model instead of hardcode in qemu:arg -->
+    <!-- TODO: Require celadon to fix arg seq dep first -->
     <!--
     <iommu model='intel'>
       <driver caching_mode='on' iotlb='on'/>
@@ -123,7 +124,7 @@
     <qemu:arg value='-device'/>
     <qemu:arg value='tpm-crb,tpmdev=tpm0'/>
     <qemu:arg value='-device'/>
-    <qemu:arg value='intel-iommu,device-iotlb=on,caching-mode=on'/>
+    <qemu:arg value="{&quot;driver&quot;:&quot;intel-iommu&quot;,&quot;id&quot;:&quot;iommu0&quot;,&quot;device-iotlb&quot;:true,&quot;caching-mode&quot;:true}"/>
   </qemu:commandline>
   <qemu:capabilities>
     <qemu:del capability='usb-host.hostdevice'/>

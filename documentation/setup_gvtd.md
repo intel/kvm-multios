@@ -16,11 +16,13 @@ Ensure the following options are enabled in the BIOS
 
 ## Prerequisites
 Host platform DUT setup:
+- For Ubuntu host OS, libvirt default storage path for all guest domain disk images and other usage is in /var. Ensure host has sufficiently large disk allocation for /var during OS installation.
 - Host platform have physical display monitor connection prior to installation run.
 - Host platform is setup as per platform release BSP guide and booted accordingly.
 - Host platform has network connection and Internet access and proxy variables (http_proxy, https_proxy, no_proxy) are set appropriately in /etc/environment if required for network access.
 - Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
 - Host platform date/time is set up properly to current date/time.
+- User is already login to UI homescreen prior to any operations or user account has been to enable auto-login (required for VM support with Intel GPU SR-IOV).
 
 ## Running KVM MultiOS Host Setup
 1. Run host setup script to setup system for GVT-d. System will rebooted at the end of script execution.

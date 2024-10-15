@@ -15,6 +15,7 @@ WIN_VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads
 WIN_VIRTIO_ISO=virtio-win.iso
 WIN_UNATTEND_ISO=$WIN_DOMAIN_NAME-unattend-win11.iso
 WIN_UNATTEND_FOLDER=unattend_win11
+# "Windows for OpenSSH" v9.5.0.0p1-Beta release
 WIN_OPENSSH_MSI_URL='https://github.com/PowerShell/Win32-OpenSSH/releases/download/v9.5.0.0p1-Beta/OpenSSH-Win64-v9.5.0.0.msi'
 WIN_OPENSSH_MSI='OpenSSH-Win64.msi'
 
@@ -29,16 +30,18 @@ PLATFORM_NAME=""
 SETUP_DISK_SIZE=60 # size in GiB
 SETUP_NO_SRIOV=0
 SETUP_NON_WHQL_GFX_DRV=0
+SETUP_NON_WHQL_GFX_INSTALLER=0
 SETUP_DEBUG=0
 SETUP_DISABLE_SECURE_BOOT=0
-SETUP_ZC_GUI_INSTALLER=0
+SETUP_ZC_GUI_INSTALLER=1 # default assume installer
 SETUP_ZC_FILENAME=''
 ADD_INSTALL_DL_FAIL_EXIT=0
+GEN_GFX_ZC_SCRIPT_ONLY=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
 FILE_SERVER_IP="192.168.122.1"
-FILE_SERVER_PORT=8002
+FILE_SERVER_PORT=8005
 
 script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
@@ -184,7 +187,7 @@ function convert_drv_pkg_7z_to_zip() {
   afiles=$(find "$fileserverdir" -regex "$fileserverdir/Driver-Release-64-bit\.\(zip\|7z\)")
 
   if [[ $nfile -ne 1 ]]; then
-    echo "Only one if 7z/zip drv pkg archives allowed. ${afiles[*]} "
+    echo "Put only one of $fname 7z/zip drv pkg archives to be used. ${afiles[*]} "
     return 255
   fi
 
@@ -207,7 +210,8 @@ function convert_drv_pkg_7z_to_zip() {
       echo "$fname.zip already present. No conversion needed"
       return 0
     else
-      echo "Only one of Driver-Release-64-bit.7z or Driver-Release-64-bit.zip should be present! Remove accordingly."
+      echo "Found $afile of unexpected file type: $ftype"
+      echo "Ensure one of Driver-Release-64-bit.7z or Driver-Release-64-bit.zip should be present and valid!"
       return 255
     fi
     break
@@ -445,12 +449,8 @@ function setup_additional_installs() {
       fi
     fi
 
-    if [[ -f "$fileserverdir/$name-install.ps1" ]]; then
-      echo "Name entry in $cfgfile must be unique!"
-      return 255
-    fi
     tee "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
-\$tempdir='C:\Temp'
+\$tempdir="\$PSScriptRoot"
 Start-Transcript -Path "\$tempdir\\$name-installation.txt" -Force -Append
 \$Host.UI.RawUI.WindowTitle = 'Setup for $name installation.'
 \$s="Downloading $name installation file"
@@ -537,7 +537,14 @@ EOF
       tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
 \$s="Installing $name $ifname"
 Write-Output "\$s"
-\$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+If (Test-Path "\$env:SystemRoot\System32\pnputil.exe") {
+    \$SystemPath="\$env:SystemRoot\System32"
+} elseif (Test-Path "\$env:SystemRoot\Sysnative\pnputil.exe") {
+    \$SystemPath="\$env:SystemRoot\Sysnative"
+} else {
+    Throw "ERROR: Cannot find pnputil.exe to install the driver."
+}
+\$p=Start-Process \$SystemPath\pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
 if (\$p.ExitCode -ne 0) {
     Write-Error "pnputil install $name file $ifname failure return \$(\$p.ExitCode)"
     Exit \$LASTEXITCODE
@@ -547,7 +554,14 @@ EOF
       tee -a "$fileserverdir/$name-install.ps1" &>/dev/null <<EOF
 \$s="Installing $name $ifname"
 Write-Output "\$s"
-\$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install','/subdirs' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
+If (Test-Path "\$env:SystemRoot\System32\pnputil.exe") {
+    \$SystemPath="\$env:SystemRoot\System32"
+} elseif (Test-Path "\$env:SystemRoot\Sysnative\pnputil.exe") {
+    \$SystemPath="\$env:SystemRoot\Sysnative"
+} else {
+    Throw "ERROR: Cannot find pnputil.exe to install the driver."
+}
+\$p=Start-Process \$SystemPath\pnputil.exe -ArgumentList '/add-driver',"\`"$ifpath\\$ifname\`"",'/install','/subdirs' -WorkingDirectory "$ifpath" -Wait -Verb RunAs -PassThru
 if (\$p.ExitCode -ne 0) {
     Write-Error "pnputil install $name file $ifname failure return \$(\$p.ExitCode)"
     Exit \$LASTEXITCODE
@@ -622,51 +636,65 @@ function install_windows() {
   dest_tmp_path=$(realpath "/tmp/${WIN_DOMAIN_NAME}_install_tmp_files")
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
+  local display
+  display=$(who | grep -o ' :.' | xargs)
 
-  # install dependencies
-  install_dep || return 255
-
-  # check config files
-  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"
-  if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"; then
-    echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml has formatting error!"
+  if [[ -z $display ]]; then
+    echo "Error: Please log in to the host's graphical login screen on the physical display."
     return 255
   fi
-  check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"
-  if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"; then
-    echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml has formatting error!"
-    return 255
-  fi
-  if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
-    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"
-    if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"; then
-      echo "Error: Yaml file $scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml has formatting error!"
+
+  if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+    # install dependencies
+    install_dep || return 255
+
+    # check config files
+    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"
+    if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml"; then
+      echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml has formatting error!"
       return 255
     fi
-  fi
-
-  if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
-    REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
-    REQUIRED_FILES+=("Driver-Release-64-bit.[zip|7z]")
-    if [[ $(xrandr -d :0 | grep -c "\bconnected\b") -lt 1 ]]; then
-        echo "Error: Need at least 1 display connected for SR-IOV install."
-        return 255
+    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"
+    if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"; then
+      echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml has formatting error!"
+      return 255
     fi
-  fi
-  check_prerequisites || return 255
+    if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
+      check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"
+      if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"; then
+        echo "Error: Yaml file $scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml has formatting error!"
+        return 255
+      fi
+    fi
 
-  if [[ -d "$dest_tmp_path" ]]; then
-    rm -rf "$dest_tmp_path"
-  fi
-  mkdir -p "$dest_tmp_path"
-  TMP_FILES+=("$dest_tmp_path")
+    if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
+      REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
+      REQUIRED_FILES+=("Driver-Release-64-bit.[zip|7z]")
+      if [[ $(xrandr -d "$display" | grep -c "\bconnected\b") -lt 1 ]]; then
+          echo "Error: Need at least 1 display connected for SR-IOV install."
+          return 255
+      fi
+    fi
+    check_prerequisites || return 255
+
+    if [[ -d "$dest_tmp_path" ]]; then
+      rm -rf "$dest_tmp_path"
+    fi
+    mkdir -p "$dest_tmp_path"
+    TMP_FILES+=("$dest_tmp_path")
+  fi # if GEN_GFX_ZC_SCRIPT_ONLY == 0
 
   check_dir_valid "$fileserverdir"
+
   if [[ $SETUP_NO_SRIOV -eq 1 ]]; then
-    echo "Exit 0" > "$fileserverdir/gfx_zc_setup.ps1"
+    if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+      echo "Exit 0" > "$fileserverdir/gfx_zc_setup.ps1"
+    fi
   else
-    tee "$fileserverdir/gfx_zc_setup.ps1" &>/dev/null <<EOF
-\$tempdir='C:\Temp'
+    if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+      tee "$fileserverdir/gfx_zc_setup.ps1" &>/dev/null <<EOF
+\$tempdir="\$PSScriptRoot"
+\$GfxDir="\$tempdir\GraphicsDriver"
 Start-Transcript -Path "\$tempdir\RunDVSetupLogs.txt" -Force -Append
 \$Host.UI.RawUI.WindowTitle = 'Setup for GFX and Zero-copy installation.'
 \$s='Downloading GFX driver'
@@ -683,63 +711,31 @@ if (\$LastExitCode -ne 0) {
   Write-Error "Error: \$s failed with exit code \$LastExitCode."
   Exit \$LastExitCode
 }
-\$s='Unzip Graphics driver'
+\$s="Unzip Graphics driver archive contents to \$GfxDir"
 Write-Output \$s
-\$p=Expand-Archive -Path "\$tempdir\Driver-Release-64-bit.zip" -DestinationPath "\$tempdir\GraphicsDriver" -Force
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
-}
-\$s='Create Zero-copy installation directory folder'
-Write-Output \$s
-\$p=New-Item -Force -Path "\$tempdir" -Name 'ZC_Install' -ItemType 'directory'
+\$p=Expand-Archive -Path "\$tempdir\Driver-Release-64-bit.zip" -DestinationPath "\$GfxDir" -Force
 if (\$? -ne \$True) {
   Throw "Error: \$s failed."
 }
 \$s='Unzip Zero-Copy installation archive'
 Write-Output \$s
-\$p=Expand-Archive -Path "\$tempdir\\$SETUP_ZC_FILENAME" -DestinationPath "\$tempdir\ZC_Install" -Force
+\$p=Expand-Archive -Path "\$tempdir\\$SETUP_ZC_FILENAME" -DestinationPath "\$tempdir" -Force
 if (\$? -ne \$True) {
   Throw "Error: \$s failed."
 }
 EOF
-    if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
+
       tee -a "$fileserverdir/gfx_zc_setup.ps1" &>/dev/null <<EOF
-\$s='Rename Zero-Copy driver folder'
-Write-Output \$s
-\$zcname=Get-ChildItem -Path "\$tempdir\ZC_Install"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'}
-if (\$? -ne \$True) {
-  Throw "Error: No Zero-copy driver folder found at \$tempdir\ZC_Install."
-}
-\$p=Rename-Item -Path "\$tempdir\ZC_Install\\\$zcname" -NewName 'ZCBuild_MSFT_Signed' -Force
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
-}
-EOF
-    else
-      tee -a "$fileserverdir/gfx_zc_setup.ps1" &>/dev/null <<EOF
-\$s='Rename Zero-Copy installer folder'
-Write-Output \$s
-\$zcname=Get-ChildItem -Path "\$tempdir\ZC_Install"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'}
-if (\$? -ne \$True) {
-  Throw "Error: No Zero-copy driver folder found at \$tempdir\ZC_Install."
-}
-\$p=Rename-Item -Path "\$tempdir\ZC_Install\\\$zcname" -NewName 'ZCBuild_MSFT_Signed_Installer' -Force
-if (\$? -ne \$True) {
-  Throw "Error: \$s failed."
-}
-EOF
-    fi
-    tee -a "$fileserverdir/gfx_zc_setup.ps1" &>/dev/null <<EOF
 \$s='Download GFX and Zero-copy driver install script'
 Write-Output \$s
-\$p=curl.exe -fSLo "\$tempdir\zc_install.ps1" "$file_server_url/zc_install.ps1"
+\$p=curl.exe -fSLo "\$tempdir\gfx_zc_install.ps1" "$file_server_url/gfx_zc_install.ps1"
 if (\$LastExitCode -ne 0) {
   Write-Error "Error: \$s failed with exit code \$LastExitCode."
   Exit \$LastExitCode
 }
 \$s='Schedule task for GFX and Zero-copy driver install'
 Write-Output \$s
-\$taskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy ByPass -File ""\$tempdir\zc_install.ps1"""
+\$taskAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-ExecutionPolicy ByPass -File ""\$tempdir\gfx_zc_install.ps1"""
 \$taskTrigger = New-ScheduledTaskTrigger -AtStartup
 \$taskName = "\Microsoft\Windows\RunZCDrvInstall\RunZCDrvInstall"
 \$taskDescription = "RunZCDrvInstall"
@@ -754,12 +750,19 @@ if (\$LastExitCode -ne 0) {
 Exit \$LastExitCode
 EOF
 
-    convert_drv_pkg_7z_to_zip || return 255
+      convert_drv_pkg_7z_to_zip || return 255
+    fi # if GEN_GFX_ZC_SCRIPT_ONLY == 0
 
     if [[ $SETUP_NON_WHQL_GFX_DRV -eq 1 ]]; then
-      tee "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
-\$tempdir='C:\Temp'
+      tee "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
+# script to be placed at same folder level of installations
+\$tempdir="\$PSScriptRoot"
+\$GfxDir="\$tempdir\GraphicsDriver"
+\$SkipGFXInstall=\$False
 Start-Transcript -Path "\$tempdir\RunDVInstallerLogs.txt" -Force -Append
+EOF
+      if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 \$Host.UI.RawUI.WindowTitle = 'Check for installing Zero-copy drivers as required.'
 if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "DVServerUMD*" }) ) {
     Write-Output "Zero-copy driver already installed"
@@ -768,38 +771,58 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
-        if (-not(Test-Path -Path \$tempdir\GraphicsDriver)) {
-            Expand-Archive -Path '\$tempdir\Driver-Release-64-bit.zip' -DestinationPath '\$tempdir\GraphicsDriver' -Force
-        }
+        if (\$SkipGFXInstall -eq \$False) {
+            if (-not(Test-Path -Path \$GfxDir)) {
+                Expand-Archive -Path '\$tempdir\Driver-Release-64-bit.zip' -DestinationPath '\$GfxDir' -Force
+            }
+EOF
+      else
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
+    if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
+        if (\$SkipGFXInstall -eq \$False) {
+EOF
+      fi
 
-        \$Host.UI.RawUI.WindowTitle = "Found Intel GPU. Running Intel Graphics driver install"
-        Write-Output 'Installing Intel test sign certificate.'
-        \$signature=Get-AuthenticodeSignature "\$tempdir\GraphicsDriver\extinf.cat"
-        if (\$? -ne \$True) {
-            Throw "Get Intel GPU driver signature failed"
-        }
-        \$store=Get-Item -Path Cert:\LocalMachine\TrustedPublisher
-        if (\$? -ne \$True) {
-            Throw "Get LocalMachine\TrustedPublisher cert path failed"
-        }
-        \$store.Open("ReadWrite")
-        if (\$? -ne \$True) {
-            Throw "Open LocalMachine\TrustedPublisher cert path for readwrite failed"
-        }
-        \$store.Add(\$signature.SignerCertificate)
-        if (\$? -ne \$True) {
-            Throw "Add Intel GPU driver signing cert failed"
-        }
-        \$store.Close()
-        if (\$? -ne \$True) {
-            Throw "Close cert store failed"
-        }
+      tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 
-        Write-Output 'Install Intel Graphics driver using pnputil'
-        \$p=Start-Process pnputil.exe -ArgumentList '/add-driver',"\$tempdir\GraphicsDriver\iigd_dch.inf",'/install' -WorkingDirectory "\$tempdir\GraphicsDriver" -Wait -Verb RunAs -PassThru
-        if (\$p.ExitCode -ne 0) {
-            Write-Error "pnputil install Graphics Driver iigd_dch.inf failure return \$(\$p.ExitCode)"
-            Exit \$p.ExitCode
+            \$Host.UI.RawUI.WindowTitle = "Found Intel GPU. Running Intel Graphics driver install"
+            Write-Output 'Installing Intel test sign certificate.'
+            \$signature=Get-AuthenticodeSignature "\$GfxDir\extinf.cat"
+            if (\$? -ne \$True) {
+                Throw "Get Intel GPU driver signature failed"
+            }
+            \$store=Get-Item -Path Cert:\LocalMachine\TrustedPublisher
+            if (\$? -ne \$True) {
+                Throw "Get LocalMachine\TrustedPublisher cert path failed"
+            }
+            \$store.Open("ReadWrite")
+            if (\$? -ne \$True) {
+                Throw "Open LocalMachine\TrustedPublisher cert path for readwrite failed"
+            }
+            \$store.Add(\$signature.SignerCertificate)
+            if (\$? -ne \$True) {
+                Throw "Add Intel GPU driver signing cert failed"
+            }
+            \$store.Close()
+            if (\$? -ne \$True) {
+                Throw "Close cert store failed"
+            }
+
+            Write-Output 'Install Intel Graphics driver using pnputil'
+            If (Test-Path "\$env:SystemRoot\System32\pnputil.exe") {
+                \$SystemPath="\$env:SystemRoot\System32"
+            } elseif (Test-Path "\$env:SystemRoot\Sysnative\pnputil.exe") {
+                \$SystemPath="\$env:SystemRoot\Sysnative"
+            } else {
+                Throw "ERROR: Cannot find pnputil.exe to install the driver."
+            }
+            \$p=Start-Process \$SystemPath\pnputil.exe -ArgumentList '/add-driver',"\$GfxDir\iigd_dch.inf",'/install' -WorkingDirectory "\$GfxDir" -Wait -Verb RunAs -PassThru
+            if (\$p.ExitCode -ne 0) {
+                Write-Error "pnputil install Graphics Driver iigd_dch.inf failure return \$(\$p.ExitCode)"
+                Exit \$p.ExitCode
+            }
+        } Else {
+            Write-Output "Intel Graphics driver installation skipped."
         }
 
         Write-Output "Enable test signing"
@@ -877,10 +900,15 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
 EOF
 
       if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
-        tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
-        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed"
-        Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
+        # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
+        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'} | Select-Object -ExpandProperty FullName
+        if (\$? -ne \$True) {
+          Throw "Error: No Zero-copy driver folder found at \$tempdir."
+        }
+        Set-Location -Path "\$zcpname"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy driver install at \$zcpname"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
         # Script restarts computer upon success
@@ -899,34 +927,57 @@ EOF
         Exit \$LastExitCode
 EOF
       else
-        tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
-        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed_Installer\ZC_Installer"
-        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer"
+        # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
+        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        if (\$? -ne \$True) {
+          Throw "Error: No Zero-copy driver folder found at \$tempdir."
+        }
+        Set-Location -Path "\$zcpname\ZC_Installer"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer at \$zcpname\ZC_Installer"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
-        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -WorkingDirectory "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed_Installer\ZC_Installer" -Wait -Verb RunAs -PassThru
-        if (\$p.ExitCode -ne 0) {
-          Write-Output "Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
-          Exit \$p.ExitCode
+        # ZeroCopy installer does not return with /NORESTART for -Wait.
+        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
+        if (\$? -ne \$True) {
+          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+          Write-Output "Did not find Zero-copy driver service. Check/run ZeroCopyInstaller manually"
+          Exit \$LastExitCode
         }
+        # Give some time for installation to complete
+        Write-Output "Waiting for 60s to allow installation completion before reboot"
+        Start-Sleep -Seconds 60
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install did not reboot
         if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
             Write-Output "Force computer restart after Zero-copy driver install"
             Restart-Computer -Force
+        } Else {
+            Write-Output "Did not find Zero-copy driver service installed. Check/run ZeroCopyInstaller.exe manually"
         }
         Exit \$LastExitCode
 EOF
       fi
-      tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+      tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
     }
+EOF
+      if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 }
 EOF
+      fi
     else
-      tee "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
-\$tempdir="C:\Temp"
+      tee "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
+# script to be placed at same folder level of installations
+\$tempdir="\$PSScriptRoot"
+\$GfxDir="\$tempdir\GraphicsDriver"
+\$SkipGFXInstall=\$False
 Start-Transcript -Path "\$tempdir\RunDVInstallerLogs.txt" -Force -Append
+EOF
+
+      if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 \$Host.UI.RawUI.WindowTitle = 'Check for installing Zero-copy drivers as required.'
 if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "DVServerUMD*" }) ) {
     Write-Output "Zero-copy driver already installed"
@@ -935,16 +986,28 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
-        if (-not(Test-Path -Path \$tempdir\GraphicsDriver)) {
-            Expand-Archive -Path '\$tempdir\Driver-Release-64-bit.zip' -DestinationPath '\$tempdir\GraphicsDriver' -Force
-        }
+        if (\$SkipGFXInstall -eq \$False) {
+            if (-not(Test-Path -Path \$GfxDir)) {
+                Expand-Archive -Path '\$tempdir\Driver-Release-64-bit.zip' -DestinationPath '\$GfxDir' -Force
+            }
+EOF
+      else
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
+    if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
+        if (\$SkipGFXInstall -eq \$False) {
+EOF
+      fi
+      tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 
-        \$Host.UI.RawUI.WindowTitle = "Running Intel Graphics driver install"
-        Write-Output "Found Intel GPU. Running Intel Graphics driver install"
-        \$p=Start-Process -FilePath "\$tempdir\GraphicsDriver\install\installer.exe" -ArgumentList "-o", "-s" -WorkingDirectory "\$tempdir\GraphicsDriver\install" -Wait -Verb RunAs -PassThru
-        if ((\$p.ExitCode -ne 0) -and (\$p.ExitCode -ne 14)) {
-            Write-Error "Graphics Driver install returned \$(\$p.ExitCode). Check <WINDIR>\Temp\IntelGFX.log"
-            Exit \$LastExitCode
+            \$Host.UI.RawUI.WindowTitle = "Running Intel Graphics driver install"
+            Write-Output "Found Intel GPU. Running Intel Graphics driver install"
+            \$p=Start-Process -FilePath "\$GfxDir\install\installer.exe" -ArgumentList "-o", "-s", "-f" -WorkingDirectory "\$GfxDir\install" -Wait -Verb RunAs -PassThru
+            if ((\$p.ExitCode -ne 0) -and (\$p.ExitCode -ne 14)) {
+                Write-Error "Graphics Driver install returned \$(\$p.ExitCode). Check C:\ProgramData\Intel\IntelGFX.log for details"
+                Exit \$LastExitCode
+            }
+        } Else {
+            Write-Output "Intel Graphics driver installer skipped."
         }
 
         Write-Output "Disable driver updates for GPU"
@@ -1013,11 +1076,28 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
             }
         }
 EOF
+
+      if [[ $SETUP_NON_WHQL_GFX_INSTALLER -eq 1 ]]; then
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
+        Write-Output "Enable test signing"
+        \$p=Start-Process bcdedit -ArgumentList "/set testsigning on" -Wait -Verb RunAs -PassThru
+        if (\$p.ExitCode -ne 0) {
+            Write-Error "Enable test signing failure return \$(\$p.ExitCode)"
+            Exit \$p.ExitCode
+        }
+EOF
+      fi
+
       if [[ $SETUP_ZC_GUI_INSTALLER -eq 0 ]]; then
-        tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy driver install"
-        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed"
-        Write-Output "Found Intel GPU. Running Intel Zero-copy driver install"
+        # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
+        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed'} | Select-Object -ExpandProperty FullName
+        if (\$? -ne \$True) {
+          Throw "Error: No Zero-copy driver folder found at \$tempdir."
+        }
+        Set-Location -Path "\$zcpname"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy driver install at \$zcpname"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
         # Script restarts computer upon success
@@ -1036,33 +1116,57 @@ EOF
         Exit \$LastExitCode
 EOF
       else
-        tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
-        Set-Location -Path "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed_Installer\ZC_Installer"
-        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer"
+        # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
+        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        if (\$? -ne \$True) {
+          Throw "Error: No Zero-copy driver folder found at \$tempdir."
+        }
+        Set-Location -Path "\$zcpname\ZC_Installer"
+        Write-Output "Found Intel GPU. Running Intel Zero-copy GUI installer at \$zcpname\ZC_Installer"
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
-        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES' -WorkingDirectory "\$tempdir\ZC_Install\ZCBuild_MSFT_Signed_Installer\ZC_Installer" -Wait -Verb RunAs -PassThru
-        if (\$p.ExitCode -ne 0) {
-          Write-Output "Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
-          Exit \$p.ExitCode
+        # ZeroCopy installer does not return with /NORESTART for -Wait.
+        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
+        if (\$? -ne \$True) {
+          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+          Write-Output "Did not find Zero-copy driver service. Check/run ZeroCopyInstaller manually"
+          Exit \$LastExitCode
         }
+        # Give some time for installation to complete
+        Write-Output "Waiting for 60s to allow installation completion before reboot"
+        Start-Sleep -Seconds 60
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install did not reboot
         if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
             Write-Output "Force computer restart after Zero-copy driver install"
             Restart-Computer -Force
+        } Else {
+            Write-Output "Did not find Zero-copy driver service installed. Check/run ZeroCopyInstaller.exe manually"
         }
         Exit \$LastExitCode
 EOF
       fi
-      tee -a "$fileserverdir/zc_install.ps1" &>/dev/null <<EOF
+      tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
     }
+EOF
+      if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+        tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 }
 EOF
+      fi
     fi
-    TMP_FILES+=("$(realpath "$fileserverdir/zc_install.ps1")")
+
+    if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+      TMP_FILES+=("$(realpath "$fileserverdir/gfx_zc_install.ps1")")
+    fi
   fi
+  if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 1 ]]; then
+    echo "INFO: generated $(realpath "$fileserverdir/gfx_zc_install.ps1")"
+    return 0
+  fi
+
   TMP_FILES+=("$(realpath "$fileserverdir/gfx_zc_setup.ps1")")
 
   cp "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml" "$dest_tmp_path/"
@@ -1256,7 +1360,7 @@ function show_help() {
 
     required_files_help+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
     required_files_help+=("Driver-Release-64-bit.[zip|7z]") 
-    printf "%s [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--force] [--viewer] [--debug] [--dl-fail-exit]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--non-whql-gfx-installer] [--force] [--viewer] [--debug] [--dl-fail-exit] [--gen-gfx-zc-script]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Windows vm required images and data to dest folder %s.qcow2\n" "$LIBVIRT_DEFAULT_IMAGES_PATH/${WIN_DOMAIN_NAME}"
     printf "Place required Windows installation files as listed below in guest_setup/ubuntu/%s folder prior to running.\n" "$WIN_UNATTEND_FOLDER"
     printf "("
@@ -1268,20 +1372,22 @@ function show_help() {
     done
     printf ")\n"
     printf "Options:\n"
-    printf "\t-h                show this help message\n"
-    printf "\t-p                specific platform to setup for, eg. \"-p client \"\n"
-    printf "\t                  Accepted values:\n"
+    printf "\t-h                        show this help message\n"
+    printf "\t-p                        specific platform to setup for, eg. \"-p client \"\n"
+    printf "\t                          Accepted values:\n"
     get_supported_platform_names platforms
     for p in "${platforms[@]}"; do
-    printf "\t                    %s\n" "$(basename "$p")"
+    printf "\t                            %s\n" "$(basename "$p")"
     done
-    printf "\t--disk-size       disk storage size of windows11 vm in GiB, default is 60 GiB\n"
-    printf "\t--no-sriov        Non-SR-IOV windows11 install. No GFX/SRIOV support to be installed\n"
-    printf "\t--non-whql-gfx    GFX driver to be installed is non-WHQL signed but test signed\n"
-    printf "\t--force           force clean if windows11 vm qcow is already present\n"
-    printf "\t--viewer          show installation display\n"
-    printf "\t--debug           Do not remove temporary files. For debugging only.\n"
-    printf "\t--dl-fail-exit    Do not continue on any additional installation file download failure.\n"
+    printf "\t--disk-size               disk storage size of windows11 vm in GiB, default is 60 GiB\n"
+    printf "\t--no-sriov                Non-SR-IOV windows11 install. No GFX/SRIOV support to be installed\n"
+    printf "\t--non-whql-gfx            GFX driver to be installed is non-WHQL signed but test signed without installer\n"
+    printf "\t--non-whql-gfx-installer  GFX driver to be installed is non-WHQL signed but test signed with installer\n"
+    printf "\t--force                   force clean if windows11 vm qcow is already present\n"
+    printf "\t--viewer                  show installation display\n"
+    printf "\t--debug                   Do not remove temporary files. For debugging only.\n"
+    printf "\t--dl-fail-exit            Do not continue on any additional installation file download failure.\n"
+    printf "\t--gen-gfx-zc-script       Generate SRIOV setup Powershell helper script only, do not run any installation.\n"
 }
 
 function parse_arg() {
@@ -1308,6 +1414,12 @@ function parse_arg() {
 
             --non-whql-gfx)
                 SETUP_NON_WHQL_GFX_DRV=1
+                SETUP_NON_WHQL_GFX_INSTALLER=0
+                ;;
+
+            --non-whql-gfx-installer)
+                SETUP_NON_WHQL_GFX_INSTALLER=1
+                SETUP_NON_WHQL_GFX_DRV=0
                 ;;
 
             --force)
@@ -1326,6 +1438,10 @@ function parse_arg() {
                 ADD_INSTALL_DL_FAIL_EXIT=1
                 ;;
 
+            --gen-gfx-zc-script)
+                GEN_GFX_ZC_SCRIPT_ONLY=1
+                ;;
+
             -?*)
                 echo "Error: Invalid option $1"
                 show_help
@@ -1341,50 +1457,52 @@ function parse_arg() {
 }
 
 function cleanup () {
-    local state
-    state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
-    if [[ -n ${state+x} && "$state" == "running" ]]; then
-        echo "Shutting down running domain $WIN_DOMAIN_NAME"
-        virsh shutdown "$WIN_DOMAIN_NAME"
-        echo "Waiting for domain $WIN_DOMAIN_NAME to shut down..."
-        sleep 30
-        state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
-        if [[ -n ${state+x} && "$state" == "running" ]]; then
-            virsh destroy "$WIN_DOMAIN_NAME"
-        fi
-        virsh undefine --nvram "$WIN_DOMAIN_NAME"
-    fi
-    if virsh list --name --all | grep -q -w $WIN_DOMAIN_NAME; then
-        virsh undefine --nvram "$WIN_DOMAIN_NAME"
-    fi
-    local poolname
-    poolname=$(basename '/tmp')
-    if virsh pool-list | grep -q "$poolname"; then
-        virsh pool-destroy "$poolname"
-        if virsh pool-list --all | grep -q "$poolname"; then
-            virsh pool-undefine "$poolname"
-        fi
-    fi
-    poolname=$(basename "$WIN_UNATTEND_FOLDER")
-    if virsh pool-list | grep -q "$poolname"; then
-        virsh pool-destroy "$poolname"
-        if virsh pool-list --all | grep -q "$poolname"; then
-            virsh pool-undefine "$poolname"
-        fi
-    fi
-    for f in "${TMP_FILES[@]}"; do
-      if [[ $SETUP_DEBUG -ne 1 ]]; then
-        local fowner
-        fowner=$(stat -c "%U" "$f")
-        if [[ "$fowner" == "$USER" ]]; then
-            rm -rf "$f"
-        else
-            sudo rm -rf "$f"
-        fi
+  if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+      local state
+      state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
+      if [[ -n ${state+x} && "$state" == "running" ]]; then
+          echo "Shutting down running domain $WIN_DOMAIN_NAME"
+          virsh shutdown "$WIN_DOMAIN_NAME"
+          echo "Waiting for domain $WIN_DOMAIN_NAME to shut down..."
+          sleep 30
+          state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
+          if [[ -n ${state+x} && "$state" == "running" ]]; then
+              virsh destroy "$WIN_DOMAIN_NAME"
+          fi
+          virsh undefine --nvram "$WIN_DOMAIN_NAME"
       fi
-    done
-    kill_by_pid "$FILE_SERVER_DAEMON_PID"
-    kill_by_pid "$VIEWER_DAEMON_PID"
+      if virsh list --name --all | grep -q -w $WIN_DOMAIN_NAME; then
+          virsh undefine --nvram "$WIN_DOMAIN_NAME"
+      fi
+      local poolname
+      poolname=$(basename '/tmp')
+      if virsh pool-list | grep -q "$poolname"; then
+          virsh pool-destroy "$poolname"
+          if virsh pool-list --all | grep -q "$poolname"; then
+              virsh pool-undefine "$poolname"
+          fi
+      fi
+      poolname=$(basename "$WIN_UNATTEND_FOLDER")
+      if virsh pool-list | grep -q "$poolname"; then
+          virsh pool-destroy "$poolname"
+          if virsh pool-list --all | grep -q "$poolname"; then
+              virsh pool-undefine "$poolname"
+          fi
+      fi
+      for f in "${TMP_FILES[@]}"; do
+        if [[ $SETUP_DEBUG -ne 1 ]]; then
+          local fowner
+          fowner=$(stat -c "%U" "$f")
+          if [[ "$fowner" == "$USER" ]]; then
+              rm -rf "$f"
+          else
+              sudo rm -rf "$f"
+          fi
+        fi
+      done
+      kill_by_pid "$FILE_SERVER_DAEMON_PID"
+      kill_by_pid "$VIEWER_DAEMON_PID"
+  fi
 }
 
 #-------------    main processes    -------------
@@ -1392,25 +1510,27 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
 
-if [[ $FORCECLEAN == "1" ]]; then
-    clean_windows_images || exit 255
-fi
+if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+  if [[ $FORCECLEAN == "1" ]]; then
+      clean_windows_images || exit 255
+  fi
 
-if [[ -z "${PLATFORM_NAME+x}" || -z "$PLATFORM_NAME" ]]; then
-	echo "Error: valid platform name required"
-    show_help
-    exit 255
-fi
+  if [[ -z "${PLATFORM_NAME+x}" || -z "$PLATFORM_NAME" ]]; then
+      echo "Error: valid platform name required"
+      show_help
+      exit 255
+  fi
 
-if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
-    echo "Invalid input disk size"
-    exit 255
-fi
+  if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
+      echo "Invalid input disk size"
+      exit 255
+  fi
 
-if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}" ]]; then
-    echo "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME} present"
-    echo "Use --force option to force clean and re-install windows11"
-    exit 255
+  if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}" ]]; then
+      echo "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME} present"
+      echo "Use --force option to force clean and re-install windows11"
+      exit 255
+  fi
 fi
 
 trap 'cleanup' EXIT

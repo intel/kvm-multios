@@ -281,9 +281,15 @@ EOF
     else
         local user
         local user_id
+        local display
         user="$SUDO_USER";
         user_id=$(id -u "$user")
-        local environment=("DISPLAY=:0" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$user_id/bus")
+        display=$(who | grep -o ' :.' | xargs)
+        if [[ -z $display ]]; then
+          echo "Error: Please log in to the host's graphical login screen on the physical display."
+          return 255
+        fi
+        local environment=("DISPLAY=$display" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$user_id/bus")
         sudo -Hu "$user" env "${environment[@]}" gsettings set org.gnome.desktop.session idle-delay 0
         sudo -Hu "$user" env "${environment[@]}" gsettings set org.gnome.desktop.screensaver ubuntu-lock-on-suspend 'false'
     fi
@@ -298,34 +304,78 @@ EOF
 }
 
 function host_set_pulseaudio() {
+    local user
 
-    if grep -qF "load-module module-native-protocol-unix" /etc/pulse/default.pa; then
+    if [[ -z "${SUDO_USER+x}" || -z "$SUDO_USER" ]]; then
+        user="$USER"
+    else
+        user="$SUDO_USER"
+    fi
+    mkdir -p "/home/$user/.config/pulse"
+
+    if [[ ! -f "/home/$user/.config/pulse/default.pa" ]]; then
+        if [[ ! -f "/etc/pulse/default.pa" ]]; then
+            echo "pulseaudio is not installed properly"
+            return 255
+        fi
+        cp /etc/pulse/default.pa "/home/$user/.config/pulse/"
+    fi
+    check_file_valid_nonzero "/home/$user/.config/pulse/default.pa"
+
+    if [[ ! -f "/home/$user/.config/pulse/client.conf" ]]; then
+        if [[ ! -f "/etc/pulse/client.conf" ]]; then
+            echo "pulseaudio is not installed properly"
+            return 255
+        fi
+        cp /etc/pulse/client.conf "/home/$user/.config/pulse/"
+    fi
+    check_file_valid_nonzero "/home/$user/.config/pulse/client.conf"
+
+    if grep -qF "load-module module-native-protocol-unix" "/home/$user/.config/pulse/default.pa"; then
         # Check if "auth-anonymous=1" is included in the line
-        if grep -qF "auth-anonymous=1 socket=/tmp/pulseaudio-socket" /etc/pulse/default.pa; then
+        if grep -qF "auth-anonymous=1 socket=/tmp/pulseaudio-socket" "/home/$user/.config/pulse/default.pa"; then
             echo "auth-anonymous=1 socket=/tmp/pulseaudio-socket is already included in load-module module-native-protocol-unix."
         else
             # Append "auth-anonymous=1 socket=/tmp/pulseaudio-socket" to the line
-            sudo sed -i "\|load-module module-native-protocol-unix| s/\$/ auth-anonymous=1 socket=\\/tmp\\/pulseaudio-socket/" /etc/pulse/default.pa
+            sed -i "\|load-module module-native-protocol-unix| s/\$/ auth-anonymous=1 socket=\\/tmp\\/pulseaudio-socket/" "/home/$user/.config/pulse/default.pa"
             echo "auth-anonymous=1 socket=/tmp/pulseaudio-socket appended to load-module module-native-protocol-unix."
         fi
     else
-        echo "load-module module-native-protocol-unix not found in /etc/pulse/default.pa."
+        echo "load-module module-native-protocol-unix not found in /home/$user/.config/pulse/default.pa."
     fi
 
     # Check if the default pulseaudio server already exists in the file client.conf
-    if grep -qF "default-server = unix:/tmp/pulseaudio-socket" "/etc/pulse/client.conf"; then
-        echo "default pulseaudio server already exists in /etc/pulse/client.conf. Nothing to do."
+    if grep -qF "default-server = unix:/tmp/pulseaudio-socket" "/home/$user/.config/pulse/client.conf"; then
+        echo "default pulseaudio server already exists in /home/$user/.config/pulse/client.conf. Nothing to do."
     else
         # Add the default pulseaudio server define to the file client.conf
-        echo "default-server = unix:/tmp/pulseaudio-socket" | sudo tee -a "/etc/pulse/client.conf" >/dev/null
-        echo "default pulseaudio server added to /etc/pulse/client.conf."
+        echo "default-server = unix:/tmp/pulseaudio-socket" | tee -a "/home/$user/.config/pulse/client.conf" >/dev/null
+        echo "default pulseaudio server added to /home/$user/.config/pulse/client.conf."
     fi
     reboot_required=1
 }
 
 function host_set_pipewire_pulse() {
-    if ! grep -qF '"unix:/tmp/pulseaudio-socket"' '/usr/share/pipewire/pipewire-pulse.conf'; then
-        sudo sed -i '/"unix:native"/a \        "unix:/tmp/pulseaudio-socket"' '/usr/share/pipewire/pipewire-pulse.conf'
+    local user
+
+    if [[ -z "${SUDO_USER+x}" || -z "$SUDO_USER" ]]; then
+        user="$USER"
+    else
+        user="$SUDO_USER"
+    fi
+    mkdir -p "/home/$user/.config/pipewire"
+
+    if [[ ! -f "/home/$user/.config/pipewire/pipewire-pulse.conf" ]]; then
+        if [[ ! -f "/usr/share/pipewire/pipewire-pulse.conf" ]]; then
+            echo "pipewire is not installed properly"
+            return 255
+        fi
+        cp /usr/share/pipewire/pipewire-pulse.conf "/home/$user/.config/pipewire/"
+    fi
+    check_file_valid_nonzero "/home/$user/.config/pipewire/pipewire-pulse.conf"
+
+    if ! grep -qF '"unix:/tmp/pulseaudio-socket"' "/home/$user/.config/pipewire/pipewire-pulse.conf"; then
+        sed -i '/"unix:native"/a \        "unix:/tmp/pulseaudio-socket"' "/home/$user/.config/pipewire/pipewire-pulse.conf"
     fi
     reboot_required=1
 
@@ -522,7 +572,7 @@ source "$scriptpath/setup_swap.sh"
 source "$scriptpath/setup_pm_mgmt.sh"
 echo "Setting up for OpenVINO"
 openvino_setup_cmd="source $scriptpath/setup_openvino.sh --neo"
-if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9] [0-9]* for 0000:00:0b.0 on minor 0'; then
+if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then
     openvino_setup_cmd="$openvino_setup_cmd --npu"
 fi
 # shellcheck source-path=SCRIPTDIR

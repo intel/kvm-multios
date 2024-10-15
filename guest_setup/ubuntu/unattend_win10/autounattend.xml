@@ -73,8 +73,8 @@
         <OSImage>
           <InstallFrom>
             <MetaData wcm:action="add">
-              <Key>/IMAGE/INDEX</Key>
-              <Value>2</Value>
+              <Key>/IMAGE/NAME</Key>
+              <Value>Windows 10 IoT Enterprise LTSC 2021</Value>
             </MetaData>
           </InstallFrom>
           <InstallTo>

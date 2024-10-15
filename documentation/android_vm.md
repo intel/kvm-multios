@@ -27,6 +27,7 @@ Host platform DUT setup:
 - Host platform has Internet apt access. ie. Running "sudo apt update" worked successfully.
 - Host platform date/time is set up properly to current date/time.
 - Host platform is already setup for using KVM MultiOS Portfolio release as per instructions [here](README.md#host-setup).
+- User is already login to UI homescreen prior to any operations or user account is set to enable auto-login (required for VM support with Intel GPU SR-IOV).
 
 ### Celadon Build
 #### Setup Build environment
