@@ -152,11 +152,23 @@ function run_file_server() {
     local ip=$2
     local port=$3
     local -n pid=$4
-
+    local existing_pid
+    existing_pid=$(pgrep -f "python3 -m http.server -b $ip $port")
+    if [[ -n "$existing_pid" ]]; then
+      echo "Kill existing http.server $ip $port"
+      kill_by_pid "$existing_pid"
+    fi
     cd "$folder"
     python3 -m http.server -b "$ip" "$port" &
-    pid=$!
+    sleep 5
+    pid=$(pgrep -f "python3 -m http.server -b $ip $port")
     cd -
+    if [[ -n "$pid" ]]; then
+      return 0
+    else
+      echo "Error: fail to create http.server"
+      return 255
+    fi
 }
 
 function run_nc_server() {
@@ -425,7 +437,7 @@ function install_ubuntu() {
     if [[ -n $FORCE_KERN_APT_VER ]]; then
       kernel_ver=$FORCE_KERN_APT_VER
     else
-      kernel_ver="${kernel_ver}=$(apt list --installed | grep "linux-image-$(uname -r)" | awk '{print $2}')"
+      kernel_ver="${kernel_ver}=$(apt list --installed | grep "linux-headers-$(uname -r)" | awk '{print $2}')"
     fi
     sed -i "s|\$KERN_INSTALL_OPTION|-kp \'$kernel_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   else

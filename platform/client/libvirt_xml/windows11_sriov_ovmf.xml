@@ -103,9 +103,9 @@
   <qemu:commandline>
     <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
     <qemu:arg value="device.video0.blob=true"/>
-    <qemu:arg value="device.video0.render_sync=false"/>
+    <qemu:arg value="device.video0.render_sync=true"/>
     <qemu:arg value="-display"/>
-    <qemu:arg value="gtk,gl=on"/>
+    <qemu:arg value="gtk,gl=on,hw-cursor=true"/>
     <qemu:env name="DISPLAY" value=":0"/>
   </qemu:commandline>
 </domain>

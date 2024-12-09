@@ -94,7 +94,7 @@ function setup_xml() {
     mapfile -t xmlfiles < <(find "$xmlpath" -maxdepth 1 -mindepth 1 -type f -name "*.xml")
 
     local display
-    display=$(who | grep -o ' :.' | xargs)
+    display=$(who | { grep -o ' :.' || :; } | xargs)
 
     if [[ -n $display ]]; then
         for file in "${xmlfiles[@]}"; do
@@ -112,14 +112,14 @@ function setup_xml() {
             if grep -q "device.video0.blob=true" "$file"; then
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="-set"]' "$file"
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.blob=true"]' "$file"
-                xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=false"]' "$file"
+                xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=true"]' "$file"
                 # Insert the new <qemu:override> section
                 sed -i '/<\/domain>/i \
   <qemu:override>\
     <qemu:device alias="video0">\
       <qemu:frontend>\
         <qemu:property name="blob" type="bool" value="true"/>\
-        <qemu:property name="render_sync" type="bool" value="false"/>\
+        <qemu:property name="render_sync" type="bool" value="true"/>\
       </qemu:frontend>\
     </qemu:device>\
   </qemu:override>' "$file"

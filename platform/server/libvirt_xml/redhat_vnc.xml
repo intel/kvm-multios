@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2023 Intel Corporation.
+ Copyright (c) 2023-2024 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm">
@@ -14,7 +14,7 @@
   <vcpu>2</vcpu>
   <os>
     <type arch="x86_64" machine="q35">hvm</type>
-    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE.fd</loader>
+    <loader readonly="yes" type="pflash">/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
     <boot dev="hd"/>
   </os>
   <features>
@@ -35,7 +35,7 @@
   <devices>
     <disk type="file" device="disk">
       <driver name="qemu" type="qcow2" cache="none"/>
-      <source file="/home/user/vm_images/redhat.qcow2"/>
+      <source file="/var/lib/libvirt/images/redhat.qcow2"/>
       <target dev="vda" bus="virtio"/>
     </disk>
     <controller type="usb" model="qemu-xhci" ports="15"/>
@@ -63,7 +63,7 @@
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
     <input type="tablet" bus="usb"/>
-    <graphics type="vnc" port="5903" listen="0.0.0.0"/>
+    <graphics type="vnc" port="5906" listen="0.0.0.0"/>
     <sound model="ich9"/>
     <memballoon model="virtio"/>
   </devices>

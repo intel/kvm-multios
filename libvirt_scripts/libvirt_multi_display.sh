@@ -16,7 +16,7 @@ GUEST_CONNECTORS=""
 #---------      Functions    -------------------
 function edit_xml() {
     local display
-    display=$(who | grep -o ' :.' | xargs)
+    display=$(who | { grep -o ' :.' || :; } | xargs)
     if [[ -z $display ]]; then
       echo "Error: Please log in to the host's graphical login screen on the physical display."
       return 255
