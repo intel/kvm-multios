@@ -56,6 +56,7 @@ LINUX_FW_PPA_VER=""
 RT=0
 DRM_DRV_SUPPORTED=('i915' 'xe')
 DRM_DRV_SELECTED=""
+FORCE_SW_CURSOR=0
 
 script=$(realpath "${BASH_SOURCE[0]}")
 #scriptpath=$(dirname "$script")
@@ -260,6 +261,9 @@ function install_userspace_pkgs() {
         overlay_packages+=("linux-firmware")
     fi
 
+    # for SPICE with SRIOV cursor support
+    overlay_packages+=("spice-vdagent")
+
     # install bsp overlay packages
     for package in "${overlay_packages[@]}"; do
         if [[ -n ${package+x} && -n $package ]]; then
@@ -424,7 +428,7 @@ Section "Device"
 Identifier "VirtIO-GPU"
 Driver "modesetting"
 #BusID "PCI:0:4:0" #virtio-gpu
-Option "SWcursor" "true"
+Option "SWcursor" "false"
 EndSection
 EOF
     fi
@@ -457,7 +461,9 @@ WantedBy=default.target
 EOF
         sudo chmod 664 /etc/systemd/system/setup_sw_cursor.service
         sudo systemctl daemon-reload
-        sudo systemctl enable setup_sw_cursor.service
+        if [[ "$FORCE_SW_CURSOR" == "1" ]]; then
+            sudo systemctl enable setup_sw_cursor.service
+        fi
     fi
     # Disable GUI for RT guest
     if [[ "$RT" == "1" ]]; then
@@ -517,6 +523,10 @@ function parse_arg() {
 
             --no-bsp-install)
                 NO_BSP_INSTALL=1
+                ;;
+
+            --force-sw-cursor)
+                FORCE_SW_CURSOR=1
                 ;;
 
             -?*)

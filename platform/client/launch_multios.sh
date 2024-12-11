@@ -180,8 +180,6 @@ function parse_arg() {
           display="$1"
           if [[ "$1" == "sriov" || "$1" == "spice-gst" ]]; then
             SRIOV_ENABLE="true"
-          else
-            SRIOV_ENABLE="false"
           fi
           # Check if next argument is a valid domain
           if [[ -z "${2+x}" || -z "$2" ]]; then
@@ -323,7 +321,7 @@ function parse_arg() {
         fi
         multi_display["$domain"]="${display_args[*]}"
         ;;
-      
+
       -?*)
           echo "Error: Invalid option: $1"
           show_help
@@ -415,7 +413,7 @@ function launch_domains() {
   done
 
   for domain in "$@"; do
-    check_domain "$domain"
+    check_domain "$domain" || return 255
   done
 
   for domain in "$@"; do
@@ -423,23 +421,23 @@ function launch_domains() {
 
     # Define domain
     echo "Define domain $domain"
-    virsh define "$XML_DIR/${VM_DOMAIN[$domain]}"
+    virsh define "$XML_DIR/${VM_DOMAIN[$domain]}" || return 255
 
     # Configure multi-display for domain if present
     if [[ "${multi_display[$domain]+_}" ]]; then
       echo "Configure multi display for $domain"
       # word splitting intended and required in this case
       # shellcheck disable=2086
-      "$MULTI_DISPLAY_SCRIPT" "$domain" ${multi_display["$domain"]}
+      "$MULTI_DISPLAY_SCRIPT" "$domain" ${multi_display["$domain"]} || return 255
     fi
 
     # Passthrough devices
     echo "Passthrough device to domain $domain if any"
-    passthrough_devices $domain
+    passthrough_devices $domain || return 255
 
     # Start domain
     echo "Starting domain $domain..."
-    virsh start $domain
+    virsh start $domain || return 255
     sleep 2
   done
 }
@@ -563,10 +561,10 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 parse_arg "$@" || exit 255
 
 if [[ "$SRIOV_ENABLE" == "true" ]]; then
-  display_num=$(who | grep -o ' :.' | xargs)
+  display_num=$(who | { grep -o ' :.' || :; } | xargs)
   if [[ -z $display_num ]]; then
     echo "Error: Please log in to the host's graphical login screen on the physical display."
-    return 255
+    exit 255
   fi
   export DISPLAY=$display_num
   xhost +

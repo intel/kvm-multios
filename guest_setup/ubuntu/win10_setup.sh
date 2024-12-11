@@ -134,8 +134,7 @@ function clean_windows_images() {
   sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}"
 
   echo "Remove and rebuild unattend_win10.iso"
-  rm -f "/tmp/${WIN_UNATTEND_ISO}"
-  sudo rm -f "/tmp/${WIN_VIRTIO_ISO}"
+  sudo rm -f "/tmp/${WIN_UNATTEND_ISO}"
   rm -f "/tmp/${WIN_OPENSSH_MSI_URL}"
 }
 
@@ -637,7 +636,7 @@ function install_windows() {
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   local display
-  display=$(who | grep -o ' :.' | xargs)
+  display=$(who | { grep -o ' :.' || :; } | xargs)
 
   if [[ -z $display ]]; then
     echo "Error: Please log in to the host's graphical login screen on the physical display."
@@ -817,7 +816,7 @@ EOF
                 Throw "ERROR: Cannot find pnputil.exe to install the driver."
             }
             \$p=Start-Process \$SystemPath\pnputil.exe -ArgumentList '/add-driver',"\$GfxDir\iigd_dch.inf",'/install' -WorkingDirectory "\$GfxDir" -Wait -Verb RunAs -PassThru
-            if (\$p.ExitCode -ne 0) {
+            if (\$p.ExitCode -ne 0 -and \$p.ExitCode -ne 3010) {
                 Write-Error "pnputil install Graphics Driver iigd_dch.inf failure return \$(\$p.ExitCode)"
                 Exit \$p.ExitCode
             }
@@ -1180,19 +1179,16 @@ EOF
 
   if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" ]]; then
     check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}"
-    cp "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" "/tmp/${WIN_VIRTIO_ISO}"
   fi
-  if [[ ! -f "/tmp/${WIN_VIRTIO_ISO}" ]]; then
+  if [[ ! -f "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" ]]; then
     echo "Download virtio-win iso"
     local is_200_okay
-    is_200_okay=$(wget --server-response --content-on-error=off -O /tmp/${WIN_VIRTIO_ISO} ${WIN_VIRTIO_URL} 2>&1 | grep -c '200 OK')
-    TMP_FILES+=("/tmp/${WIN_VIRTIO_ISO}")
-    if [[ "$is_200_okay" -ne 1 || ! -f /tmp/${WIN_VIRTIO_ISO} ]]; then
+    is_200_okay=$(wget --server-response --content-on-error=off -O "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" ${WIN_VIRTIO_URL} 2>&1 | grep -c '200 OK')
+    TMP_FILES+=("$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}")
+    if [[ "$is_200_okay" -ne 1 || ! -f "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}" ]]; then
         echo "Error: wget ${WIN_VIRTIO_URL} failure!"
         return 255
     fi
-  else
-    check_file_valid_nonzero "/tmp/${WIN_VIRTIO_ISO}"
   fi
 
   if [[ ! -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
@@ -1254,7 +1250,7 @@ EOF
   --network network=default,model=virtio \
   --graphics vnc,listen=0.0.0.0,port=5902 \
   --cdrom "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_INSTALLER_ISO}" \
-  --disk "/tmp/${WIN_VIRTIO_ISO}",device=cdrom \
+  --disk "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}",device=cdrom \
   --disk "/tmp/${WIN_UNATTEND_ISO}",device=cdrom \
   --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none \
   --os-variant win10 \

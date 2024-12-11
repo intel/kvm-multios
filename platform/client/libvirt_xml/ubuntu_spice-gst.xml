@@ -88,11 +88,11 @@
     </graphics>
     <input type="tablet" bus="usb"/>
     <sound model="ich9">
-      <codec type="duplex"/>
+      <codec type="micro"/>
       <audio id="1"/>
       <alias name="sound0"/>
     </sound>
-    <audio id="1" type="pulseaudio" timerPeriod="5000" serverName="unix:/tmp/pulseaudio-socket">
+    <audio id="1" type="spice">
       <input mixingEngine="yes" fixedSettings="no"/>
       <output mixingEngine="yes" fixedSettings="no"/>
     </audio>

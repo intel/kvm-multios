@@ -7,6 +7,7 @@
 1. [Host Setup](#host-setup)
     1. [Host Setup (for VMs using GVT-d)](#host-setup-for-vms-using-gvt-d)
     1. [Host Setup (for VMs using GPU SR-IOV)](#host-setup-for-vms-using-gpu-sr-iov)
+1. [Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration](#remote-desktop-viewer-setup-for-connection-to-vms-using-spice-with-gstreamer-acceleration)
 1. [Virtual Machine Image Creation](#virtual-machine-image-creation)
     1. [Ubuntu/Ubuntu RT VM Image Creation](#ubuntuubuntu-rt-vm-image-creation)
     1. [Windows VM Image Creation](#windows-vm-image-creation)
@@ -52,10 +53,13 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
     - Android Celadon 12
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 - Cloning of VMs with SR-IOV Multi-Display support enabled.
+- Launching multiple VMs using SPICE with GStreamer acceleration via SR-IOV support.
+- Qemu hardware cursor feature enabled.
 
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
 | :-- | :--
+| TWL | Twin Lake |
 | ARL | Arrow Lake |
 | ASL | Amston Lake |
 | MTL | Meteor Lake |
@@ -91,6 +95,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 ## Platform Naming Convention
 | Supported Intel IoT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
+| Twin Lake | client
 | Arrow Lake | client
 | Amston Lake | client
 | Meteor Lake | client
@@ -147,6 +152,29 @@ Refer [here](setup_gvtd.md) for steps on setting up Intel IoT hardware platform 
 
 ## Host Setup (for VMs using GPU SR-IOV)
 Refer [here](setup_sriov.md) for steps on setting up Intel IoT hardware platform for VMs using SR-IOV for GPU device acceleration in VM.
+
+## Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration
+For remote desktop viewing of VMs using Spice with GStreamer acceleration feature, only Ubuntu based remote viewer is supported.
+
+### Prerequisites
+- machine running remote viewer client already setup  with same BSP release as per Intel IoT platform host machine which is running VM to be connected to.
+- virt-viewer package has been installed via below command. virt-viewer package in Ubuntu provides the "remote-viewer" remote viewer client for viewing remote desktop of running VMs over SPICE channel.
+```
+sudo apt install virt-viewer
+```
+- "\<ip_of_host_running_vm\>" which refers to IP address of the host machine running the VM to be connected to is known.
+- "\<spice_port_of_vm\>" which refers to port assigned to the VM for SPICE is known. Refer to [Guest OS Domain Naming Convention, MAC/IP Address and Ports](#guest-os-domain-naming-convention-macip-address-and-ports) for default SPICE port assignment. SPICE display info of VM could also be obtained from host running the VM via below command where /<doman/> is the VM domain name.
+    ```
+    virsh domdisplay --type spice <domain>
+    ```
+
+Use the below command to remotely view any running VM over SPICE channel:
+where:
+- "\<ip_of_host_running_vm\>" is the IP address of the Intel IoT machine hosting the VM to be connected to
+- "\<spice_port_of_vm\>" is the SPICE port assigned to the VM.
+```
+remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
+```
 
 # Virtual Machine Image Creation
 This section is a guide on how to install and configure the different operating systems supported for using them as virtual machine images on the supported Intel platforms, for the supported feature set.
