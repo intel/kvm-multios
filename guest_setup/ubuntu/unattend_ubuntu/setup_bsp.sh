@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -9,7 +9,7 @@ set -Eeuo pipefail
 # PPA url for Intel overlay installation
 # Add each required entry on new line
 PPA_URLS=(
-    "https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia kernels"
+    "https://download.01.org/intel-linux-overlay/ubuntu noble main non-free multimedia kernels"
 )
 # corresponding GPG key to use for each PPA_URL entry above in same sequence.
 # If GPG key is not set correctly,
@@ -40,7 +40,7 @@ PPA_APT_CONF=(
 )
 # PPA APT repository pin and priority
 # Reference: https://wiki.debian.org/AptConfiguration#Always_prefer_packages_from_a_repository
-PPA_PIN="release o=intel-iot-linux-overlay"
+PPA_PIN="release o=intel-iot-linux-overlay-noble"
 PPA_PIN_PRIORITY=2000
 
 # Add entry for each additional package to install into guest VM
