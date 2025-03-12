@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -15,7 +15,7 @@ UBUNTU_INSTALLER_ISO=ubuntu.iso
 UBUNTU_SEED_ISO=ubuntu-seed.iso
 declare -A UBUNTU_INSTALLER_ISO_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
-  ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.1-live-server-amd64.iso'
+  ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso'
 )
 declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'

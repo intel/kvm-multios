@@ -1,27 +1,27 @@
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 installations:
   - name: Bluetooth
-    description: 'Intel® Wireless Bluetooth® for IT Administrators version 23.60.0 (https://www.intel.com/content/www/us/en/download/16807/intel-wireless-bluetooth-drivers-for-it-administrators.html)'
-    filename: BT-23.60.0-64UWD-Win10-Win11.zip
-    download_url: 'https://downloadmirror.intel.com/825883/BT-23.60.0-64UWD-Win10-Win11.zip'
+    description: 'Intel® Wireless Bluetooth® Drivers for IT Administrators version 23.100.1 (https://www.intel.com/content/www/us/en/download/16807/intel-wireless-bluetooth-drivers-for-it-administrators.html)'
+    filename: BT-23.100.1-64UWD-Win10-Win11.zip
+    download_url: 'https://downloadmirror.intel.com/843140/BT-23.100.1-64UWD-Win10-Win11.zip'
     install_type: msi                 # msi | exe | cab | inf
     install_file: 'Intel Bluetooth.msi'
     silent_install_option: '/qn'
     enable_test_sign: no
   - name: Wireless
-    description: 'Intel® PROSet/Wireless Software and Drivers for IT Admins 23.60.1 (https://www.intel.com/content/www/us/en/download/18231/intel-proset-wireless-software-and-wi-fi-drivers-for-it-administrators.html)'
-    filename: WiFi-23.60.1-Driver64-Win10-Win11.zip
-    download_url: 'https://downloadmirror.intel.com/825733/WiFi-23.60.1-Driver64-Win10-Win11.zip'
+    description: 'Intel® PROSet/Wireless Software and Wi-Fi Drivers for IT Administrators 23.100.0 (https://www.intel.com/content/www/us/en/download/18231/intel-proset-wireless-software-and-wi-fi-drivers-for-it-administrators.html)'
+    filename: WiFi-23.100.0-Driver64-Win10-Win11.zip
+    download_url: 'https://downloadmirror.intel.com/842460/WiFi-23.100.0-Driver64-Win10-Win11.zip'
     install_type: inf                 # msi | exe | cab | inf
     install_file: '*.inf'
     silent_install_option: ''
     enable_test_sign: no
   - name: 'Ethernet-I225-I226'
-    description: 'Intel® Ethernet Adapter Complete Driver Pack 29.2 (https://www.intel.com/content/www/us/en/download/15084/intel-ethernet-adapter-complete-driver-pack.html)'
-    filename: Release_29.2.zip
-    download_url: 'https://downloadmirror.intel.com/826914/Release_29.2.zip'
+    description: 'Intel® Ethernet Adapter Complete Driver Pack 29.5 (https://www.intel.com/content/www/us/en/download/15084/intel-ethernet-adapter-complete-driver-pack.html)'
+    filename: Release_29.5.zip
+    download_url: 'https://downloadmirror.intel.com/843839/Release_29.5.zip'
     install_type: inf                 # msi | exe | cab | inf
     install_file: 'PRO2500\Winx64\NDIS68\e2f.inf'
     silent_install_option: ''

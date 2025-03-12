@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2024 Intel Corporation.
+ Copyright (c) 2024-2025 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
@@ -117,6 +117,7 @@
     <qemu:arg value="-spice"/>
     <qemu:arg value="preferred-codec=gstreamer:h264"/>
     <qemu:env name="SPICE_CONVERTER_PREFERRED_FORMAT" value="NV12"/>
+    <qemu:env name="GST_REGISTRY_FORK" value="no"/>
     <qemu:env name="DISPLAY" value=":0"/>
   </qemu:commandline>
 </domain>

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -18,27 +18,27 @@ TMP_FILES=()
 
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
-  ['version']='2024.4.0'
+  ['version']='2024.5.0'
   ['ubuntu_version_supported']='22.04, 24.04'
-  ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.4/linux/l_openvino_toolkit_ubuntu22_2024.4.0.16579.c3152d32c9c_x86_64.tgz'
-  ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.4/linux/l_openvino_toolkit_ubuntu24_2024.4.0.16579.c3152d32c9c_x86_64.tgz'
+  ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.5/linux/l_openvino_toolkit_ubuntu22_2024.5.0.17288.7975fa5da0c_x86_64.tgz'
+  ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.5/linux/l_openvino_toolkit_ubuntu24_2024.5.0.17288.7975fa5da0c_x86_64.tgz'
 )
 
 INSTALL_NPU=0
 declare -A _LINUX_NPU_DRV_REL_2204=(
-	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-driver-compiler-npu_1.8.0.20240916-10885588273_ubuntu22.04_amd64.deb'
-	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-fw-npu_1.8.0.20240916-10885588273_ubuntu22.04_amd64.deb'
-	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-level-zero-npu_1.8.0.20240916-10885588273_ubuntu22.04_amd64.deb'
+	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-driver-compiler-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
+	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-fw-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
+	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-level-zero-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
 	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.45/level-zero_1.17.45+u22.04_amd64.deb'
 )
 declare -A _LINUX_NPU_DRV_REL_2404=(
-	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-driver-compiler-npu_1.8.0.20240916-10885588273_ubuntu24.04_amd64.deb'
-	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-fw-npu_1.8.0.20240916-10885588273_ubuntu24.04_amd64.deb'
-	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.8.0/intel-level-zero-npu_1.8.0.20240916-10885588273_ubuntu24.04_amd64.deb'
+	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-driver-compiler-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
+	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-fw-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
+	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-level-zero-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
 	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.45/level-zero_1.17.45+u24.04_amd64.deb'
 )
 declare -A LINUX_NPU_DRV_REL=(
-  ['version']="v1.8.0"
+  ['version']="v1.10.1"
   ['ubuntu_version_supported']='22.04, 24.04'
   ['22.04']="_LINUX_NPU_DRV_REL_2204"
   ['24.04']="_LINUX_NPU_DRV_REL_2404"
@@ -46,19 +46,17 @@ declare -A LINUX_NPU_DRV_REL=(
 
 INSTALL_NEO=0
 declare -A COMPUTE_RUNTIME_REL=(
-  ['version']='24.35.30872.22'
-  ['level-zero-version']='1.3.30872.22'
-  ['igc-version']='1.0.17537.20'
-  ['gmmlib-version']='22.5.0'
+  ['version']='24.45.31740.9'
+  ['level-zero-version']='1.6.31740.9'
+  ['igc-version']='2.1.12'
+  ['gmmlib-version']='22.5.2'
   ['ubuntu_version_supported']='22.04, 24.04'
-  ['intel-igc-core']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17537.20/intel-igc-core_1.0.17537.20_amd64.deb'
-  ['intel-igc-opencl']='https://github.com/intel/intel-graphics-compiler/releases/download/igc-1.0.17537.20/intel-igc-opencl_1.0.17537.20_amd64.deb'
-  ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-level-zero-gpu_1.3.30872.22_amd64.deb'
-  ['intel-level-zero-gpu-legacy1']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-level-zero-gpu-legacy1_1.3.30872.22_amd64.deb'
-  ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-opencl-icd_24.35.30872.22_amd64.deb'
-  ['intel-opencl-icd-legacy1']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/intel-opencl-icd-legacy1_24.35.30872.22_amd64.deb'
-  ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/libigdgmm12_22.5.0_amd64.deb'
-  ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.35.30872.22/libigdgmm-dev_22.5.0_amd64.deb'
+  ['intel-igc-core-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
+  ['intel-igc-opencl-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
+  ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
+  ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
+  ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
+  ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -365,44 +363,54 @@ function setup_neo() {
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
 
+    # remove opencl legacy version
+    if apt list --installed | grep "intel-level-zero-gpu-legacy1"; then
+        sudo apt remove --purge -y intel-level-zero-gpu-legacy1
+        echo "INFO: Intel intel-level-zero-gpu-legacy1 is removed" | tee -a "$LOG_FILE"
+    fi
+    if apt list --installed | grep "intel-opencl-icd-legacy1"; then
+        sudo apt remove --purge -y intel-opencl-icd-legacy1
+        echo "INFO: Intel intel-opencl-icd-legacy1 is removed" | tee -a "$LOG_FILE"
+    fi
+
     local installed_igc_core_ver
     # check if installed and compare version
-    if apt list --installed | grep "intel-igc-core"; then
-        installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core" | awk '{print $2}')
+    if apt list --installed | grep "intel-igc-core-2"; then
+        installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core-2" | awk '{print $2}')
         if [[ -z "$installed_igc_core_ver" ]] || ( [[ -n "$installed_igc_core_ver" ]] && ( is_new_version_avail "$installed_igc_core_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
             echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core']}" || return 255
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core-2']}" || return 255
         else
             echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver is already up to-date" | tee -a "$LOG_FILE"
         fi
     else
         # not yet install, then install from public release
         echo "INFO: Intel intel-graphics-compiler-core installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core']}" || return 255
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core-2']}" || return 255
     fi
     # refresh final installed version
-    installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core" | awk '{print $2}')
+    installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core-2" | awk '{print $2}')
 
     local installed_igc_opencl_ver
     # check if installed and compare version
-    if apt list --installed | grep "intel-igc-opencl"; then
-        installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl" | awk '{print $2}')
+    if apt list --installed | grep "intel-igc-opencl-2"; then
+        installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl-2" | awk '{print $2}')
         if [[ -z "$installed_igc_opencl_ver" ]] || ( [[ -n "$installed_igc_opencl_ver" ]] && ( is_new_version_avail "$installed_igc_opencl_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
             echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl']}" || return 255
+            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl-2']}" || return 255
         else
             echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver is already up to-date" | tee -a "$LOG_FILE"
         fi
     else
         # not yet install, then install from public release
         echo "INFO: Intel intel-graphics-compiler-opencl installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl']}" || return 255
+        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl-2']}" || return 255
     fi
     # refresh final installed version
-    installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl" | awk '{print $2}')
+    installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl-2" | awk '{print $2}')
 
     if [[ "$installed_igc_core_ver" != "$installed_igc_opencl_ver" ]]; then
-        echo "WARNING: Intel intel-igc-core and intel-igc-opencl version does not macth" | tee -a "$LOG_FILE"
+        echo "WARNING: Intel intel-igc-core-2 and intel-igc-opencl-2 version does not macth" | tee -a "$LOG_FILE"
     fi
 
     local installed_level_zero_ver
@@ -423,23 +431,6 @@ function setup_neo() {
     # refresh final installed version
     installed_level_zero_ver=$(apt list --installed | grep "intel-level-zero-gpu/" | awk '{print $2}')
 
-    local installed_level_zero_legacy1_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-level-zero-gpu-legacy1"; then
-        installed_level_zero_legacy1_ver=$(apt list --installed | grep "intel-level-zero-gpu-legacy1" | awk '{print $2}')
-        if [[ -z "$installed_level_zero_legacy1_ver" ]] || ( [[ -n "$installed_level_zero_legacy1_ver" ]] && ( is_new_version_avail "$installed_level_zero_legacy1_ver" "${COMPUTE_RUNTIME_REL['level-zero-version']}" )) ; then
-            echo "INFO: Intel intel-level-zero-gpu-legacy1 ver: $installed_level_zero_legacy1_ver. Installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu-legacy1']}" || return 255
-        else
-            echo "INFO: Intel intel-level-zero-gpu-legacy1 ver: $installed_level_zero_legacy1_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-level-zero-gpu-legacy1 installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu-legacy1']}" || return 255
-    fi
-    # refresh final installed version
-    installed_level_zero_legacy1_ver=$(apt list --installed | grep "intel-level-zero-gpu-legacy1" | awk '{print $2}')
 
     local installed_opencl_icd_ver
     # check if installed and compare version
@@ -458,24 +449,6 @@ function setup_neo() {
     fi
     # refresh final installed version
     installed_opencl_icd_ver=$(apt list --installed | grep "intel-opencl-icd/" | awk '{print $2}')
-
-    local installed_opencl_icd_legacy1_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-opencl-icd-legacy1"; then
-        installed_opencl_icd_legacy1_ver=$(apt list --installed | grep "intel-opencl-icd-legacy1" | awk '{print $2}')
-        if [[ -z "$installed_opencl_icd_legacy1_ver" ]] || ( [[ -n "$installed_opencl_icd_legacy1_ver" ]] && ( is_new_version_avail "$installed_opencl_icd_legacy1_ver" "${COMPUTE_RUNTIME_REL['version']}" )) ; then
-            echo "INFO: Intel intel-opencl-icd-legacy1 ver: $installed_opencl_icd_legacy1_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd-legacy1']}" || return 255
-        else
-            echo "INFO: Intel intel-opencl-icd-legacy1 ver: $installed_opencl_icd_legacy1_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-opencl-icd-legacy1 installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd-legacy1']}" || return 255
-    fi
-    # refresh final installed version
-    installed_opencl_icd_legacy1_ver=$(apt list --installed | grep "intel-opencl-icd-legacy1" | awk '{print $2}')
 
     local installed_gmmlib_ver
     # check if installed and compare version

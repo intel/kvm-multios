@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -20,7 +20,7 @@ WIN_OPENSSH_MSI_URL='https://github.com/PowerShell/Win32-OpenSSH/releases/downlo
 WIN_OPENSSH_MSI='OpenSSH-Win64.msi'
 
 # files required to be in $WIN_UNATTEND_FOLDER folder for installation
-REQUIRED_FILES=( "$WIN_INSTALLER_ISO" "windows-updates.msu" )
+REQUIRED_FILES=( "$WIN_INSTALLER_ISO" "windows-updates_01.msu" )
 declare -a TMP_FILES
 TMP_FILES=()
 
@@ -217,6 +217,76 @@ function convert_drv_pkg_7z_to_zip() {
   done
 
   return 255
+}
+
+function setup_windows_updates() {
+  local tempdir="C:\\Temp"
+  local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
+  local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
+
+  # Create the PowerShell script content
+  tee "$fileserverdir/msu_setup.ps1" &>/dev/null <<EOF
+# Define the file server URL and the local destination
+\$fileServerUrl = "$file_server_url"
+\$destDir = "$tempdir"
+
+Start-Transcript -Path "\$destDir\RunMSUInstallLogs.txt" -Force -Append
+
+\$date = Get-Date -DisplayHint DateTime
+Write-Output \$date
+
+# Ensure the destination directory exists
+if (-Not (Test-Path -Path \$destDir)) {
+    New-Item -Path \$destDir -ItemType Directory
+}
+
+Write-Output "Use curl to fetch the directory listing"
+\$curlCommand = "curl \$fileServerUrl -UseBasicParsing"
+\$response = Invoke-Expression \$curlCommand
+
+Write-Output "Query command - regex to find links to .msu files"
+\$regex = [regex] '<a href="([^"]+\.msu)">'
+\$matches = \$regex.Matches(\$response)
+
+# Initialize an array list to store the filenames
+\$updateFiles = @()
+
+Write-Output "Extract and display the .msu file names"
+foreach (\$match in \$matches) {
+    \$fileName = [System.IO.Path]::GetFileName(\$match.Groups[1].Value)
+    Write-Output \$fileName
+    \$updateFiles += \$fileName
+}
+
+Write-Output "List of .msu files: - updateFiles"
+Write-Output \$updateFiles
+
+# Loop through each file and download it using curl.exe
+Write-Output "Downloading windows updates msu files"
+foreach (\$updateFile in \$updateFiles) {
+    \$p=curl.exe -fSLo "\$destDir\\\$updateFile" "\$fileServerUrl/\$updateFile"
+    if (\$LastExitCode -ne 0) {
+       Write-Error "Error: failed with exit code \$LastExitCode."
+       Exit \$LastExitCode
+    }
+    Write-Output "File downloaded to \$destDir\\\$updateFile successfully"
+}
+
+Write-Output "Install windows updates in sequence"
+# Get all .msu files in the directory and order them by name
+\$updateFiles = Get-ChildItem -Path \$destDir -Filter "*.msu" | Sort-Object Name
+
+foreach (\$updateFile in \$updateFiles) {
+    Write-Output "Installing update: \$destDir\\\$updateFile"
+    $p=Start-Process -FilePath "wusa.exe" -ArgumentList "\$destDir\\\$updateFile /quiet /norestart" -Wait
+    if (\$p.ExitCode -ne 0) {
+       Write-Error "windows update installation failed return \$(\$p.ExitCode)"
+       Exit \$LASTEXITCODE
+    }
+    Write-Output "windows update \$destDir\\\$updateFile installed successfully"
+}
+Exit \$LastExitCode
+EOF
 }
 
 function setup_additional_installs() {
@@ -675,6 +745,7 @@ function install_windows() {
       fi
     fi
     check_prerequisites || return 255
+    #setup_windows_updates
 
     if [[ -d "$dest_tmp_path" ]]; then
       rm -rf "$dest_tmp_path"
@@ -929,7 +1000,7 @@ EOF
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
         # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
-        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        \$zcpname=Get-ChildItem -Path "\$tempdir" -Filter "ZCBuild_*_Installer"|Where-Object {\$_.PSIsContainer -eq \$True} | Select-Object -ExpandProperty FullName
         if (\$? -ne \$True) {
           Throw "Error: No Zero-copy driver folder found at \$tempdir."
         }
@@ -1118,7 +1189,7 @@ EOF
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
         # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
-        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        \$zcpname=Get-ChildItem -Path "\$tempdir" -Filter "ZCBuild_*_Installer"|Where-Object {\$_.PSIsContainer -eq \$True} | Select-Object -ExpandProperty FullName
         if (\$? -ne \$True) {
           Throw "Error: No Zero-copy driver folder found at \$tempdir."
         }
@@ -1530,7 +1601,6 @@ if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
 fi
 
 trap 'cleanup' EXIT
-
 install_windows || exit 255
 
 echo "$(basename "${BASH_SOURCE[0]}") done"

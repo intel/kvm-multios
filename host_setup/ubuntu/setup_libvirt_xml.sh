@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -143,6 +143,24 @@ function setup_xml() {
             fi
         done
     fi
+
+    if check_libvirt_version '9.3.0'; then
+        for file in "${xmlfiles[@]}"; do
+            check_file_valid_nonzero "$file"
+            # retrieve the address window
+            aw=$(($((($(((0x$(cat /sys/devices/virtual/iommu/dmar0/intel-iommu/cap)) >> 16 ))) & 0x3F )) + 1))
+            if grep -q "<cpu mode=\"host-passthrough\"/>" "$file"; then
+                # add maxphysaddr element for fresh setup
+                xmlstarlet ed -L -s '/domain/cpu' -t 'elem' -n 'maxphysaddr' \
+                    -i '/domain/cpu/maxphysaddr' -t 'attr' -n 'mode' -v 'passthrough' \
+                    -i '/domain/cpu/maxphysaddr' -t 'attr' -n 'limit' -v $aw "$file"
+            else
+                # keep the limit updated
+                xmlstarlet ed -L -u '/domain/cpu/maxphysaddr/@limit' -v $aw "$file"
+            fi
+        done
+    fi
+
 }
 
 #-------------    main processes    -------------

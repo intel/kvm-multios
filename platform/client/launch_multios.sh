@@ -93,7 +93,7 @@ function log_error() {
 
 # Function to show help info
 function show_help() {
-	printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-p <domain> --usb|--pci <device> (<number>) | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
+	printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-p <domain> [[--usb|--pci <device>] (<number>) | [--usbbus <bus:port>]] | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                                         Show the help message and exit\n"
@@ -108,6 +108,8 @@ function show_help() {
   printf "      <device>                                      Name of the device (eg. mouse, keyboard, bluetooth, etc\n"
   printf "      (<number>)                                    Optional, specify the 'N'th device found in the device list of 'lsusb' or 'lspci'\n"
   printf "                                                    by default is the first device found\n"
+  printf "      --usbbus                                      Options of interface (eg. --usbbus)\n"
+  printf "      <bus:port>                                    USB bus and port number retrived from lsusb -t\n"
   printf "      --tpm                                         Options of tpm device\n"
   printf "      <type>                                        Type of tpm backend (eg. passthrough)\n"
   printf "      (<model>)                                     Optional, specify the model of tpm (eg. crb or tis)\n"
@@ -235,7 +237,7 @@ function parse_arg() {
         shift 2
         devices=()
         # Check passthrough options
-        while [[ $# -gt 0 && ($1 == "--xml" || $1 == "--usb" || $1 == "--pci" || $1 == "--tpm") ]]; do
+        while [[ $# -gt 0 && ($1 == "--xml" || $1 == "--usb" || $1 == "--usbbus" || $1 == "--pci" || $1 == "--tpm") ]]; do
           if [[ $1 == "--xml" ]]; then
             if [[ -z $2 || $2 == -* ]]; then
               log_error "Missing XML file name after --xml"
@@ -244,9 +246,9 @@ function parse_arg() {
             fi
             devices+=("$1" "$2")
             shift 2
-          elif [[ "$1" == "--usb" || "$1" == "--pci" ]]; then
+          elif [[ "$1" == "--usb" || $1 == "--usbbus" || "$1" == "--pci" ]]; then
             if [[ -z "$2" || "$2" == -* ]]; then
-              log_error "Missing device name after $1"
+              log_error "Missing device name or bus:port after $1"
               show_help
               exit 255
             fi
@@ -501,6 +503,26 @@ function passthrough_devices() {
           # Perform device passthrough
           echo "Performing device passthrough for domain $domain with $interface device $device_name $device_number"
           "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name" "$device_number"
+          ;;
+
+        --usbbus)
+          # Individual device passthrough
+          local interface=$option
+          local device_name=""
+
+          # Process device name
+          ((i+=1))
+          while [[ $i -lt ${#devices[@]} && ${devices[$i]} != -* ]]; do
+            current_device=${devices[$i]}
+            if [[ -n "$current_device" ]]; then
+              device_name=$current_device
+            fi
+            ((i+=1))
+          done
+
+          # Perform device passthrough
+          echo "Performing device passthrough for domain $domain with $interface device $device_name"
+          "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name"
           ;;
 
         --tpm)

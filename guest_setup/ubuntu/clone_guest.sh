@@ -150,6 +150,9 @@ function clone_vm() {
         clone_display=$(xmllint --xpath "//domain/devices/graphics/@type" - <<<"$clone_xml" 2>/dev/null | grep -o '"\([^"]*\)"' | sed 's|"||g'|xargs | sed 's/ /_/g')
         if [[ $clone_vf_num -gt 0 ]]; then
             DISPLAY_TYPE="sriov"
+            if [[ $clone_display == "spice" ]]; then
+                DISPLAY_TYPE="spice-gst"
+            fi
             next_available_igpu_vf
             local available_vf=$?
             if [[ $available_vf -eq 0 ]]; then
@@ -184,6 +187,9 @@ function clone_vm() {
         clone_display=$(xmllint --xpath "//domain/devices/graphics/@type" - <<<"$clone_xml" 2>/dev/null | grep -o '"\([^"]*\)"' | sed 's|"||g'|xargs | sed 's/ /_/g')
         if [[ $clone_vf_num -gt 0 ]]; then
             DISPLAY_TYPE="sriov"
+            if [[ $clone_display == "spice" ]]; then
+                DISPLAY_TYPE="spice-gst"
+            fi
             next_available_igpu_vf
             local available_vf=$?
             if [[ $available_vf -eq 0 ]]; then

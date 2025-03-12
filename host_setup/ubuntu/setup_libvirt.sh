@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -87,12 +87,6 @@ fi
 UPDATE_LINE='    "/dev/ptmx", "/dev/kvm", "/dev/udmabuf", "/dev/dri/card0", "/dev/dri/renderD128"]'
 if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
   sudo sed -i "s+#    \"/dev/ptmx\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
-fi
-
-# Disable seccomp for SPICE with gstreamer integration feature
-UPDATE_LINE='seccomp_sandbox = 0'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#seccomp_sandbox.*/$UPDATE_LINE/g" "$UPDATE_FILE"
 fi
 
 # Update /etc/sysctl.conf
