@@ -759,10 +759,11 @@ All required files needed for unattended install needs to be present in \<unatte
     cp <windowsNoPrompt.iso> <path_to_unattend_winXX_folder>/windowsNoPrompt.iso
     ```
 
-1. Copy required Windows update OS patch msu file to \<path_to_unattend_winXX_folder\> folder and name file as "windows-updates.msu"
+1. Copy required Windows update OS patch msu file to \<path_to_unattend_winXX_folder\> folder and name file as "windows-updates_01.msu". Incase of multiple Windows OS patch msu files, name msu files in order of installation.
+Like windows-updates_01.msu, windows-updates_02.msu, and so on.
 
     ```
-    cp <windows-kbxxxxxxx-x64_xxxxxxxxxxx.msu> <path_to_unattend_winXX_folder>/windows-updates.msu
+    cp <windows-kbxxxxxxx-x64_xxxxxxxxxxx.msu> <path_to_unattend_winXX_folder>/windows-updates_01.msu
     ```
 
 1. Copy required Intel GPU GFX driver archive to \<path_to_unattend_winXX_folder\> folder, and rename to "Driver-Release-64-bit.zip" or "Driver-Release-64-bit.7z" accordingly to original file is zip or 7z archive.
@@ -841,7 +842,7 @@ Command Reference for Windows Automated Unattended installation helper script:
 <path_to_winXX_setup.sh> [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--non-whql-gfx-installer] [--force] [--viewer] [--debug] [--dl-fail-exit] [--gen-gfx-zc-script]
 Create Windows vm required images and data to dest folder /var/lib/libvirt/images/windows.qcow2
 Place required Windows installation files as listed below in ./guest_setup/ubuntu/<unattend_winxx> folder prior to running.
-(windowsNoPrompt.iso, windows-updates.msu, ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip, Driver-Release-64-bit.[zip|7z])
+(windowsNoPrompt.iso, windows-updates_01.msu (windows-updates_02.msu and so on), ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip, Driver-Release-64-bit.[zip|7z])
 Options:
         -h                        show this help message
         -p                        specific platform to setup for, eg. "-p client "

@@ -59,11 +59,13 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
 | :-- | :--
+| BTL | Bartlett Lake |
 | TWL | Twin Lake |
 | ARL | Arrow Lake |
 | ASL | Amston Lake |
 | MTL | Meteor Lake |
 | RPL-PS | Raptor Lake PS |
+| RPL-P | Raptor Lake P |
 | ADL-N | Alder Lake N |
 
 Note:
@@ -95,11 +97,13 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 ## Platform Naming Convention
 | Supported Intel IoT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
+| Bartlett Lake | client
 | Twin Lake | client
 | Arrow Lake | client
 | Amston Lake | client
 | Meteor Lake | client
 | Raptor Lake PS | client
+| Raptor Lake P | client
 | Alder Lake N | client
 
 ## Guest OS Domain Naming Convention, MAC/IP Address and Ports
@@ -271,37 +275,51 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt. Note: not supported on Android VM in this release</td></tr>
     <tr><td>&ltdomain&gt --xml &ltfile&gt</td><td>Passthrough device(s) in &ltfile&gt according to libvirt Domain XML format to VM of name &ltdomain&gt</td></tr>
-    <tr><td rowspan="6">-m</td><td>&ltdomain&gt --output &ltN&gt</td><td>launch VM domain(s) use SR-IOV with number of output displays, N (range: 1-4)</td></tr>
-    <tr><td>&ltdomain&gt --connectors &ltdisplay_port&gt </td><td>launch VM domain(s) on physical display connector per display output. See below for more details on acceptable values for &ltdisplay_port&gt.</td></tr>
-    <tr><td>&ltdomain&gt --full-screen</td><td>VM domain(s) dispalys set to "full-screen"</td></tr>
-    <tr><td>&ltdomain&gt --show-fps</td><td>Show fps info on guest vm primary display</td></tr>
+    <tr><td rowspan="6">-m</td><td>&ltdomain&gt --output &ltN&gt</td><td>Specify the number of guest displays N (range: 1-4) assigned to the &ltdomain&gt. The --connectors option must be specified together.</td></tr>
+    <tr><td>&ltdomain&gt --connectors &ltdisplay_port&gt </td><td>Specify the display connector assigned to the &ltdomain&gt. </br>Refer to the note below on retrieving the names of the display ports. </br>Also refer to the examples below for detailed usage of &ltdisplay_port&gt.</td></tr>
+    <tr><td>&ltdomain&gt --full-screen</td><td>Enable full-screen mode for the &ltdomain&gt</td></tr>
+    <tr><td>&ltdomain&gt --show-fps</td><td>Show the fps info on the guest VM primary display</td></tr>
     <tr><td>&ltdomain&gt --extend-abs-mode</td><td>Enable extend absolute mode across all monitors</td></tr>
     <tr><td>&ltdomain&gt --disable-host-input</td><td>Disable host's HID devices to control the monitors</td></tr>
 </table>
 
-\<display_port\> acceptable values depends on physical display connection hardware matrix to host platform.
-</br>\<display_port\> value should follow the format: "HDMI-N" or "DP-N" where N is a number corresponding to hardware display port port of host platform connected to a physical display.  
+**Note:**
+</br>Use the command below to retrieve the names of the display port connections on a host hardware board.
+</br>Take note of the connections that have actual physical displays **connected**.
 
-Follow the command below to get names of hardware display ports **connected** on a host hardware board.
+        $ DISPLAY=:0 xrandr --query
+        Screen 0: minimum 320 x 200, current 1280 x 1024, maximum 16384 x 16384
+        DP-1 connected primary 1280x1024+0+0 (normal left inverted right x axis y axis) 450mm x 360mm
+           1280x1024     60.02 +  75.02*
+           1152x864      75.00    59.97
+           1024x768      85.00    75.03    70.07    60.00
+           800x600       85.06    72.19    75.00    60.32    56.25
+           640x480       85.01    75.00    72.81    59.94
+           720x400       70.08
+        HDMI-1 connected 1280x1024+0+0 (normal left inverted right x axis y axis) 480mm x 270mm
+           1920x1080     60.00 +  59.94
+           1920x1200     59.95
+           1680x1050     59.88
+           1600x900      60.00
+           1280x1024     75.02*   60.02
+           1440x900      59.90
+           1280x800      59.91
+           1152x864      75.00
+           1280x720      60.00    59.94
+           1024x768      75.03    70.07    60.00
+           800x600       72.19    75.00    60.32    56.25
+           640x480       75.00    72.81    60.00    59.94
+        DP-2 disconnected (normal left inverted right x axis y axis)
+        HDMI-2 disconnected (normal left inverted right x axis y axis)
+        DP-3 disconnected (normal left inverted right x axis y axis)
+        HDMI-3 disconnected (normal left inverted right x axis y axis)
+        DP-4 disconnected (normal left inverted right x axis y axis)
+        HDMI-4 disconnected (normal left inverted right x axis y axis)
+        DP-5 disconnected (normal left inverted right x axis y axis)
+        DP-6 disconnected (normal left inverted right x axis y axis)
 
-**Note: for \<display_port\> naming, omit the alphabet for HDMI in command output. aka use "HDMI-1" for \<display_port\> value as corresponding to output port "HDMI-A-1".**
-
-        $ sudo cat /sys/kernel/debug/dri/0/i915_display_info | grep -i connector
-                [ENCODER:254:DDI B/PHY B]: connectors:
-                        [CONNECTOR:255:DP-2]
-                [ENCODER:266:DDI TC1/PHY TC1]: connectors:
-                        [CONNECTOR:267:DP-3]
-        Connector info
-        [CONNECTOR:236:DP-1]: status: disconnected
-        [CONNECTOR:248:HDMI-A-1]: status: disconnected
-        [CONNECTOR:255:DP-2]: status: connected
-        [CONNECTOR:263:HDMI-A-2]: status: disconnected
-        [CONNECTOR:267:DP-3]: status: connected
-        [CONNECTOR:275:HDMI-A-3]: status: disconnected
-        [CONNECTOR:279:DP-4]: status: disconnected
-        [CONNECTOR:287:HDMI-A-4]: status: disconnected
-        [CONNECTOR:291:DP-5]: status: disconnected
-        [CONNECTOR:300:DP-6]: status: disconnected
+For this sample output, the connected displays are at DP-1 and HDMI-1.
+</br> The acceptable values that can be used for \<display_port\> are DP-1 and HDMI-1.
 
 ### Examples
 <table>
@@ -322,7 +340,11 @@ Follow the command below to get names of hardware display ports **connected** on
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows 10 guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors HDMI-1,DP-1 --fullscreen --show-fps</td><td>To force launch windows 10 guest VM with SR-IOV display on 2 physical displays HDMI and DP with full screen mode and fps shows on primary display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --connectors DP-1</td><td>To launch windows 10 guest VM with SR-IOV graphics on DP-1 physical display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --connectors DP-1 -full-screen</td><td>To launch windows 10 guest VM with SR-IOV graphics on DP-1 physical display in full screen mode</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors DP-1,DP-1 </td><td>To launch windows 10 guest VM with 2 guest display windows on a single DP-1 physical display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors DP-1,HDMI-1 --full-screen</td><td>To launch windows 10 guest VM with 2 guest displays in full-screen mode on HDMI-1 and DP-1 physical displays</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d ubuntu windows -g sriov ubuntu windows -m ubuntu --connectors DP-1 -m windows --connectors HDMI-1 </td><td>To launch ubuntu and windows 10 guest VMs with ubuntu guest display window on DP-1 physical display and windows guest display window on HDMI-1 physical display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g sriov windows11</td><td>To force launch windows 11 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g gvtd windows11</td><td>To force launch windows 11 guest VM configured with GVT-d display</td></tr>
 </table>

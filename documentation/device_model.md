@@ -4,8 +4,8 @@
     <tr><th rowspan="2">Component</th><th colspan="5">Guest VMs</th></tr>
     <tr><td align="center">Ubuntu 22.04|24.04</td><td align="center">Windows 10 IoT Enterprise</td><td align="center">Android CIV</td><td align="center">Windows 11 IoT Enterprise</td></tr>
     <tr><td rowspan="4"> Host </td><td colspan="4" align="center">Libvirt 8.0.0 (Ubuntu 22.04)|10.0.0 (Ubuntu 24.04)</td></tr>
-    <tr><td class="centre" colspan="4" align="center">KVM/QEMU 8.2.1</td></tr>
-    <tr><td colspan="4" align="center">Ubuntu 22.04</td></tr>
+    <tr><td class="centre" colspan="4" align="center">KVM/QEMU 9.1.0</td></tr>
+    <tr><td colspan="4" align="center">Ubuntu 22.04|24.04</td></tr>
     <tr><td colspan="4" align="center">Intel IoT kernel (exact version may differ for each platform)</td></tr>
     <tr><td>Storage</td><td>Sharing</td><td>Sharing</td><td>Sharing</td><td>Sharing</td></tr>
     <tr><td>iGPU *</td><td>SR-IOV or GVT-d*</td><td>SR-IOV or GVT-d*</td><td>virtio-gpu, SR-IOV, GVT-d*</td><td>SR-IOV or GVT-d*</td></tr>

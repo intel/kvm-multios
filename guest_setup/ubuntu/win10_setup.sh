@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -20,7 +20,7 @@ WIN_OPENSSH_MSI_URL='https://github.com/PowerShell/Win32-OpenSSH/releases/downlo
 WIN_OPENSSH_MSI='OpenSSH-Win64.msi'
 
 # files required to be in $WIN_UNATTEND_FOLDER folder for installation
-REQUIRED_FILES=( "$WIN_INSTALLER_ISO" "windows-updates.msu" )
+REQUIRED_FILES=( "$WIN_INSTALLER_ISO" "windows-updates_01.msu" )
 declare -a TMP_FILES
 TMP_FILES=()
 
@@ -929,7 +929,7 @@ EOF
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
         # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
-        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        \$zcpname=Get-ChildItem -Path "\$tempdir" -Filter "ZCBuild_*_Installer"|Where-Object {\$_.PSIsContainer -eq \$True} | Select-Object -ExpandProperty FullName
         if (\$? -ne \$True) {
           Throw "Error: No Zero-copy driver folder found at \$tempdir."
         }
@@ -1118,7 +1118,7 @@ EOF
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
         \$Host.UI.RawUI.WindowTitle = "Running Intel Zero-copy GUI installer"
         # Contents extracted from Zero-copy installation archive expected to be in same folder as script.
-        \$zcpname=Get-ChildItem -Path "\$tempdir"|Where-Object {\$_.PSIsContainer -eq \$True -and \$_.Name -match 'ZCBuild_[0-9]+_MSFT_Signed_Installer'} | Select-Object -ExpandProperty FullName
+        \$zcpname=Get-ChildItem -Path "\$tempdir" -Filter "ZCBuild_*_Installer"|Where-Object {\$_.PSIsContainer -eq \$True} | Select-Object -ExpandProperty FullName
         if (\$? -ne \$True) {
           Throw "Error: No Zero-copy driver folder found at \$tempdir."
         }

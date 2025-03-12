@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
- Copyright (c) 2023-2024 Intel Corporation.
+ Copyright (c) 2023-2025 Intel Corporation.
  All rights reserved.
 -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
@@ -187,7 +187,7 @@
         <RunSynchronousCommand wcm:action="add">
           <Order>2</Order>
           <Description>Download Windows OS Patch</Description>
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates.msu' "%FILE_SERVER_URL%/windows-updates.msu"</Path>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates_01.msu' "%FILE_SERVER_URL%/windows-updates_01.msu"</Path>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Enable Windows hibernation -->
@@ -249,7 +249,7 @@
         </RunSynchronousCommand>
         <!-- Install Windows OS Patch -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates.msu', '/quiet', '/norestart'</Path>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates_01.msu', '/quiet', '/norestart'</Path>
           <Description>Install Windows OS Patch</Description>
           <Order>12</Order>
           <WillReboot>Always</WillReboot>
