@@ -1,7 +1,7 @@
 # Table of Contents
 1. [Automated Ubuntu/Ubuntu RT VM Installation](#automated-ubuntuubuntu-rt-vm-installation)
     1. [Prerequisites](#prerequisites)
-    1. [Running Ubuntu 22.04 LTS Automated Install](#running-ubuntu-2204-lts-automated-install)
+    1. [Running Ubuntu LTS Automated Install](#running-ubuntu-lts-automated-install)
 1. [Manual Ubuntu/Ubuntu RT VM guest configuration (only required if image not created using automated installation)](#manual-ubuntuubuntu-rt-vm-guest-configuration-only-required-if-image-not-created-using-automated-installation)
 1. [Launching Ubuntu/Ubuntu RT VM](#launching-ubuntuubuntu-rt-vm)
 
@@ -88,7 +88,6 @@ Host platform DUT setup:
 
     ***Notes***
     - Replace /<ubuntu_version_codename/> in PPA_URLS definition below accordingly for guest VM version:
-        - For Ubuntu 22.04: /<ubuntu_version_codename/> is "jammy"
         - For Ubuntu 24.04: /<ubuntu_version_codename/> is "noble"
 
     Example of edit for Ubuntu VM PPA information:
@@ -248,7 +247,7 @@ Host platform DUT setup:
         --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
         --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version
         --force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware from PPA with given version
-        --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "22.04" Default: same as host.
+        --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "24.04" Default: same as host.
         --debug                     For debugging only. Does not remove temporary files.
     ```
 

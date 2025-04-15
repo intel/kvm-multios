@@ -478,7 +478,7 @@ function show_help() {
     printf "\t-h\tshow this help message\n"
     printf "\t-k\tpath to location of bsp kernel files linux-headers.deb and linux-image.deb\n"
     printf "\t-kp\tversion string of kernel overlay to select from Intel PPA. Eg \"6.3-intel\"\n"
-    printf "\t-fw\tversion string of linux-firmware overlay to select from Intel PPA. Eg \"20220329.git681281e4-0ubuntu3.17-1ppa1~jammy3\"\n"
+    printf "\t-fw\tversion string of linux-firmware overlay to select from Intel PPA. Eg \"20240318.git3b128b60-0.2.7-1ppa1-noble1\"\n"
     printf "\t--rt\tinstall for Ubuntu RT version\n"
     printf "\t--no-bsp-install\tDo not preform bsp overlay related install(kernel and userspace)\n"
     printf "\t-drm\tspecify drm driver to use for Intel gpu:\n"
