@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -26,7 +26,7 @@ RAM_PCI_DEV="RAM memory"
 
 #---------      Functions    -------------------
 function show_help() {
-  printf "%s [-h|--help] [-p <domain> [--usb|--pci <device>] (<number>) |[--usbbus <bus:port>]]\n\n" "$(basename "${BASH_SOURCE[0]}")"
+  printf "%s [-h|--help] [-p <domain> [--usb|--pci <device>] (<number>) |[--usbtree <bus-port_L1.port_L2...port_Lx>]]\n\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Options:\n"
   printf "  -h,--help          Show the help message and exit\n"
   printf "  -p <domain>        Name of the VM domain for device passthrough\n"
@@ -34,14 +34,15 @@ function show_help() {
   printf "    <device>         Name of the device (eg. mouse, keyboard, bluetooth, etc)\n"
   printf "    (<number>)       Optional, specify the 'N'th device found in the device list of 'lsusb' or 'lspci'\n"
   printf "                     by default is the first device found\n"
-  printf "    --usbbus         Options of interface (eg. --usbbus)\n"
-  printf "    <bus:port>       USB bus and port number retrived from lsusb -t \n"
+  printf "    --usbtree        Options of interface (eg. --usbtree)\n"
+  printf "    <bus-port_L1.port_L2...port_Lx> \n"
+  printf "                     USB bus and port numbers retrived from lsusb -t \n"
   printf "\n"
   printf "e.g\n"
   printf "    ./virsh_attach_device.sh -p ubuntu --usb mouse\n"
   printf "    ./virsh_attach_device.sh -p ubuntu --usb keyboard\n"
   printf "    ./virsh_attach_device.sh -p ubuntu --usb bluetooth\n"
-  printf "    ./virsh_attach_device.sh -p ubuntu --usbbus <bus:port>\n"
+  printf "    ./virsh_attach_device.sh -p ubuntu --usbtree <bus-port_L1.port_L2...port_Lx>\n"
   printf "    ./virsh_attach_device.sh -p ubuntu --pci wi-fi\n"
   printf "    ./virsh_attach_device.sh -p ubuntu_rt1 --pci i225 1\n"
   printf "    ./virsh_attach_device.sh -p ubuntu_rt2 --pci i225 2\n"
@@ -140,9 +141,9 @@ function parse_arg() {
           fi
           NR_DEVICE="NR==$DEVICE_NUMBER"
 	        shift 3
-        elif [[ "$1" == "--usbbus" ]]; then
+        elif [[ "$1" == "--usbtree" ]]; then
           if [[ -z "$2" || "$2" == -* ]]; then
-              log_error "Missing bus:port number after $1"
+              log_error "Missing bus-port_L1.port_L2...port_Lx number after $1"
               show_help
               exit 255
           fi
@@ -193,21 +194,31 @@ elif [[ "--usb" == "$INTERFACE" ]]; then
   USB_VENDOR_ID=$(echo "$DEVICE_FOUND" | cut -d' ' -f2 | cut -d':' -f1)
   USB_PRODUCT_ID=$(echo "$DEVICE_FOUND" | cut -d' ' -f2 | cut -d':' -f2)
   attach_usb
-elif [[ "--usbbus" == "$INTERFACE" ]]; then
-  if [[ "$DEVICE_NAME" =~ ^[0-9:.]+$ ]]; then
+elif [[ "--usbtree" == "$INTERFACE" ]]; then
+  if [[ "$DEVICE_NAME" =~ ^[0-9.-]+$ ]]; then
     echo "Bus Port numbers: $DEVICE_NAME"
   else
     echo "Error:Input $DEVICE_NAME contains non-numeric characters"
     exit 255
   fi
 
-  USB_BUS_ID=$(echo "$DEVICE_NAME" | cut -d' ' -f2 | cut -d':' -f1)
-  USB_PORT_ID=$(echo "$DEVICE_NAME" | cut -d' ' -f2 | cut -d':' -f2)
-  port_id=$(echo "$DEVICE_NAME" | cut -d' ' -f2 | cut -d'.' -f2)
-  if [ -z "$port_id" ]; then
-    port_id=$USB_PORT_ID;
+  USB_BUS_ID=$(echo "$DEVICE_NAME" | cut -d' ' -f2 | cut -d'-' -f1)
+  USB_PORT_ID=$(echo "$DEVICE_NAME" | cut -d' ' -f2 | cut -d'-' -f2)
+
+  if [[ -d "/sys/bus/usb/devices/$DEVICE_NAME" ]]; then
+    USB_DEVICE_ID=$(cat "/sys/bus/usb/devices/$DEVICE_NAME/devnum")
+  else
+    echo "Provided USB bus=$USB_BUS_ID and port=$USB_PORT_ID not found"
+    echo "For example, to passthrough the keyboard in the example below"
+    echo "lsusb: Bus 003 Device 021: ID 413c:2003 Dell Computer Corp. Keyboard SK-8115"
+    echo "Bus 003.Port 001: Dev 001, Class=root_hub, Driver=xhci_hcd/16p, 480M"
+    echo "|__ Port 002: Dev 020, If 0, Class=Hub, Driver=hub/4p, 480M"
+    echo "    |__ Port 001: Dev 021, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M"
+    echo "Dev 021: bus 3 -> port 2 -> port 1"
+    echo "USE ==>  --usbtree 3-2.1"
+    exit 255
   fi
-  USB_DEVICE_ID=$(lsusb -t | grep " Port 00$port_id:" | awk '{print $5}' | awk 'NR==1' | sed -n -s 's/,//p')
+
   attach_usb_busport
 else
   echo "Not supported interface $INTERFACE"

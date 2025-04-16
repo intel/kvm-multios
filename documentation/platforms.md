@@ -192,16 +192,16 @@ Windows Zero-copy driver release: 4.0.0.1742</br>
     <tr><td align="left">Celadon IoT Android12 release 2024</td><td>No</td><td>Yes</td></tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2024/05/windows10.0-kb5037768-x64_a627ecbec3d8dad1754d541b7f89d534a6bdec69.msu">Windows10.0 19044.4412 (kb5037768)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.5972</br>
-Windows Zero-copy driver release: 4.0.0.1716</br>
+Window 10 OS patch required: Windows10.0 19044.5371 <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2025/01/windows10.0-kb5049981-x64_bda073f7d8e14e65c2632b47278924b8a0f6b374.msu">(kb5049981)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
+Windows Zero-copy driver release: 4.0.0.1797</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1a28d3c1-84ce-4108-ba95-3e918453a297/public/windows11.0-kb5040529-x64_fb312553946fb0b8a29324ba9f58c25ff6590979.msu">Windows11.0 26100.1301 (kb5040529)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.5972</br>
-Windows Zero-copy driver release: 4.0.0.1716</br>
+Window 11 OS patch required: Windows11.0 26100.3037 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2d3f9ba9-5096-4b23-9709-3af7d7a2103f/public/windows11.0-kb5050094-x64_3d5a5f9ef20fc35cc1bd2ccb08921ee8713ce622.msu">(kb5050094)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
+Windows Zero-copy driver release: 4.0.0.1797</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>

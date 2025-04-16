@@ -21,6 +21,10 @@ declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
   ['24.04']='https://releases.ubuntu.com/noble/SHA256SUMS'
 )
+declare -A UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS=(
+  ['22.04']='https://old-releases.ubuntu.com/releases/jammy/'
+  ['24.04']='https://old-releases.ubuntu.com/releases/noble/'
+)
 declare -A UBUNTU_SNAP_GNOME_VERSIONS=(
   ['22.04']='gnome-3-38-2004'
   ['24.04']='gnome-42-2204'
@@ -256,23 +260,17 @@ function download_ubuntu_iso() {
     return 255
   fi
   local dest_tmp_path=$2
+  local iso_fname
+  iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}")
   while [[ $count -lt $maxcount ]]; do
     count=$((count+1))
     echo "$count: Download Ubuntu $ubuntu_ver iso to $dest_tmp_path"
-    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}" || return 255
-    wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
-    local isochksum
-    isochksum=$(sha256sum "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" | awk '{print $1}')
-    local verifychksum
-    local iso_fname
-    iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}")
-    verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
-    if [[ "$isochksum" == "$verifychksum" ]]; then
-      # downloaded iso is okay.
-      echo "Verified Ubuntu $ubuntu_ver iso checksum as expected: $isochksum"
-      sudo mv "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
-      sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+    wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}" \
+    || wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS[$ubuntu_ver]}$iso_fname" || return 255
+    if verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}"; then
       break
+    else
+      return 255
     fi
   done
   if [[ $count -ge $maxcount ]]; then
@@ -305,6 +303,8 @@ function verify_ubuntu_iso() {
 
   echo "INFO: Verifying $ubuntu_ver iso: $iso_to_check"
   wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
+  wget -O "$dest_tmp_path/SHA256SUMS_OLD_RELEASES" "${UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS[$ubuntu_ver]}SHA256SUMS" || return 255
+  cat "$dest_tmp_path/SHA256SUMS_OLD_RELEASES" >> "$dest_tmp_path/SHA256SUMS"
   local isochksum
   isochksum=$(sha256sum "$iso_to_check" | awk '{print $1}')
   local verifychksum
@@ -564,7 +564,7 @@ function show_help() {
     printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
     printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
     printf "\t--force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware pkg from PPA with given version\n"
-    printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"22.04\" Default: same as host.\n"
+    printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"24.04\" Default: same as host.\n"
     printf "\t--debug                     For debugging only. Does not remove temporary files.\n"
 }
 

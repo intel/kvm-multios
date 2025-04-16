@@ -47,7 +47,7 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - Automatic suspend/hibernate/resume of running guest VMs during host suspend/hibernate/resume.(Ubuntu/Windows only)
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
-    - Ubuntu 22.04/24.04
+    - Ubuntu 24.04
     - Windows 10 IoT Enterprise LTSC 21H2
     - Windows 11 IoT Enterprise 24H2
     - Android Celadon 12
@@ -272,6 +272,7 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Use SR-IOV for VM domains of names &ltdomain&gt...&ltdomainN&gt. Superset of domain(s) used with -m option.</td></tr>
     <tr><td>gvtd &ltdomain&gt</td><td>Use GVT-d for VM domain</td></tr>
     <tr><td rowspan="4">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
+    <tr><td>&ltdomain&gt --usbtree &lttree&gt [N]</td><td>Passthrough Nth USB bus device tree in host of topology &lttree&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt. Note: not supported on Android VM in this release</td></tr>
     <tr><td>&ltdomain&gt --xml &ltfile&gt</td><td>Passthrough device(s) in &ltfile&gt according to libvirt Domain XML format to VM of name &ltdomain&gt</td></tr>
@@ -333,6 +334,7 @@ For this sample output, the connected displays are at DP-1 and HDMI-1.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard</td><td>To force launch all guest VMs and passthrough USB Keyboard to ubuntu guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usbtree bus-port_L1.port_L2...port_Lx </td><td>To force launch all guest VMs and passthrough USB devices to guest VM, using USB tree topology containing the bus and port numbers (see section below).</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci wi-fi</td><td>To force launch all guest VMs and passthrough PCI WiFi to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci network controller 2</td><td>To force launch all guest VMs and passthrough the 2nd PCI Network Controller in lspci list to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --tpm passthrough crb</td><td>To force launch all guest VMs and passthrough TPM with crb model to ubuntu guest VM</td></tr>
@@ -348,6 +350,66 @@ For this sample output, the connected displays are at DP-1 and HDMI-1.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g sriov windows11</td><td>To force launch windows 11 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g gvtd windows11</td><td>To force launch windows 11 guest VM configured with GVT-d display</td></tr>
 </table>
+
+### VM Launch with USB Passthrough Using "--usbtree" Option
+To passthrough using the "--usbtree" option, the first step is to identify the respective USB bus and port numbers associated with the targeted USB devices, using the commands "lsusb" and "lsusb -t"
+
+For example, to passthrough keyboards to the various guests, use lsusb to identify the keyboard devices as shown below.
+
+        $ lsusb | grep -i keyboard
+                Bus 003 Device 007: ID 046d:c31c Logitech, Inc. Keyboard K120
+                Bus 003 Device 019: ID 03f0:034a HP, Inc Elite Keyboard
+                Bus 003 Device 021: ID 413c:2003 Dell Computer Corp. Keyboard SK-8115
+
+
+Next, run "lsusb -t" to list out the USB tree, and identify the bus and port numbers for the keyboards.
+
+
+        $ lsusb -t
+                /:  Bus 001.Port 001: Dev 001, Class=root_hub, Driver=xhci_hcd/1p, 480M
+                /:  Bus 002.Port 001: Dev 001, Class=root_hub, Driver=xhci_hcd/2p, 20000M/x2
+                /:  Bus 003.Port 001: Dev 001, Class=root_hub, Driver=xhci_hcd/16p, 480M
+                    |__ Port 002: Dev 020, If 0, Class=Hub, Driver=hub/4p, 480M
+                        |__ Port 001: Dev 021, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M
+                        |__ Port 002: Dev 022, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 003: Dev 011, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 003: Dev 011, If 1, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 003: Dev 011, If 2, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 004: Dev 018, If 0, Class=Hub, Driver=hub/4p, 480M
+                        |__ Port 004: Dev 019, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M
+                        |__ Port 004: Dev 019, If 1, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 008: Dev 005, If 0, Class=Communications, Driver=cdc_ether, 480M
+                    |__ Port 008: Dev 005, If 1, Class=CDC Data, Driver=cdc_ether, 480M
+                    |__ Port 010: Dev 006, If 0, Class=Video, Driver=uvcvideo, 480M
+                    |__ Port 010: Dev 006, If 1, Class=Video, Driver=uvcvideo, 480M
+                    |__ Port 010: Dev 006, If 2, Class=Audio, Driver=snd-usb-audio, 480M
+                    |__ Port 010: Dev 006, If 3, Class=Audio, Driver=snd-usb-audio, 480M
+                    |__ Port 012: Dev 007, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 012: Dev 007, If 1, Class=Human Interface Device, Driver=usbhid, 1.5M
+                    |__ Port 014: Dev 008, If 0, Class=Wireless, Driver=btusb, 12M
+                    |__ Port 014: Dev 008, If 1, Class=Wireless, Driver=btusb, 12M
+                /:  Bus 004.Port 001: Dev 001, Class=root_hub, Driver=xhci_hcd/8p, 20000M/x2
+                    |__ Port 004: Dev 002, If 0, Class=Mass Storage, Driver=uas, 5000M
+
+
+From the example, the respective bus and port numbers are:
+
+- Dev 007: bus 3 -> port 12
+- Dev 019: bus 3 -> port 4 -> port 4
+- Dev 021: bus 3 -> port 2 -> port 1
+
+Note: Dev 011 is a HID but it is not a keyboard.
+
+Lastly, to start guest VMs and passthrough the keyboards to the various guest VMs, use the following sample commands.
+
+            # Dev 007
+            $ ./platform/client/launch_multios.sh -f -d windows11 -g sriov windows11 -p windows11 --usbtree 3-12
+
+            # Dev 019
+            $ ./platform/client/launch_multios.sh -f -d windows -g sriov windows -p windows --usbtree 3-4.4
+
+            # Dev 021
+            $ ./platform/client/launch_multios.sh -f -d ubuntu -g sriov ubuntu -p ubuntu --usbtree 3-2.1
 
 ## VM Misc Operations
 | libvirt command | Operation |
