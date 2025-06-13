@@ -1,12 +1,12 @@
 <!--
- Copyright (c) 2023-2024 Intel Corporation.
+ Copyright (c) 2023-2025 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm">
   <name>ubuntu_rt</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-      <libosinfo:os id="http://ubuntu.com/ubuntu/22.04"/>
+      <libosinfo:os id="http://ubuntu.com/ubuntu/24.04"/>
     </libosinfo:libosinfo>
   </metadata>
   <memory>4194304</memory>

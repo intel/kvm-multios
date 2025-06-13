@@ -50,11 +50,19 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
     - Ubuntu 24.04
     - Windows 10 IoT Enterprise LTSC 21H2
     - Windows 11 IoT Enterprise 24H2
-    - Android Celadon 12
+    - Android CiV from Celadon Project *
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 - Cloning of VMs with SR-IOV Multi-Display support enabled.
 - Launching multiple VMs using SPICE with GStreamer acceleration via SR-IOV support.
 - Qemu hardware cursor feature enabled.
+
+Note:
+* The KVM MultiOS Portfolio release provides only limited support for Android CiV guests.
+  It is intended solely for demonstration purposes and is not validated.
+  Users are encouraged to collaborate with ISV/OSV partners to evaluate and develop the solution using a reference Base Release from the Celadon Project.
+  For more information, please visit:
+  * [Celadon Ecosystem](https://www.intel.com/content/www/us/en/developer/topic-technology/open/celadon/ecosystem.html)
+  * [Celadon Base Releases](https://projectceladon.github.io/celadon-documentation/release-notes/base-releases.html)
 
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
@@ -133,9 +141,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | windows_spice-gst_ovmf.xml | Windows 10 | SPICE with gstreamer integration | SR-IOV | UEFI | Yes |
 | windows_gvtd_ovmf.xml | Windows 10 | Local Display | GVT-d in legacy mode| UEFI | Yes |
 | windows_gvtd_upt_ovmf.xml | Windows 10 | VNC | GVT-d in UPT mode | UEFI | No |
-| windows_gvtd_upt_seabios.xml | Windows 10 | VNC | GVT-d in UPT mode | BIOS | No (for reference only) |
 | windows_sriov_ovmf.xml | Windows 10 | Local Display | SR-IOV | UEFI | Yes |
-| windows_sriov_seabios.xml | Windows 10 | Local Display | SR-IOV | BIOS | No (for reference only) |
 | android_virtio-gpu.xml | Android | Local Display | Virtio-GPU | UEFI | Yes |
 | android_gvtd.xml | Android | Local Display | GVT-d in legacy mode | UEFI | Yes |
 | android_sriov.xml | Android | Local Display | SR-IOV | UEFI | Yes |
@@ -146,7 +152,6 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | windows11_gvtd_ovmf.xml | Windows 11 | Local Display | GVT-d in legacy mode| UEFI | Yes |
 | windows11_gvtd_upt_ovmf.xml | Windows 11 | VNC | GVT-d in UPT mode | UEFI | No |
 | windows11_sriov_ovmf.xml | Windows 11 | Local Display | SR-IOV | UEFI | Yes |
-| windows11_sriov_seabios.xml | Windows 11 | Local Display | SR-IOV | BIOS | No (for reference only) |
 
 # Host Setup
 The Intel IoT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.

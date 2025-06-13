@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
 <!--
- Copyright (c) 2023-2025 Intel Corporation.
+ Copyright (c) 2025 Intel Corporation.
  All rights reserved.
 -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
@@ -74,7 +73,7 @@
           <InstallFrom>
             <MetaData wcm:action="add">
               <Key>/IMAGE/NAME</Key>
-              <Value>Windows 10 IoT Enterprise LTSC 2021</Value>
+              <Value>Windows 11 IoT Enterprise</Value>
             </MetaData>
           </InstallFrom>
           <InstallTo>
@@ -95,54 +94,63 @@
     </component>
     <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Microsoft-Windows-PnpCustomizationsWinPE" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <DriverPaths>
+        <!-- vioscsi unable to be loaded for 24H2 -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="1">
-          <Path>E:\amd64\w10\</Path>
+          <Path>E:\amd64\w11\</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="2">
-          <Path>E:\NetKVM\w10\amd64</Path>
+          <Path>E:\NetKVM\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="3">
-          <Path>E:\Balloon\w10\amd64</Path>
+          <Path>E:\Balloon\w11\amd64</Path>
         </PathAndCredentials>
+        <!-- 24H2 have problems with qxldod/virgpudo -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="4">
-          <Path>E:\qxldod\w10\amd64</Path>
+          <Path>E:\qxldod\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="5">
-          <Path>E:\viogpudo\w10\amd64</Path>
+          <Path>E:\viogpudo\w11\amd64</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="6">
-          <Path>E:\pvpanic\w10\amd64</Path>
+          <Path>E:\pvpanic\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="7">
-          <Path>E:\qemupciserial\w10\amd64</Path>
+          <Path>E:\qemupciserial\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="8">
-          <Path>E:\vioinput\w10\amd64</Path>
+          <Path>E:\vioinput\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="9">
-          <Path>E:\viorng\w10\amd64</Path>
+          <Path>E:\viorng\w11\amd64</Path>
         </PathAndCredentials>
+        <!-- vioscsi unable to be loaded for 24H2 -->
+        <!--
         <PathAndCredentials wcm:action="add" wcm:keyValue="10">
-          <Path>E:\vioscsi\w10\amd64</Path>
+          <Path>E:\vioscsi\w11\amd64</Path>
         </PathAndCredentials>
+        -->
         <PathAndCredentials wcm:action="add" wcm:keyValue="11">
-          <Path>E:\vioserial\w10\amd64</Path>
+          <Path>E:\vioserial\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="12">
-          <Path>E:\viostor\w10\amd64</Path>
+          <Path>E:\viostor\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="13">
-          <Path>E:\viofs\w10\amd64</Path>
+          <Path>E:\viofs\w11\amd64</Path>
         </PathAndCredentials>
         <PathAndCredentials wcm:action="add" wcm:keyValue="14">
-          <Path>E:\fwcfg\w10\amd64</Path>
+          <Path>E:\fwcfg\w11\amd64</Path>
         </PathAndCredentials>
       </DriverPaths>
     </component>
   </settings>
   <settings pass="specialize">
     <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
-      <ComputerName>Win10-Packer</ComputerName>
+      <ComputerName>Win11-Packer</ComputerName>
     </component>
     <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Microsoft-Windows-TerminalServices-LocalSessionManager" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <fDenyTSConnections>false</fDenyTSConnections>
@@ -184,7 +192,7 @@
           <Order>1</Order>
         </RunSynchronousCommand>
         <!-- Copy Disable Windows Automatic Update script -->
-         <RunSynchronousCommand wcm:action="add">
+        <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\wuau_disable.ps1' "%FILE_SERVER_URL%/wuau_disable.ps1"</Path>
           <Description>Copy Disable Windows Automatic Update script</Description>
           <Order>2</Order>
@@ -204,18 +212,25 @@
           <Order>4</Order>
           <WillReboot>Always</WillReboot>
         </RunSynchronousCommand>
-        <!-- Download Windows update -->
+        <!-- Copy Windows msu download script -->
         <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\msu_download.ps1' "%FILE_SERVER_URL%/msu_download.ps1"</Path>
+          <Description>Copy Windows msu download script</Description>
           <Order>5</Order>
-          <Description>Download Windows OS Patch</Description>
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates_01.msu' "%FILE_SERVER_URL%/windows-updates_01.msu"</Path>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Download Windows msu files -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\msu_download.ps1"</Path>
+          <Description>Download Windows msu files</Description>
+          <Order>6</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Enable Windows hibernation -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command powercfg.exe /HIBERNATE ON</Path>
           <Description>Enable hibernation</Description>
-          <Order>6</Order>
+          <Order>7</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Enable Windows SSHD -->
@@ -223,71 +238,71 @@
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64.msi' "%FILE_SERVER_URL%/OpenSSH-Win64.msi"</Path>
           <Description>Download Windows Powershell OpenSSH installation</Description>
           <WillReboot>OnRequest</WillReboot>
-          <Order>7</Order>
+          <Order>8</Order>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64_setup.ps1' "%FILE_SERVER_URL%/OpenSSH-Win64_setup.ps1"</Path>
           <Description>Download Windows OpenSSH (SCP/SFTP) setup script</Description>
-          <Order>8</Order>
+          <Order>9</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Temp\OpenSSH-Win64.msi /quiet'</Path>
           <Description>Install Windows OpenSSH</Description>
-          <Order>9</Order>
+          <Order>10</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\OpenSSH-Win64_setup.ps1"</Path>
           <Description>Run setup for Windows OpenSSH (SCP/SFTP)</Description>
-          <Order>10</Order>
+          <Order>11</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>netsh advfirewall firewall add rule name=sshd dir=in action=allow protocol=TCP localport=22</Path>
           <Description>Setup firewall for SSHD service</Description>
-          <Order>11</Order>
+          <Order>12</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Service sshd</Path>
           <Description>Start SSHD service</Description>
-          <Order>12</Order>
+          <Order>13</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Set-Service -Name sshd -StartupType 'Automatic'</Path>
           <Description>Configure SSHD for automatic start</Description>
-          <Order>13</Order>
+          <Order>14</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Install QEMU Guest agent -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\guest-agent\qemu-ga-x86_64.msi /quiet'</Path>
           <Description>Install QEMU guest agent</Description>
-          <Order>14</Order>
-          <WillReboot>OnRequest</WillReboot>
-        </RunSynchronousCommand>
-        <!-- Install Windows OS Patch -->
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates_01.msu', '/quiet', '/norestart'</Path>
-          <Description>Install Windows OS Patch</Description>
           <Order>15</Order>
-          <WillReboot>Always</WillReboot>
-        </RunSynchronousCommand>
-        <!-- Setup for additional installations order 20-80 -->
-        <!-- Setup for graphics driver + Zero-Copy Driver installation -->
-        <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\gfx_zc_setup.ps1' "%FILE_SERVER_URL%/gfx_zc_setup.ps1"</Path>
-          <Description>Download GFX and Zero-copy setup script</Description>
           <WillReboot>OnRequest</WillReboot>
-          <Order>80</Order>
         </RunSynchronousCommand>
+        <!-- Copy Windows msu install script -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\gfx_zc_setup.ps1"</Path>
-          <Description>Setup for GFX and Zero-copy driver install</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\msu_install.ps1' "%FILE_SERVER_URL%/msu_install.ps1"</Path>
+          <Description>Copy Windows msu install script</Description>
+          <Order>16</Order>
           <WillReboot>OnRequest</WillReboot>
-          <Order>81</Order>
+        </RunSynchronousCommand>
+        <!-- Install Windows msu -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\msu_install.ps1"</Path>
+          <Description>Install Windows msu patch(es)</Description>
+          <Order>17</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- vioscsi unable to be loaded for 24H2 at boot. Install here -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\virtio-win-gt-x64.msi /QN ADDLOCAL=FE_vioscsi_driver'</Path>
+          <Description>Install vioscsi</Description>
+          <Order>18</Order>
+          <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command New-Item -Path '%WINDIR%\Panther' -Name 'Unattend'-ItemType 'directory'</Path>

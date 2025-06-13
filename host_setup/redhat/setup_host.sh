@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -169,7 +169,6 @@ function log_func() {
         echo "Error: $1 is not a function"
         exit 255
     fi
-    return 255
 }
 export -f log_func
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -132,6 +132,36 @@ sudo virsh net-define default_network.xml
 sudo virsh net-autostart default
 sudo virsh net-start default
 rm default_network.xml
+
+# Define and start isolated guest network
+tee isolated-guest-net.xml &>/dev/null <<EOF
+<network>
+  <name>isolated-guest-net</name>
+  <forward mode='none'/>
+  <bridge name='virbr1' stp='on' delay='0'/>
+  <ip address='192.168.200.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.200.2' end='192.168.200.254'/>
+      <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.200.11'/>
+      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.200.22'/>
+      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.200.33'/>
+      <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.200.44'/>
+      <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.200.55'/>
+    </dhcp>
+  </ip>
+</network>
+EOF
+
+if sudo virsh net-list --name | grep -q 'isolated-guest-net'; then
+    sudo virsh net-destroy isolated-guest-net
+fi
+if sudo virsh net-list --name --all | grep -q 'isolated-guest-net'; then
+    sudo virsh net-undefine isolated-guest-net
+fi
+sudo virsh net-define isolated-guest-net.xml
+sudo virsh net-autostart isolated-guest-net
+sudo virsh net-start isolated-guest-net
+rm isolated-guest-net.xml
 
 # a hook-helper for libvirt which allows easier per-VM hooks.
 # usually /etc/libvirt/libvirt/hooks/qemu.d/vm_name/hook_name/state_name/

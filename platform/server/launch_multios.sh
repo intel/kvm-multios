@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -10,6 +10,7 @@ set -Eeuo pipefail
 declare -A VM_DOMAIN=(
   ["ubuntu"]="ubuntu_vnc_spice.xml"
   ["windows"]="windows_vnc_spice.xml"
+  ["windows11"]="windows11_vnc_spice.xml"
   ["redhat"]="redhat_vnc_spice.xml"
   ["centos"]="centos_vnc_spice.xml"
 )
@@ -288,11 +289,11 @@ function launch_domains() {
 
     # Passthrough devices
     echo "Passthrough device to domain $domain if any"
-    passthrough_devices $domain
+    passthrough_devices "$domain"
 
     # Start domain
     echo "Starting domain $domain..."
-    virsh start $domain
+    virsh start "$domain"
     sleep 2
   done
 }

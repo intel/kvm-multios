@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2023 Intel Corporation.
+ Copyright (c) 2023-2025 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm">
@@ -14,7 +14,7 @@
   <vcpu>2</vcpu>
   <os>
     <type arch="x86_64" machine="q35">hvm</type>
-    <loader readonly="yes" type="pflash">/usr/share/OVMF/OVMF_CODE.fd</loader>
+    <loader readonly="yes" type="pflash">/usr/share/edk2/ovmf/OVMF_CODE.fd</loader>
     <bootmenu enable="no"/>
   </os>
   <features>

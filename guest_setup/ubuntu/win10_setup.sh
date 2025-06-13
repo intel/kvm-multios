@@ -40,7 +40,7 @@ GEN_GFX_ZC_SCRIPT_ONLY=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
-FILE_SERVER_IP="192.168.122.1"
+FILE_SERVER_IP="192.168.200.1"
 FILE_SERVER_PORT=8002
 
 script=$(realpath "${BASH_SOURCE[0]}")
@@ -109,15 +109,15 @@ function kill_by_pid() {
 }
 
 function install_dep() {
-  which virt-install > /dev/null || sudo apt install -y virtinst
-  which arepack > /dev/null || sudo apt install -y p7zip-full zip atool
-  which mkisofs > /dev/null || sudo apt install -y mkisofs
-  which virt-viewer > /dev/null || sudo apt install -y virt-viewer
-  which unzip > /dev/null || sudo apt install -y unzip
-  which xmllint > /dev/null || sudo apt install -y libxml2-utils
-  which yamllint > /dev/null || sudo apt install -y yamllint
-  which cabextract > /dev/null || sudo apt install -y cabextract
-  which xmlstarlet > /dev/null || sudo apt install -y xmlstarlet
+  which virt-install > /dev/null || sudo apt-get install -y virtinst
+  which arepack > /dev/null || sudo apt-get install -y p7zip-full zip atool
+  which mkisofs > /dev/null || sudo apt-get install -y mkisofs
+  which virt-viewer > /dev/null || sudo apt-get install -y virt-viewer
+  which unzip > /dev/null || sudo apt-get install -y unzip
+  which xmllint > /dev/null || sudo apt-get install -y libxml2-utils
+  which yamllint > /dev/null || sudo apt-get install -y yamllint
+  which cabextract > /dev/null || sudo apt-get install -y cabextract
+  which xmlstarlet > /dev/null || sudo apt-get install -y xmlstarlet
   which yq > /dev/null || sudo snap install yq
 }
 
@@ -213,10 +213,69 @@ function convert_drv_pkg_7z_to_zip() {
       echo "Ensure one of Driver-Release-64-bit.7z or Driver-Release-64-bit.zip should be present and valid!"
       return 255
     fi
-    break
   done
 
   return 255
+}
+
+function setup_wuau_scripts() {
+  local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
+
+  # Create wuau_disable.ps1 script
+  tee "$fileserverdir/wuau_disable.ps1" &>/dev/null <<EOF
+\$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+# Create the key if it does not exist
+If (-NOT (Test-Path \$RegistryPath)) {
+    New-Item -Path \$RegistryPath -Force | Out-Null
+    if (\$? -ne \$True) {
+        Throw "Create \$RegistryPath failed"
+    }
+}
+# Create the item properties and values
+\$Name = 'NoAutoUpdate'
+\$Value = '1'
+If (-NOT (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue)) {
+    New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force
+}
+if (\$? -ne \$True) {
+    Throw "Write \$RegistryPath\\\\\$Name key failed"
+}
+\$Name = 'AUOptions'
+\$Value = '1'
+If (-NOT (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue)) {
+    New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force
+}
+if (\$? -ne \$True) {
+    Throw "Write \$RegistryPath\\\\\$Name key failed"
+}
+EOF
+
+  TMP_FILES+=("$fileserverdir/wuau_disable.ps1")
+
+  # Create wuau_enable.ps1 script
+  tee "$fileserverdir/wuau_enable.ps1" &>/dev/null <<EOF
+# Specify the registry path
+\$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+
+# Remove the item properties
+\$Name = 'NoAutoUpdate'
+If (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path \$RegistryPath -Name \$Name -Force
+    if (\$? -ne \$True) {
+        Throw "Remove \$RegistryPath\\\$Name key failed"
+    }
+}
+
+\$Name = 'AUOptions'
+If (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path \$RegistryPath -Name \$Name -Force
+    if (\$? -ne \$True) {
+      Throw "Remove \$RegistryPath\\\$Name key failed"
+    }
+}
+EOF
+
+  TMP_FILES+=("$fileserverdir/wuau_enable.ps1")
 }
 
 function setup_additional_installs() {
@@ -767,6 +826,8 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
+    # Re-enable Windows Automatic Update
+    & "\$tempdir\\wuau_enable.ps1"
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
@@ -982,6 +1043,8 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
+    # Re-enable Windows Automatic Update
+    & "\$tempdir\\wuau_enable.ps1"
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
@@ -1231,6 +1294,15 @@ EOF
   mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
   TMP_FILES+=("/tmp/${WIN_UNATTEND_ISO}")
 
+  # Create Windows automatic updates enable/disable scripts
+  setup_wuau_scripts
+
+  # Check isolated guest network
+  if ! virsh net-list | grep -w "isolated-guest-net" | grep -q "active"; then
+    echo "Error: isolated-guest-net is missing or not active"
+    return 255
+  fi
+
   echo "$(date): Start windows guest creation and auto-installation"
   run_file_server "$fileserverdir" "$FILE_SERVER_IP" "$FILE_SERVER_PORT" FILE_SERVER_DAEMON_PID || return 255
   if [[ "$VIEWER" -eq "1" ]]; then
@@ -1247,12 +1319,12 @@ EOF
   --vcpus=4 \
   --cpu host \
   --machine q35 \
-  --network network=default,model=virtio \
+  --network network=isolated-guest-net,model=e1000e \
   --graphics vnc,listen=0.0.0.0,port=5902 \
   --cdrom "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_INSTALLER_ISO}" \
   --disk "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}",device=cdrom \
   --disk "/tmp/${WIN_UNATTEND_ISO}",device=cdrom \
-  --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none \
+  --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
   --os-variant win10 \
   --boot loader="$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd",loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$ovmf_option \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
@@ -1284,6 +1356,10 @@ EOF
     fi
     loop=$((loop+1))
   done
+
+  # Switch to default network interface
+  virsh detach-interface "${WIN_DOMAIN_NAME}" network --current
+  virsh attach-interface "${WIN_DOMAIN_NAME}" network default --model e1000e --persistent
 
   if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
     # Start Windows VM with SRIOV to allow SRIOV Zero-Copy + graphics driver install

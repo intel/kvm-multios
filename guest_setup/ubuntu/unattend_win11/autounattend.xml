@@ -192,25 +192,46 @@
           <WillReboot>OnRequest</WillReboot>
           <Order>1</Order>
         </RunSynchronousCommand>
-        <!-- Download Windows update -->
+        <!-- Copy Disable Windows Automatic Update script -->
         <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\wuau_disable.ps1' "%FILE_SERVER_URL%/wuau_disable.ps1"</Path>
+          <Description>Copy Disable Windows Automatic Update script</Description>
           <Order>2</Order>
-          <Description>Download Windows OS Patch</Description>
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates_01.msu' "%FILE_SERVER_URL%/windows-updates_01.msu"</Path>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
-        <!-- Download Windows OS Patch 2 -->
+        <!-- Copy Enable Windows Automatic Update script -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\windows-updates_02.msu' "%FILE_SERVER_URL%/windows-updates_02.msu"</Path>
-          <Description>Download Windows OS Patch 2</Description>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\wuau_enable.ps1' "%FILE_SERVER_URL%/wuau_enable.ps1"</Path>
+          <Description>Copy Enable Windows Automatic Update script</Description>
           <Order>3</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Disable Windows Automatic Update -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\wuau_disable.ps1"</Path>
+          <Description>Disable Windows Automatic Update</Description>
+          <Order>4</Order>
+          <WillReboot>Always</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Copy Windows msu download script -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\msu_download.ps1' "%FILE_SERVER_URL%/msu_download.ps1"</Path>
+          <Description>Copy Windows msu download script</Description>
+          <Order>5</Order>
+          <WillReboot>OnRequest</WillReboot>
+        </RunSynchronousCommand>
+        <!-- Download Windows msu files -->
+        <RunSynchronousCommand wcm:action="add">
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\msu_download.ps1"</Path>
+          <Description>Download Windows msu files</Description>
+          <Order>6</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Enable Windows hibernation -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command powercfg.exe /HIBERNATE ON</Path>
           <Description>Enable hibernation</Description>
-          <Order>4</Order>
+          <Order>7</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Enable Windows SSHD -->
@@ -218,70 +239,70 @@
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64.msi' "%FILE_SERVER_URL%/OpenSSH-Win64.msi"</Path>
           <Description>Download Windows Powershell OpenSSH installation</Description>
           <WillReboot>OnRequest</WillReboot>
-          <Order>5</Order>
+          <Order>8</Order>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\OpenSSH-Win64_setup.ps1' "%FILE_SERVER_URL%/OpenSSH-Win64_setup.ps1"</Path>
           <Description>Download Windows OpenSSH (SCP/SFTP) setup script</Description>
-          <Order>6</Order>
+          <Order>9</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I C:\Temp\OpenSSH-Win64.msi /quiet'</Path>
           <Description>Install Windows OpenSSH</Description>
-          <Order>7</Order>
+          <Order>10</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\OpenSSH-Win64_setup.ps1"</Path>
           <Description>Run setup for Windows OpenSSH (SCP/SFTP)</Description>
-          <Order>8</Order>
+          <Order>11</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>netsh advfirewall firewall add rule name=sshd dir=in action=allow protocol=TCP localport=22</Path>
           <Description>Setup firewall for SSHD service</Description>
-          <Order>9</Order>
+          <Order>12</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Service sshd</Path>
           <Description>Start SSHD service</Description>
-          <Order>10</Order>
+          <Order>13</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Set-Service -Name sshd -StartupType 'Automatic'</Path>
           <Description>Configure SSHD for automatic start</Description>
-          <Order>11</Order>
+          <Order>14</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Install QEMU Guest agent -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\guest-agent\qemu-ga-x86_64.msi /quiet'</Path>
           <Description>Install QEMU guest agent</Description>
-          <Order>12</Order>
+          <Order>15</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
-        <!-- Install Windows OS Patch -->
+        <!-- Copy Windows msu install script -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates_01.msu', '/quiet', '/norestart'</Path>
-          <Description>Install Windows OS Patch</Description>
-          <Order>13</Order>
-          <WillReboot>Always</WillReboot>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -Command curl.exe -fSLo 'C:\Temp\msu_install.ps1' "%FILE_SERVER_URL%/msu_install.ps1"</Path>
+          <Description>Copy Windows msu install script</Description>
+          <Order>16</Order>
+          <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
-        <!-- Install Windows OS Patch 2 -->
+        <!-- Install Windows msu -->
         <RunSynchronousCommand wcm:action="add">
-          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process -FilePath 'wusa.exe' -Wait -ArgumentList 'C:\Temp\windows-updates_02.msu', '/quiet', '/norestart'</Path>
-          <Description>Install Windows OS Patch 2</Description>
-          <Order>14</Order>
-          <WillReboot>Always</WillReboot>
+          <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -NoProfile -ExecutionPolicy Bypass -File "C:\Temp\msu_install.ps1"</Path>
+          <Description>Install Windows msu patch(es)</Description>
+          <Order>17</Order>
+          <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- vioscsi unable to be loaded for 24H2 at boot. Install here -->
         <RunSynchronousCommand wcm:action="add">
           <Path>%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -ExecutionPolicy Bypass -Command Start-Process msiexec.exe -Wait -ArgumentList '/I E:\virtio-win-gt-x64.msi /QN ADDLOCAL=FE_vioscsi_driver'</Path>
           <Description>Install vioscsi</Description>
-          <Order>15</Order>
+          <Order>18</Order>
           <WillReboot>OnRequest</WillReboot>
         </RunSynchronousCommand>
         <!-- Setup for additional installations order 20-80 -->

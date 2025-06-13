@@ -18,45 +18,45 @@ TMP_FILES=()
 
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
-  ['version']='2024.5.0'
-  ['ubuntu_version_supported']='22.04, 24.04'
-  ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.5/linux/l_openvino_toolkit_ubuntu22_2024.5.0.17288.7975fa5da0c_x86_64.tgz'
-  ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2024.5/linux/l_openvino_toolkit_ubuntu24_2024.5.0.17288.7975fa5da0c_x86_64.tgz'
+    ['version']='2025.1.0'
+    ['ubuntu_version_supported']='22.04, 24.04'
+    ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/linux/openvino_toolkit_ubuntu22_2025.1.0.18503.6fec06580ab_x86_64.tgz'
+    ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/linux/openvino_toolkit_ubuntu24_2025.1.0.18503.6fec06580ab_x86_64.tgz'
 )
 
 INSTALL_NPU=0
 declare -A _LINUX_NPU_DRV_REL_2204=(
-	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-driver-compiler-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
-	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-fw-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
-	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-level-zero-npu_1.10.1.20241220-12430270326_ubuntu22.04_amd64.deb'
-	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.45/level-zero_1.17.45+u22.04_amd64.deb'
+    ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
+    ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
+    ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u22.04_amd64.deb'
 )
 declare -A _LINUX_NPU_DRV_REL_2404=(
-	  ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-driver-compiler-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
-	  ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-fw-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
-	  ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.10.1/intel-level-zero-npu_1.10.1.20241220-12430270326_ubuntu24.04_amd64.deb'
-	  ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.17.45/level-zero_1.17.45+u24.04_amd64.deb'
+    ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
+    ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
+    ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u24.04_amd64.deb'
 )
 declare -A LINUX_NPU_DRV_REL=(
-  ['version']="v1.10.1"
-  ['ubuntu_version_supported']='22.04, 24.04'
-  ['22.04']="_LINUX_NPU_DRV_REL_2204"
-  ['24.04']="_LINUX_NPU_DRV_REL_2404"
+    ['version']="v1.13.0"
+    ['ubuntu_version_supported']='22.04, 24.04'
+    ['22.04']="_LINUX_NPU_DRV_REL_2204"
+    ['24.04']="_LINUX_NPU_DRV_REL_2404"
 )
 
 INSTALL_NEO=0
 declare -A COMPUTE_RUNTIME_REL=(
-  ['version']='24.45.31740.9'
-  ['level-zero-version']='1.6.31740.9'
-  ['igc-version']='2.1.12'
-  ['gmmlib-version']='22.5.2'
-  ['ubuntu_version_supported']='22.04, 24.04'
-  ['intel-igc-core-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
-  ['intel-igc-opencl-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
-  ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
-  ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
-  ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
-  ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
+    ['version']='24.45.31740.9'
+    ['level-zero-version']='1.6.31740.9'
+    ['igc-version']='2.1.12'
+    ['gmmlib-version']='22.5.2'
+    ['ubuntu_version_supported']='22.04, 24.04'
+    ['intel-igc-core-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
+    ['intel-igc-opencl-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
+    ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
+    ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
+    ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
+    ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -140,7 +140,7 @@ function check_os() {
 }
 
 function install_dep() {
-  which sha256sum > /dev/null || sudo apt install -y coreutils
+    which sha256sum > /dev/null || sudo apt-get install -y coreutils
 }
 
 function setup_openvino_npu() {
@@ -152,7 +152,7 @@ function setup_openvino_npu() {
     osver=$(lsb_release -rs)
     declare -n LINUX_NPU_DRV_REL_BIN="${LINUX_NPU_DRV_REL[$osver]}"
     if [[ -d "$dest_tmp_path" ]]; then
-      rm -rf "$dest_tmp_path"
+        rm -rf "$dest_tmp_path"
     fi
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
@@ -169,7 +169,7 @@ function setup_openvino_npu() {
     check_file_valid_nonzero "$dest_tmp_path/level-zero.deb"
 
     echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
-    sudo apt install -y libtbb12
+    sudo apt-get install -y libtbb12
     sudo dpkg -i "$dest_tmp_path"/*.deb
 
     # add user to the render group
@@ -205,13 +205,13 @@ function setup_openvino_npu() {
 
 function download_url_checksum() {
     if [[ -z "${1+x}" || -z "$1" ]]; then
-      echo "Error: no dest path provided" | tee -a "$LOG_FILE"
-      return 255
+        echo "Error: no dest path provided" | tee -a "$LOG_FILE"
+        return 255
     fi
     local dest_path=$1
     if [[ -z "${2+x}" || -z "$2" ]]; then
-      echo "Error: no source url provided" | tee -a "$LOG_FILE"
-      return 255
+        echo "Error: no source url provided" | tee -a "$LOG_FILE"
+        return 255
     fi
     local src_url=$2
     local src_sha256sum_url
@@ -229,52 +229,68 @@ function download_url_checksum() {
     local maxcount=10
     local count=0
     while [[ "$count" -lt "$maxcount" ]]; do
-      count=$((count+1))
-      echo "$count: Download $src_url"
-      if ! curl -JL --connect-timeout 10 --output "$dest_path" "$src_url"; then
-        # attempt again with proxy enabled except for localhost
-        if ! curl -JL --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path" "$src_url"; then
-          # attempt again without proxy
-          if ! curl -JL --noproxy '*' --connect-timeout 10 --output "$dest_path" "$src_url"; then
-            echo "Unable download $src_url. Check internet connection."
-            return 255
-          fi
-        fi
-      fi
-      if [[ -n "$src_sha256sum_url" ]]; then
-        wget -O "$dest_path.sha256" "$src_sha256sum_url" || return 255
-        if ! curl --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
-          # attempt again with proxy enabled except for localhost
-          if ! curl --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
-            # attempt again without proxy
-            if ! curl --noproxy '*' --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
-              echo "Unable download $src_sha256sum_url. Check internet connection."
-              return 255
+        count=$((count+1))
+        echo "$count: Download $src_url"
+        if ! curl -JL --connect-timeout 10 --output "$dest_path" "$src_url"; then
+            # attempt again with proxy enabled except for localhost
+            if ! curl -JL --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path" "$src_url"; then
+                # attempt again without proxy
+                if ! curl -JL --noproxy '*' --connect-timeout 10 --output "$dest_path" "$src_url"; then
+                    echo "Unable download $src_url. Check internet connection."
+                    return 255
+                fi
             fi
-          fi
         fi
-        local isochksum
-        isochksum=$(sha256sum "$dest_path" | awk '{print $1}')
-        if grep -q "$isochksum" < "$dest_path.sha256"; then
-          # downloaded iso is okay.
-          echo "Verified sha256 checksum is as expected: $isochksum"
-          break
+        if [[ -n "$src_sha256sum_url" ]]; then
+            wget -O "$dest_path.sha256" "$src_sha256sum_url" || return 255
+            if ! curl --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
+                # attempt again with proxy enabled except for localhost
+                if ! curl --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
+                    # attempt again without proxy
+                    if ! curl --noproxy '*' --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
+                        echo "Unable download $src_sha256sum_url. Check internet connection."
+                        return 255
+                    fi
+                fi
+            fi
+            local isochksum
+            isochksum=$(sha256sum "$dest_path" | awk '{print $1}')
+            if grep -q "$isochksum" < "$dest_path.sha256"; then
+                # downloaded iso is okay.
+                echo "Verified sha256 checksum is as expected: $isochksum"
+                break
+            fi
+        else
+            break
         fi
-      else
-        break
-      fi
     done
     if [[ $count -ge $maxcount ]]; then
-      echo "error: download $src_url exceeded max tries." | tee -a "$LOG_FILE"
-      return 255
+        echo "error: download $src_url exceeded max tries." | tee -a "$LOG_FILE"
+        return 255
     fi
     return 0
+}
+
+function get_active_openvino_version() {
+    # Get the currently active OpenVINO version
+    local active_version
+    active_version=$(python3 -c "from openvino import get_version; print(get_version())" 2>/dev/null || echo "")
+
+    echo "$active_version"
 }
 
 function setup_openvino() {
     local dest_tmp_path
     dest_tmp_path=$(realpath "/tmp/linux_openvino_install")
     log_func check_os "${OPENVINO_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino support" | tee -a "$LOG_FILE"; return 0)
+
+    local active_version
+    active_version=$(get_active_openvino_version)
+
+    if [[ -n "$active_version" ]] && ! is_new_version_avail "$active_version" "${OPENVINO_REL['version']}"; then
+        echo "INFO: Installed Active OpenVINO version ($active_version) is up-to-date or newer than the target version (${OPENVINO_REL['version']})." | tee -a "$LOG_FILE"
+        return 0
+    fi
 
     if [[ -d "$dest_tmp_path" ]]; then
         rm -rf "$dest_tmp_path"
@@ -293,7 +309,7 @@ function setup_openvino() {
     fi
     check_dir_valid /opt/intel
     local extracted_folder
-    extracted_folder=$(find "$dest_tmp_path" -name "l_openvino_toolkit_ubuntu*")
+    extracted_folder=$(find "$dest_tmp_path" -name "openvino_toolkit_ubuntu*")
     extracted_folder=$(realpath "$extracted_folder")
     if [[ -d "/opt/intel/openvino_${OPENVINO_REL['version']}" ]]; then
         sudo rm -rf "/opt/intel/openvino_${OPENVINO_REL['version']}"
@@ -306,18 +322,33 @@ function setup_openvino() {
     local -a ver
     mapfile -td ' ' ver <<< "${OPENVINO_REL['version']//./ }"
     cd /opt/intel
+
+    # Check and remove existing symbolic link for major version
     if [[ -L "/opt/intel/openvino_${ver[0]}" ]]; then
         sudo unlink "/opt/intel/openvino_${ver[0]}"
     fi
+    # Create symbolic link for major version
     sudo ln -s "openvino_${OPENVINO_REL['version']}" "openvino_${ver[0]}"
+
+    # Check and remove existing symbolic link for generic 'openvino'
+    if [[ -L "/opt/intel/openvino" ]]; then
+        sudo unlink "/opt/intel/openvino"
+    fi
+    # Create symbolic link for generic 'openvino'
+    sudo ln -s "openvino_${OPENVINO_REL['version']}" "openvino"
+
     cd -
-    if ! grep -Fq  "source /opt/intel/openvino_${ver[0]}/setupvars.sh" /etc/bash.bashrc; then
-        # Added to first line of bash.bashrc so that it will be called even for non interactive shell
+    # Deactivate old version
+    sudo sed -i "/source \/opt\/intel\/openvino_/d" /etc/bash.bashrc
+
+    # Activate new version
+    if ! grep -Fq "source /opt/intel/openvino_${ver[0]}/setupvars.sh" /etc/bash.bashrc; then
+        # Add to first line of bash.bashrc so that it will be called even for non interactive shell
         sudo sed -i "1s:^:source /opt/intel/openvino_${ver[0]}/setupvars.sh\n:" /etc/bash.bashrc
     fi
-    # do not perform echo if in non interactive shell
-    sudo sed -i "s/^echo \"\[setupvars.sh\] OpenVINO environment initialized\"/\[ ! -z \"\$PS1\" \] \&\& echo \"\[setupvars.sh\] OpenVINO environment initialized\"/" "/opt/intel/openvino_${ver[0]}/setupvars.sh"
 
+    # Ensure echo is only for interactive shells
+    sudo sed -i "s/^echo \"\[setupvars.sh\] OpenVINO environment initialized\"/\[ ! -z \"\$PS1\" \] \&\& echo \"\[setupvars.sh\] OpenVINO environment initialized\"/" "/opt/intel/openvino_${ver[0]}/setupvars.sh"
 }
 
 # Function to compare package version
@@ -365,11 +396,11 @@ function setup_neo() {
 
     # remove opencl legacy version
     if apt list --installed | grep "intel-level-zero-gpu-legacy1"; then
-        sudo apt remove --purge -y intel-level-zero-gpu-legacy1
+        sudo apt-get remove --purge -y intel-level-zero-gpu-legacy1
         echo "INFO: Intel intel-level-zero-gpu-legacy1 is removed" | tee -a "$LOG_FILE"
     fi
     if apt list --installed | grep "intel-opencl-icd-legacy1"; then
-        sudo apt remove --purge -y intel-opencl-icd-legacy1
+        sudo apt-get remove --purge -y intel-opencl-icd-legacy1
         echo "INFO: Intel intel-opencl-icd-legacy1 is removed" | tee -a "$LOG_FILE"
     fi
 
@@ -501,7 +532,7 @@ function setup_neo() {
 }
 
 function show_help() {
-    printf "%s [-h] [--npu]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "Usage: %s [-h|--help] [--npu] [--neo]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t--npu\tInstall NPU device driver for OpenVINO\n"
