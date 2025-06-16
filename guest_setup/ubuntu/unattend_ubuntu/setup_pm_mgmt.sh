@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -15,7 +15,7 @@ LOGD="logger -t $LOGTAG"
 
 #---------      Functions    -------------------
 function setup_pm_mgmt_dep() {
-    sudo apt install -y qemu-guest-agent
+    sudo apt-get install -y qemu-guest-agent
 }
 
 function setup_swap_update_service() {

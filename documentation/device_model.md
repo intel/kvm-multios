@@ -2,7 +2,7 @@
 
 <table>
     <tr><th rowspan="2">Component</th><th colspan="5">Guest VMs</th></tr>
-    <tr><td align="center">Ubuntu 24.04</td><td align="center">Windows 10 IoT Enterprise</td><td align="center">Android CIV</td><td align="center">Windows 11 IoT Enterprise</td></tr>
+    <tr><td align="center">Ubuntu 24.04</td><td align="center">Windows 10 IoT Enterprise</td><td align="center">Android CiV</td><td align="center">Windows 11 IoT Enterprise</td></tr>
     <tr><td rowspan="4"> Host </td><td colspan="4" align="center">Libvirt 10.0.0 (Ubuntu 24.04)</td></tr>
     <tr><td class="centre" colspan="4" align="center">KVM/QEMU 9.1.0</td></tr>
     <tr><td colspan="4" align="center">Ubuntu 24.04</td></tr>
@@ -26,7 +26,13 @@
     <tr><td>TPM</td><td>Passthrough</td><td colspan="3" align="center">SW emulation</td></tr>
 </table>
 
-**Notes**
-For all devices, a device which is passthrough to a VM can only be used by that guest VM only and is not available to any other VM or to host.
-</br>\* GVT-d can only be applied for one running VM while other runnings VMs will be using VNC/SPICE or no display.
-</br>\*\* Not validated in this release
+**Notes:**
+* For all devices, a device which is passthrough to a VM can only be used by that guest VM only and is not available to any other VM or to host.
+* The KVM MultiOS Portfolio release provides only limited support for Android CiV guests.
+  It is intended solely for demonstration purposes and is not validated.
+  Users are encouraged to collaborate with ISV/OSV partners to evaluate and develop the solution using a reference Base Release from the Celadon Project.
+  For more information, please visit:
+  * [Celadon Ecosystem](https://www.intel.com/content/www/us/en/developer/topic-technology/open/celadon/ecosystem.html)
+  * [Celadon Base Releases](https://projectceladon.github.io/celadon-documentation/release-notes/base-releases.html)
+* \* GVT-d can only be applied for one running VM while other runnings VMs will be using VNC/SPICE or no display.
+* \*\* Not validated in this release

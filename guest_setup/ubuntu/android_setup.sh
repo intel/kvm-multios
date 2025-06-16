@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 #
 
@@ -121,6 +121,10 @@ function install_dep () {
     sed -i -e "s/qemu-7.0.0/qemu-$target_qemu_version/" /tmp/setup_host.sh
     # wa for missing sudo in line
     sed -i -r "s/(count=\"\\$\()/&sudo /" /tmp/setup_host.sh
+
+    # Add timeout for QEMU prompt so that setup auto continue without user intervention
+    sed -i -e 's/read -p/read -t 10 -p/' /tmp/setup_host.sh
+
     if [[ $ENABLE_QEMU_FROM_SRC -eq "1" ]]; then
         # not required for qemu 7.1.0
         if [[ -f "patches/qemu/0005-ui-gtk-new-param-monitor-to-specify-target-monitor-f.patch" ]]; then
@@ -130,22 +134,32 @@ function install_dep () {
         sed -i -e 's/read -p/read -t 10 -p/' /tmp/setup_host.sh
         # Ensure patched QEMU build has features as is default enabled by Ubuntu default
         # Do not allow auto remove packages
-        sed -i -e 's/sudo apt autoremove -y/#&/' /tmp/setup_host.sh
+        sed -i -e 's/sudo apt-apt autoremove -y/#&/' /tmp/setup_host.sh
         # Add Dependencies as per QEMU build wiki https://wiki.qemu.org/Hosts/Linux
         # Ubuntu qemu package: https://packages.ubuntu.com/jammy/qemu-system-x86
-        sed -i -e '/sudo apt autoremove -y/a \
-        sudo apt install -y git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build \
-        sudo apt install -y libaio-dev libbluetooth-dev libcapstone-dev libbrlapi-dev libbz2-dev \
-        sudo apt install -y libcap-ng-dev libcurl4-gnutls-dev libgtk-3-dev \
-        sudo apt install -y libibverbs-dev libjpeg8-dev libncurses5-dev libnuma-dev \
-        sudo apt install -y librbd-dev librdmacm-dev \
-        sudo apt install -y libsasl2-dev libsdl2-dev libseccomp-dev libsnappy-dev libssh-dev \
-        sudo apt install -y libvde-dev libvdeplug-dev libvte-2.91-dev libxen-dev liblzo2-dev \
-        sudo apt install -y valgrind xfslibs-dev \
-        sudo apt install -y libnfs-dev libiscsi-dev \
-        sudo apt install -y git python3 ninja-build meson texinfo python3-sphinx python3-sphinx-rtd-theme libaio-dev libjack-dev libpulse-dev libasound2-dev libbpf-dev libbrlapi-dev libcap-ng-dev libcurl4-gnutls-dev libfdt-dev libfuse3-dev gnutls-dev libgtk-3-dev libvte-2.91-dev libiscsi-dev libncurses-dev libvirglrenderer-dev libva-dev libepoxy-dev libdrm-dev libgbm-dev libnfs-dev libnuma-dev libcacard-dev libpixman-1-dev librbd-dev libglusterfs-dev glusterfs-common libsasl2-dev libsdl2-dev libseccomp-dev libslirp-dev libspice-server-dev librdmacm-dev libibverbs-dev libibumad-dev liburing-dev libusb-1.0-0-dev libusbredirparser-dev libssh-dev libzstd-dev libxen-dev nettle-dev uuid-dev xfslibs-dev zlib1g-dev libudev-dev libjpeg-dev libpng-dev libpmem-dev \
-        sudo apt install -y libdaxctl-dev libspice-protocol-dev' /tmp/setup_host.sh
+        sed -i -e '/sudo apt-get autoremove -y/a \
+        sudo apt-get install -y git libglib2.0-dev libfdt-dev libpixman-1-dev zlib1g-dev ninja-build \
+        sudo apt-get install -y libaio-dev libbluetooth-dev libcapstone-dev libbrlapi-dev libbz2-dev \
+        sudo apt-get install -y libcap-ng-dev libcurl4-gnutls-dev libgtk-3-dev \
+        sudo apt-get install -y libibverbs-dev libjpeg8-dev libncurses5-dev libnuma-dev \
+        sudo apt-get install -y librbd-dev librdmacm-dev \
+        sudo apt-get install -y libsasl2-dev libsdl2-dev libseccomp-dev libsnappy-dev libssh-dev \
+        sudo apt-get install -y libvde-dev libvdeplug-dev libvte-2.91-dev libxen-dev liblzo2-dev \
+        sudo apt-get install -y valgrind xfslibs-dev \
+        sudo apt-get install -y libnfs-dev libiscsi-dev \
+        sudo apt-get install -y git python3 ninja-build meson texinfo python3-sphinx python3-sphinx-rtd-theme libaio-dev libjack-dev libpulse-dev libasound2-dev libbpf-dev libbrlapi-dev libcap-ng-dev libcurl4-gnutls-dev libfdt-dev libfuse3-dev gnutls-dev libgtk-3-dev libvte-2.91-dev libiscsi-dev libncurses-dev libvirglrenderer-dev libva-dev libepoxy-dev libdrm-dev libgbm-dev libnfs-dev libnuma-dev libcacard-dev libpixman-1-dev librbd-dev libglusterfs-dev glusterfs-common libsasl2-dev libsdl2-dev libseccomp-dev libslirp-dev libspice-server-dev librdmacm-dev libibverbs-dev libibumad-dev liburing-dev libusb-1.0-0-dev libusbredirparser-dev libssh-dev libzstd-dev libxen-dev nettle-dev uuid-dev xfslibs-dev zlib1g-dev libudev-dev libjpeg-dev libpng-dev libpmem-dev \
+        sudo apt-get install -y libdaxctl-dev libspice-protocol-dev' /tmp/setup_host.sh
     fi
+
+    # Add edk2 patch to fix basetools error
+    wget https://github.com/projectceladon/vendor-intel-utils-vertical-iot/raw/refs/heads/android/s/host/ovmf/0002-BaseTools-fix-gcc-warnings-in-edk2.patch
+    cp 0002-BaseTools-fix-gcc-warnings-in-edk2.patch ./patches/ovmf/0002-BaseTools-fix-gcc-warnings-in-edk2.patch
+    # We want this to output $CIV_WORK_DIR without expansion
+    # shellcheck disable=SC2016
+    sed -i '/patch -p1 < \$CIV_WORK_DIR\/patches\/ovmf\/0002-Fix-vla-parameter-error.patch/{
+  N; N; a \    patch -p1 < \$CIV_WORK_DIR\/patches\/ovmf\/0002-BaseTools-fix-gcc-warnings-in-edk2.patch
+}' /tmp/setup_host.sh
+
     chmod +x /tmp/setup_host.sh
 
     # shellcheck source=/dev/null
@@ -158,7 +172,7 @@ function install_dep () {
     fi
 
     # need to ensure apt is updated to get required packages
-    sudo apt update
+    sudo apt-get update
 
     echo "Installing Celadon VM dependencies"
     check_os || return 255
@@ -191,7 +205,7 @@ function install_dep () {
     if [[ -n $("$RELFILE_OUT/scripts/rpmb_dev" 2>&1 | grep 'libcrypto.so.1.1') ]]; then
         # Note: Not required for latest CIV_13
         sudo add-apt-repository -y 'deb http://security.ubuntu.com/ubuntu focal-security main'
-        sudo apt install -y libssl1.1
+        sudo apt-get install -y libssl1.1
         sudo add-apt-repository -y --remove 'deb http://security.ubuntu.com/ubuntu focal-security main'
     fi
 
@@ -270,7 +284,7 @@ function setup_android_images() {
     if [[ -f "$tmp_folder_path/android.qcow2" ]]; then
         rm "$tmp_folder_path/android.qcow2"
     fi
-    if ! qemu-img create -f qcow2 "$tmp_folder_path/android.qcow2" ${SETUP_DISK_SIZE}G; then
+    if ! qemu-img create -f qcow2 "$tmp_folder_path/android.qcow2" "${SETUP_DISK_SIZE}"G; then
         echo "Error: Unable to create qcow2 image."
         return 255
     fi
@@ -368,7 +382,7 @@ WantedBy=
 EOF
     # Allow manual start only
     sudo systemctl daemon-reload
-    sudo systemctl disable $service_file
+    sudo systemctl disable "$service_file"
 
     # Create per-VM hooks for dependency
     per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin"
@@ -451,7 +465,7 @@ WantedBy=
 EOF
     # Allow manual start only
     sudo systemctl daemon-reload
-    sudo systemctl disable $service_file
+    sudo systemctl disable "$service_file"
 
     # Create per-VM hooks for dependency
     per_vm_hook="$hook_path/qemu.d/$LIBVIRT_DOMAIN_NAME/prepare/begin"
@@ -493,7 +507,7 @@ EOF
     fi
 
     if [[ -z $(which mcopy) ]]; then
-        sudo apt install -y mtools
+        sudo apt-get install -y mtools
     fi
 
     if [[ -d "$decompress" ]]; then
@@ -788,13 +802,13 @@ function parse_arg() {
     done
 }
 
-function cleanup () {
-    # do something
-    echo ""
-}
+# Uncomment function if needed
+#function cleanup () {
+#}
 
 #-------------    main processes    -------------
-trap 'cleanup' EXIT
+# Uncomment cleanup trap if needed
+#trap 'cleanup' EXIT
 trap 'error ${LINENO} "$BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
@@ -831,7 +845,7 @@ fi
 setup_android_images || exit 255
 # create new xml for new domains as necessary
 if [[ "$DUPXML" -eq "1" ]]; then
-    sudo apt install -y xmlstarlet
+    sudo apt-get install -y xmlstarlet
     create_android_vm_xml "$LIBVIRT_DOMAIN_NAME" "$PLATFORM_NAME" || exit 255
 fi
 # Platform specific android guest setup

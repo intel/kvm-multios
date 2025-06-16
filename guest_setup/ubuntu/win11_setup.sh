@@ -40,7 +40,7 @@ GEN_GFX_ZC_SCRIPT_ONLY=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
-FILE_SERVER_IP="192.168.122.1"
+FILE_SERVER_IP="192.168.200.1"
 FILE_SERVER_PORT=8005
 
 script=$(realpath "${BASH_SOURCE[0]}")
@@ -109,15 +109,15 @@ function kill_by_pid() {
 }
 
 function install_dep() {
-  which virt-install > /dev/null || sudo apt install -y virtinst
-  which arepack > /dev/null || sudo apt install -y p7zip-full zip atool
-  which mkisofs > /dev/null || sudo apt install -y mkisofs
-  which virt-viewer > /dev/null || sudo apt install -y virt-viewer
-  which unzip > /dev/null || sudo apt install -y unzip
-  which xmllint > /dev/null || sudo apt install -y libxml2-utils
-  which yamllint > /dev/null || sudo apt install -y yamllint
-  which cabextract > /dev/null || sudo apt install -y cabextract
-  which xmlstarlet > /dev/null || sudo apt install -y xmlstarlet
+  which virt-install > /dev/null || sudo apt-get install -y virtinst
+  which arepack > /dev/null || sudo apt-get install -y p7zip-full zip atool
+  which mkisofs > /dev/null || sudo apt-get install -y mkisofs
+  which virt-viewer > /dev/null || sudo apt-get install -y virt-viewer
+  which unzip > /dev/null || sudo apt-get install -y unzip
+  which xmllint > /dev/null || sudo apt-get install -y libxml2-utils
+  which yamllint > /dev/null || sudo apt-get install -y yamllint
+  which cabextract > /dev/null || sudo apt-get install -y cabextract
+  which xmlstarlet > /dev/null || sudo apt-get install -y xmlstarlet
   which yq > /dev/null || sudo snap install yq
 }
 
@@ -213,7 +213,6 @@ function convert_drv_pkg_7z_to_zip() {
       echo "Ensure one of Driver-Release-64-bit.7z or Driver-Release-64-bit.zip should be present and valid!"
       return 255
     fi
-    break
   done
 
   return 255
@@ -224,13 +223,13 @@ function setup_windows_updates() {
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
 
-  # Create the PowerShell script content
-  tee "$fileserverdir/msu_setup.ps1" &>/dev/null <<EOF
+  # Create the PowerShell msu download script content
+  tee "$fileserverdir/msu_download.ps1" &>/dev/null <<EOF
 # Define the file server URL and the local destination
 \$fileServerUrl = "$file_server_url"
 \$destDir = "$tempdir"
 
-Start-Transcript -Path "\$destDir\RunMSUInstallLogs.txt" -Force -Append
+Start-Transcript -Path "\$destDir\RunMSUDownloadLogs.txt" -Force -Append
 
 \$date = Get-Date -DisplayHint DateTime
 Write-Output \$date
@@ -271,22 +270,160 @@ foreach (\$updateFile in \$updateFiles) {
     }
     Write-Output "File downloaded to \$destDir\\\$updateFile successfully"
 }
-
-Write-Output "Install windows updates in sequence"
-# Get all .msu files in the directory and order them by name
-\$updateFiles = Get-ChildItem -Path \$destDir -Filter "*.msu" | Sort-Object Name
-
-foreach (\$updateFile in \$updateFiles) {
-    Write-Output "Installing update: \$destDir\\\$updateFile"
-    $p=Start-Process -FilePath "wusa.exe" -ArgumentList "\$destDir\\\$updateFile /quiet /norestart" -Wait
-    if (\$p.ExitCode -ne 0) {
-       Write-Error "windows update installation failed return \$(\$p.ExitCode)"
-       Exit \$LASTEXITCODE
-    }
-    Write-Output "windows update \$destDir\\\$updateFile installed successfully"
-}
 Exit \$LastExitCode
 EOF
+
+  TMP_FILES+=("$fileserverdir/msu_download.ps1")
+
+  # Create the PowerShell msu install script content
+  tee "$fileserverdir/msu_install.ps1" &>/dev/null <<EOF
+# Define the file server URL and the local destination
+\$fileServerUrl = "$file_server_url"
+\$destDir = "$tempdir"
+
+Start-Transcript -Path "\$destDir\RunMSUInstallLogs.txt" -Force -Append
+
+\$date = Get-Date -DisplayHint DateTime
+Write-Output \$date
+
+# Ensure the destination directory exists
+if (-Not (Test-Path -Path \$destDir)) {
+    New-Item -Path \$destDir -ItemType Directory
+}
+
+# Define the registry path and value name
+\$registryPath = "HKCU:\Software\Intel\MultiOS\guest_setup"
+\$valueName = "installedMsuCount"
+\$installedMsuCount = 0
+
+# Setup installed msu count
+if (Test-Path -Path \$registryPath) {
+    # Get the installed msu count
+    \$installedMsuCount = Get-ItemProperty -Path \$registryPath -Name \$valueName | Select-Object -ExpandProperty \$valueName
+    Write-Output "Read installed msu count: \$installedMsuCount"
+}
+else {
+    # Create registry key and use default count 0
+    New-Item -Path \$registryPath -Force | Out-Null
+    Write-Output "Fresh setup"
+    Write-Output "Installed msu count: \$installedMsuCount"
+}
+
+# Get all msu files in the directory and sort by name
+Write-Output "Scanning \$destDir for .msu files"
+\$msuFiles = Get-ChildItem -Path \$destDir -Filter "*.msu" | Sort-Object Name
+\$fileCount = (Get-ChildItem -Path \$destDir -Filter "*.msu" | measure).Count
+
+if (\$fileCount -eq 0) {
+    Write-Output "No .msu files found in \$destDir"
+    # No reboot required
+    Exit 0
+}
+else {
+    Write-Output "Number of .msu files found in \$destDir is \$fileCount "
+    Write-Output "Found the following .msu files:"
+    foreach (\$file in \$msuFiles) {
+        Write-Output \$file.Name
+    }
+}
+
+# Install a specific msu file
+if (\$installedMsuCount -lt \$fileCount) {
+
+    # Select and install msu file
+    \$msuFile = \$msuFiles[\$installedMsuCount]
+    Write-Output "Installing update: \$destDir\\\$msuFile"
+    \$p = Start-Process -FilePath "wusa.exe" -ArgumentList "\$destDir\\\$msuFile /quiet /norestart" -Wait -Verb RunAs -PassThru
+    # Check error code is not ERROR_SUCCESS_REBOOT_REQUIRED (3010) or ERROR_SUCCESS (0)
+    if ((\$p.ExitCode -ne 3010) -and (\$p.ExitCode -ne 0)) {
+       Write-Error "Windows update installation failed return \$(\$p.ExitCode)"
+       Exit \$LASTEXITCODE
+    }
+
+    \$installedMsuCount += 1
+    Write-Output "Windows update \$destDir\\\$msuFile installed successfully"
+    # Check for next installation
+    if (\$installedMsuCount -lt \$fileCount) {
+        # Update the installed count to registry
+        Write-Output "Saving installed msu count: \$installedMsuCount"
+        Set-ItemProperty -Path \$registryPath -Name \$valueName -Value \$installedMsuCount -Type DWORD -Force
+
+        # Reboot for next installation
+        Write-Output "Restarting to apply update"
+        Exit 2
+    } else {
+        # Cleanup the registry key
+        Remove-Item -Path \$registryPath -Recurse -Force
+        Write-Output "Registry key \$registryPath deleted successfully."
+
+        # Reboot and end installation
+        Write-Output "Installation ended, restarting"
+        Exit 1
+    }
+}
+EOF
+
+  TMP_FILES+=("$fileserverdir/msu_install.ps1")
+}
+
+function setup_wuau_scripts() {
+  local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
+
+  # Create wuau_disable.ps1 script
+  tee "$fileserverdir/wuau_disable.ps1" &>/dev/null <<EOF
+\$RegistryPath = 'HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU'
+# Create the key if it does not exist
+If (-NOT (Test-Path \$RegistryPath)) {
+    New-Item -Path \$RegistryPath -Force | Out-Null
+    if (\$? -ne \$True) {
+        Throw "Create \$RegistryPath failed"
+    }
+}
+# Create the item properties and values
+\$Name = 'NoAutoUpdate'
+\$Value = '1'
+If (-NOT (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue)) {
+    New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force
+}
+if (\$? -ne \$True) {
+    Throw "Write \$RegistryPath\\\\\$Name key failed"
+}
+\$Name = 'AUOptions'
+\$Value = '1'
+If (-NOT (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue)) {
+    New-ItemProperty -Path \$RegistryPath -Name \$Name -Value \$Value -PropertyType DWORD -Force
+}
+if (\$? -ne \$True) {
+    Throw "Write \$RegistryPath\\\\\$Name key failed"
+}
+EOF
+
+  TMP_FILES+=("$fileserverdir/wuau_disable.ps1")
+
+  # Create wuau_enable.ps1 script
+  tee "$fileserverdir/wuau_enable.ps1" &>/dev/null <<EOF
+# Specify the registry path
+\$RegistryPath = "HKLM:\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate\AU"
+
+# Remove the item properties
+\$Name = 'NoAutoUpdate'
+If (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path \$RegistryPath -Name \$Name -Force
+    if (\$? -ne \$True) {
+        Throw "Remove \$RegistryPath\\\$Name key failed"
+    }
+}
+
+\$Name = 'AUOptions'
+If (Get-ItemProperty -Path \$RegistryPath -Name \$Name -ErrorAction SilentlyContinue) {
+    Remove-ItemProperty -Path \$RegistryPath -Name \$Name -Force
+    if (\$? -ne \$True) {
+      Throw "Remove \$RegistryPath\\\$Name key failed"
+    }
+}
+EOF
+
+  TMP_FILES+=("$fileserverdir/wuau_enable.ps1")
 }
 
 function setup_additional_installs() {
@@ -745,7 +882,7 @@ function install_windows() {
       fi
     fi
     check_prerequisites || return 255
-    #setup_windows_updates
+    setup_windows_updates
 
     if [[ -d "$dest_tmp_path" ]]; then
       rm -rf "$dest_tmp_path"
@@ -838,6 +975,8 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
+    # Re-enable Windows Automatic Update
+    & "\$tempdir\\wuau_enable.ps1"
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
@@ -1053,6 +1192,8 @@ if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEn
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
+    # Re-enable Windows Automatic Update
+    & "\$tempdir\\wuau_enable.ps1"
     Stop-Computer -Force
 } else {
     if (Get-CimInstance -ClassName Win32_VideoController | Where-Object { \$_.PNPDeviceID -like 'PCI\VEN_8086*' }) {
@@ -1302,6 +1443,15 @@ EOF
   mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
   TMP_FILES+=("/tmp/${WIN_UNATTEND_ISO}")
 
+  # Create Windows automatic updates enable/disable scripts
+  setup_wuau_scripts
+
+  # Check isolated guest network
+  if ! virsh net-list | grep -w "isolated-guest-net" | grep -q "active"; then
+    echo "Error: isolated-guest-net is missing or not active"
+    return 255
+  fi
+
   echo "$(date): Start windows11 guest creation and auto-installation"
   run_file_server "$fileserverdir" "$FILE_SERVER_IP" "$FILE_SERVER_PORT" FILE_SERVER_DAEMON_PID || return 255
   if [[ "$VIEWER" -eq "1" ]]; then
@@ -1318,12 +1468,12 @@ EOF
   --vcpus=4 \
   --cpu host \
   --machine q35 \
-  --network network=default,model=virtio \
+  --network network=isolated-guest-net,model=e1000e \
   --graphics vnc,listen=0.0.0.0,port=5905 \
   --cdrom "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_INSTALLER_ISO}" \
   --disk "$scriptpath/$WIN_UNATTEND_FOLDER/${WIN_VIRTIO_ISO}",device=cdrom \
   --disk "/tmp/${WIN_UNATTEND_ISO}",device=cdrom \
-  --disk path="${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME}",format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none \
+  --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${WIN_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
   --os-variant win11 \
   --boot loader="$OVMF_DEFAULT_PATH/OVMF_CODE_4M.ms.fd",loader.readonly=yes,loader.type=pflash,loader.secure=no,nvram.template=$ovmf_option \
   --tpm backend.type=emulator,backend.version=2.0,model=tpm-crb \
@@ -1355,6 +1505,10 @@ EOF
     fi
     loop=$((loop+1))
   done
+
+  # Switch to default network interface
+  virsh detach-interface "${WIN_DOMAIN_NAME}" network --current
+  virsh attach-interface "${WIN_DOMAIN_NAME}" network default --model e1000e --persistent
 
   if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
     # Start Windows VM with SRIOV to allow SRIOV Zero-Copy + graphics driver install

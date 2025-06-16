@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -193,22 +193,27 @@ function install_redhat() {
     fi
 
     echo "create qcow2 disk"
-    sudo qemu-img create -f qcow2 ${LIBVIRT_DEFAULT_IMAGES_PATH}/${REDHAT_IMAGE_NAME} $GUEST_DISK_SIZE
+    sudo qemu-img create -f qcow2 ${LIBVIRT_DEFAULT_IMAGES_PATH}/${REDHAT_IMAGE_NAME} "$GUEST_DISK_SIZE"
+
     sudo virt-install \
-    --name "$REDHAT_DOMAIN_NAME" \
-    --memory 4096 \
-    --vcpus 4 \
-    --os-variant "$REDHAT_VER" \
-    --cdrom "$guest_scriptpath/$REDHAT_GUEST_ISO" \
+    --name="${REDHAT_DOMAIN_NAME}" \
+    --ram=4096 \
+    --vcpus=4 \
+    --cpu host \
     --network network=default,model=virtio \
     --graphics vnc,listen=0.0.0.0,port=5901 \
+    --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${REDHAT_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
+    --cdrom "$guest_scriptpath/$REDHAT_GUEST_ISO" \
+    --os-variant "$REDHAT_VER" \
     --noautoconsole \
-    --network network=default,model=virtio \
-    --serial pty \
     --boot "loader=$OVMF_DEFAULT_PATH/OVMF_CODE.fd,loader.readonly=yes,loader.type=pflash,nvram.template=$OVMF_DEFAULT_PATH/OVMF_VARS.fd" \
-    --disk ${LIBVIRT_DEFAULT_IMAGES_PATH}/${REDHAT_IMAGE_NAME},device=disk,bus=virtio,format=qcow2
+    --console "pty,target.type=virtio,log.file=${LIBVIRT_DEFAULT_LOG_PATH}/${REDHAT_DOMAIN_NAME}_install.log,log.append=on" \
+    --serial pty \
+    --events on_poweroff=destroy \
+    --wait=-1
 
-	return 0
+    echo "virt-install done"
+    return 0
 }
 
 function show_help() {

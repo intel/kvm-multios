@@ -180,7 +180,7 @@ function install_kernel_from_ppa() {
 
     # Install Intel kernel overlay
     echo "kernel PPA version: $1"
-    sudo apt install -y --allow-downgrades linux-headers-"$1" linux-image-"$1" || return 255
+    sudo apt-get install -y --allow-downgrades linux-headers-"$1" linux-image-"$1" || return 255
 
     # Update boot menu to boot to the new kernel
     local kernel_name
@@ -242,8 +242,8 @@ function setup_overlay_ppa() {
         fi
     done
 
-    sudo apt update -y
-    sudo apt upgrade -y --allow-downgrades
+    sudo apt-get update -y
+    sudo apt-get upgrade -y --allow-downgrades
 
     $LOGD "${FUNCNAME[0]} end"
 }
@@ -268,7 +268,7 @@ function install_userspace_pkgs() {
     for package in "${overlay_packages[@]}"; do
         if [[ -n ${package+x} && -n $package ]]; then
             echo "Installing overlay package: $package"
-            sudo apt install -y --allow-downgrades "$package"
+            sudo apt-get install -y --allow-downgrades "$package"
         fi
     done
 
@@ -276,7 +276,7 @@ function install_userspace_pkgs() {
     for package in "${PACKAGES_ADD_INSTALL[@]}"; do
         if [[ -n ${package+x} && -n $package ]]; then
             echo "Installing package: $package"
-            sudo apt install -y --allow-downgrades "$package"
+            sudo apt-get install -y --allow-downgrades "$package"
         fi
     done
 

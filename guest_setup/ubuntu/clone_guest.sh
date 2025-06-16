@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024 Intel Corporation.
+# Copyright (c) 2024-2025 Intel Corporation.
 # All rights reserved.
 #
 
@@ -60,9 +60,9 @@ function check_host_distribution() {
 }
 
 function install_dep () {
-    which xmlstarlet > /dev/null || sudo apt install -y xmlstarlet
-    which xmllint > /dev/null || sudo apt install -y libxml2-utils
-    which virt-clone > /dev/null || sudo apt install -y virtinst
+    which xmlstarlet > /dev/null || sudo apt-get install -y xmlstarlet
+    which xmllint > /dev/null || sudo apt-get install -y libxml2-utils
+    which virt-clone > /dev/null || sudo apt-get install -y virtinst
 }
 
 function next_available_igpu_vf() {
@@ -85,18 +85,18 @@ function next_available_igpu_vf() {
         fi
     done
     if [[ $IGPU_VF_FORCE -gt 0 ]]; then
-        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq $IGPU_VF_FORCE $IGPU_VF_FORCE))
+        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq "$IGPU_VF_FORCE" "$IGPU_VF_FORCE"))
         if [[ -z ${new_vf+x} || -z "$new_vf" ]]; then
           echo "iGPU VF $IGPU_VF_FORCE already used in other domain, ignoring as force option is used"
         fi
         new_vf=$IGPU_VF_FORCE
     elif  [[ $IGPU_VF -gt 0 ]]; then
-        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq $IGPU_VF $IGPU_VF))
+        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq "$IGPU_VF" "$IGPU_VF"))
         if [[ -z ${new_vf+x} || -z "$new_vf" ]]; then
           echo "Error: iGPU VF $IGPU_VF already used in other domain"
         fi
     else
-        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq $IGPU_VF_AUTO "$max_vfs"))
+        mapfile -t new_vf < <(comm -13 <(printf '%s\n' "${used_vfs[@]}" | LC_ALL=C sort) <(seq "$IGPU_VF_AUTO" "$max_vfs"))
         if [[ -z ${new_vf+x} || -z "$new_vf" ]]; then
           echo "Error: No available iGPU VF"
         fi
@@ -105,7 +105,7 @@ function next_available_igpu_vf() {
       # No vf is available
       return 0
     fi
-    return $new_vf
+    return "$new_vf"
 }
 
 function is_valid_igpu_vf() {
@@ -407,13 +407,13 @@ function parse_arg() {
     done
 }
 
-function cleanup () {
-    # do something
-    echo ""
-}
+# Uncomment function if needed
+#function cleanup () {
+#}
 
 #-------------    main processes    -------------
-trap 'cleanup' EXIT
+# Uncomment cleanup trap if needed
+#trap 'cleanup' EXIT
 trap 'error ${LINENO} "$BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255

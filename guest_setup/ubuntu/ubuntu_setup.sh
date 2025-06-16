@@ -195,13 +195,13 @@ function kill_by_pid() {
 }
 
 function install_dep() {
-  which cloud-localds > /dev/null || sudo apt install -y cloud-image-utils
-  which virt-install > /dev/null || sudo apt install -y virtinst
-  which virt-viewer > /dev/null || sudo apt install -y virt-viewer
-  which yamllint > /dev/null || sudo apt install -y yamllint
-  which nc > /dev/null || sudo apt install -y netcat-openbsd
-  which envsubst > /dev/null || sudo apt install -y gettext-base
-  which sha256sum > /dev/null || sudo apt install -y coreutils
+  which cloud-localds > /dev/null || sudo apt-get install -y cloud-image-utils
+  which virt-install > /dev/null || sudo apt-get install -y virtinst
+  which virt-viewer > /dev/null || sudo apt-get install -y virt-viewer
+  which yamllint > /dev/null || sudo apt-get install -y yamllint
+  which nc > /dev/null || sudo apt-get install -y netcat-openbsd
+  which envsubst > /dev/null || sudo apt-get install -y gettext-base
+  which sha256sum > /dev/null || sudo apt-get install -y coreutils
 }
 
 function clean_ubuntu_images() {

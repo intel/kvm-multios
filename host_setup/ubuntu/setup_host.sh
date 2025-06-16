@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -59,6 +59,62 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
 }
 export -f check_file_valid_nonzero
 
+function check_virtualization() {
+    local error=0
+
+    # Check VT-x
+    local vtx
+    vtx=$(lscpu | grep Virtualization | awk '{print $2}' || :;)
+    if [[ "$vtx" != "VT-x" ]]; then
+        echo "Error: VT-x is not enabled."
+        error=1
+    fi
+
+    # Check VMX
+    local kvm
+    which kvm-ok > /dev/null || sudo apt-get install -y cpu-checker
+    kvm=$(kvm-ok 2>&1 | grep "KVM acceleration can be used" || :;)
+    if [[ -z "$kvm" ]]; then
+        echo "Error: VMX is not enabled."
+        error=1
+    fi
+
+    # Check VT-d
+    local vtd
+    vtd=$(journalctl -k -b | grep -e DMAR -e IOMMU | \
+          grep -e "Virtualization Technology for Directed I/O" || :;)
+    if [[ -z "$vtd" ]]; then
+        echo "Error: VT-d is not enabled"
+        error=1
+    fi
+
+    if [[ "$error" -eq 1 ]]; then
+        echo "Please check the BIOS settings"
+        exit 255
+    fi
+}
+
+function check_sriov() {
+    # Check SR-IOV only if there is GUI
+    if [[ "$(systemctl get-default)" == "graphical.target" ]]; then
+        local gfx_devnum
+        gfx_devnum=$(lspci | grep -i vga | awk '{print $1}' | head -n 1 || :;)
+        if [[ -z "$gfx_devnum" ]]; then
+            echo "Error: No VGA device found"
+            exit 255
+        fi
+
+        local sriov
+        sriov=$(sudo lspci -s "$gfx_devnum" -vvv | grep "SR-IOV" || :;)
+        if [[ -z "$sriov" ]]; then
+            echo "Error: GFX SR-IOV is either not available or not enabled"
+            echo "Please check the BIOS settings"
+            exit 255
+        fi
+    fi
+}
+
+# shellcheck disable=2317
 function check_os() {
     # Check OS
     local os_dist
@@ -170,7 +226,7 @@ function host_update_cmdline() {
     version=$(lsb_release -rs)
 
     # Workaround for MTL-P stepping below C0
-    which dmidecode > /dev/null || sudo apt install -y dmidecode
+    which dmidecode > /dev/null || sudo apt-get install -y dmidecode
     stepping=$(sudo dmidecode --type processor | grep ID | awk '{ print "0x"$2 }');
     family=$(sudo dmidecode --type processor | grep ID | awk '{ print "0x"$3 }');
     model=$(sudo dmidecode --type processor | grep ID | awk '{ print "0x"$4 }');
@@ -386,7 +442,7 @@ function host_set_audio() {
         host_set_pulseaudio || return 255
     elif which pipewire; then
         if ! apt list --installed | grep -Fq 'pipewire-pulse'; then
-            sudo apt install -y pipewire-pulse
+            sudo apt-get install -y pipewire-pulse
         fi
         host_set_pipewire_pulse || return 255
     fi
@@ -445,17 +501,16 @@ function host_get_supported_platforms() {
 function log_func() {
     if declare -F "$1" >/dev/null; then
         start=$(date +%s)
-        echo -e "$(date)   start:   \t$1" >> $LOG_FILE
+        echo -e "$(date)   start:   \t$1" >> "$LOG_FILE"
         "$@"
         ec=$?
         end=$(date +%s)
-        echo -e "$(date)   end ($((end-start))s):\t$1" >> $LOG_FILE
+        echo -e "$(date)   end ($((end-start))s):\t$1" >> "$LOG_FILE"
         return $ec
     else
         echo "Error: $1 is not a function"
         exit 255
     fi
-    return 255
 }
 export -f log_func
 
@@ -544,6 +599,8 @@ trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' 
 parse_arg "$@" || exit 255
 
 log_clean
+log_func check_virtualization || exit 255
+log_func check_sriov || exit 255
 log_func check_os || exit 255
 
 #if [ -z $PLATFORM_NAME ]; then

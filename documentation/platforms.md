@@ -117,13 +117,12 @@ Windows Zero-copy driver release: 4.0.0.1797</br>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="5" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
       <td align="left">Ubuntu 24.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
-    <tr><td align="left">Celadon IoT Android12 release 2024</td><td>No</td><td>Yes</td></tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2024/10/windows10.0-kb5044273-x64_71347fa01079c2b6278a0f48282b8ff3ded2f1e0.msu">Windows10.0 19044.5011 (kb5044273)</a></br>
@@ -183,13 +182,12 @@ Windows Zero-copy driver release: 4.0.0.1742</br>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="5" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
       <td align="left">Ubuntu 24.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
-    <tr><td align="left">Celadon IoT Android12 release 2024</td><td>No</td><td>Yes</td></tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required: Windows10.0 19044.5371 <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2025/01/windows10.0-kb5049981-x64_bda073f7d8e14e65c2632b47278924b8a0f6b374.msu">(kb5049981)</a></br>
@@ -209,3 +207,9 @@ Windows Zero-copy driver release: 4.0.0.1797</br>
 Notes:
 * GVT-d can only be applied for one running VM while other runnings VMs will be using VNC/SPICE or no display.
   GVT-d is not fully validated in this release.
+* The KVM MultiOS Portfolio release provides only limited support for Android CiV guests.
+  It is intended solely for demonstration purposes and is not validated.
+  Users are encouraged to collaborate with ISV/OSV partners to evaluate and develop the solution using a reference Base Release from the Celadon Project.
+  For more information, please visit:
+  * [Celadon Ecosystem](https://www.intel.com/content/www/us/en/developer/topic-technology/open/celadon/ecosystem.html)
+  * [Celadon Base Releases](https://projectceladon.github.io/celadon-documentation/release-notes/base-releases.html)

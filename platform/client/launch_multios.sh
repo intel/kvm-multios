@@ -337,6 +337,39 @@ function parse_arg() {
   done
 }
 
+function check_virtualization() {
+    local error=0
+
+    # Check VT-x
+    local vtx
+    vtx=$(lscpu | grep Virtualization | awk '{print $2}' || :;)
+    if [[ "$vtx" != "VT-x" ]]; then
+        echo "Error: VT-x is not enabled."
+        error=1
+    fi
+
+    # Check VMX
+    local kvm
+    kvm=$(kvm-ok 2>&1 | grep "KVM acceleration can be used" || :;)
+    if [[ -z "$kvm" ]]; then
+        echo "Error: VMX is not enabled."
+        error=1
+    fi
+
+    # Check VT-d
+    local vtd
+    vtd=$(journalctl -k -b | grep -e DMAR -e IOMMU | \
+          grep -e "Virtualization Technology for Directed I/O" || :;)
+    if [[ -z "$vtd" ]]; then
+        echo "Error: VT-d is not enabled"
+        error=1
+    fi
+
+    if [[ "$error" -eq 1 ]]; then
+        echo "Please check the BIOS settings"
+        exit 255
+    fi
+}
 
 # Function to check if domain is already exist or running
 function check_domain() {
@@ -435,11 +468,11 @@ function launch_domains() {
 
     # Passthrough devices
     echo "Passthrough device to domain $domain if any"
-    passthrough_devices $domain || return 255
+    passthrough_devices "$domain" || return 255
 
     # Start domain
     echo "Starting domain $domain..."
-    virsh start $domain || return 255
+    virsh start "$domain" || return 255
     sleep 2
   done
 }
@@ -581,6 +614,7 @@ function passthrough_devices() {
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
+check_virtualization || exit 255
 
 if [[ "$SRIOV_ENABLE" == "true" ]]; then
   display_num=$(who | { grep -o ' :.' || :; } | xargs)

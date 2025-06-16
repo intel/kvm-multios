@@ -84,7 +84,7 @@ function check_libvirt_version() {
 }
 
 function install_dep() {
-    which xmlstarlet > /dev/null || sudo apt install -y xmlstarlet
+    which xmlstarlet > /dev/null || sudo apt-get install -y xmlstarlet
 }
 
 function setup_xml() {

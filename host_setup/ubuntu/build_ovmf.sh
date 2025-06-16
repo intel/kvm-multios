@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -42,12 +42,12 @@ check_dir_valid "$LIBVIRT_DEFAULT_IMAGES_PATH"
 
 [ -d "$WORK_DIR/edk2" ] && rm -rf "$WORK_DIR/edk2"
 
-sudo apt install -y uuid-dev
-which git > /dev/null || sudo apt install -y git
+sudo apt-get install -y uuid-dev
+which git > /dev/null || sudo apt-get install -y git
 which make > /dev/null || sudo apt-get install -y build-essential
-which nasm > /dev/null || sudo apt install -y nasm
-which acpidump > /dev/null || sudo apt install -y acpica-tools
-which iasl > /dev/null || sudo apt install -y acpica-tools
+which nasm > /dev/null || sudo apt-get install -y nasm
+which acpidump > /dev/null || sudo apt-get install -y acpica-tools
+which iasl > /dev/null || sudo apt-get install -y acpica-tools
 
 git clone https://github.com/tianocore/edk2.git
 
