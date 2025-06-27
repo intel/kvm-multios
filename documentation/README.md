@@ -75,6 +75,7 @@ Note:
 | RPL-PS | Raptor Lake PS |
 | RPL-P | Raptor Lake P |
 | ADL-N | Alder Lake N |
+| PTL-H | Panther Lake H |
 
 Note:
 - Please contact your Intel representative for details on host IoT platform configuration and setup.
@@ -113,6 +114,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | Raptor Lake PS | client
 | Raptor Lake P | client
 | Alder Lake N | client
+| Panther Lake H | client
 
 ## Guest OS Domain Naming Convention, MAC/IP Address and Ports
 ***Notes***

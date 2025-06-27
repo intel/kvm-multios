@@ -90,7 +90,6 @@ if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; 
 fi
 
 # Update /etc/sysctl.conf
-
 # Ensure br_netfilter is loaded so the sysctl exists
 sudo modprobe br_netfilter
 
@@ -202,6 +201,10 @@ if [[ "\${2}" == "prepare" ]]; then
       fi
       modprobe i2c-algo-bit
       modprobe video
+      # Only modify auto_provisioning if the file exists
+      if [[ -f '/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov/pf/auto_provisioning' ]]; then
+        echo '1' | tee -a '/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov/pf/auto_provisioning'
+      fi
       echo '0' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
       echo "\$totalvfs" | tee -a /sys/class/drm/card0/device/sriov_numvfs
       echo '1' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
