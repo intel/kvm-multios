@@ -46,17 +46,68 @@ declare -A LINUX_NPU_DRV_REL=(
 
 INSTALL_NEO=0
 declare -A COMPUTE_RUNTIME_REL=(
-    ['version']='24.45.31740.9'
-    ['level-zero-version']='1.6.31740.9'
-    ['igc-version']='2.1.12'
-    ['gmmlib-version']='22.5.2'
     ['ubuntu_version_supported']='22.04, 24.04'
-    ['intel-igc-core-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
-    ['intel-igc-opencl-2']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
-    ['intel-level-zero-gpu']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
-    ['intel-opencl-icd']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
-    ['intel-gmmlib']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
-    ['intel-gmmlib-dev']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
+    ['22.04-pkgs']="_COMPUTE_RUNTIME_PKGS_2204"
+    ['22.04-meta']="_COMPUTE_RUNTIME_META_2204"
+    ['24.04-pkgs']="_COMPUTE_RUNTIME_PKGS_2404"
+    ['24.04-meta']="_COMPUTE_RUNTIME_META_2404"
+)
+
+_COMPUTE_RUNTIME_PKGS_2204=(
+    "intel-igc-core-2"
+    "intel-igc-opencl-2"
+    "intel-level-zero-gpu"
+    "intel-opencl-icd"
+    "intel-gmmlib"
+    "intel-gmmlib-dev"
+)
+
+declare -A _COMPUTE_RUNTIME_META_2204=(
+    ['intel-igc-core-2.version']='2.1.12'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.1.12'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
+    ['intel-level-zero-gpu.version']='1.6.31740.9'
+    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
+    ['intel-opencl-icd.version']='24.45.31740.9'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
+    ['intel-gmmlib.version']='22.5.2'
+    ['intel-gmmlib.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
+    ['intel-gmmlib-dev.version']='22.5.2'
+    ['intel-gmmlib-dev.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
+)
+
+_COMPUTE_RUNTIME_PKGS_2404=(
+    "intel-igc-core-2"
+    "intel-igc-opencl-2"
+    "intel-ocloc-dbgsym"
+    "intel-ocloc"
+    "intel-opencl-icd-dbgsym"
+    "intel-opencl-icd"
+    "intel-gmmlib"
+    "libze-intel-gpu1-dbgsym"
+    "libze-intel-gpu1"
+)
+
+declare -A _COMPUTE_RUNTIME_META_2404=(
+    ['intel-igc-core-2.version']='2.11.7'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.11.7'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
+    ['intel-ocloc-dbgsym.version']='25.18.33578.6'
+    ['intel-ocloc-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc-dbgsym_25.18.33578.6-0_amd64.ddeb'
+    ['intel-ocloc.version']='25.18.33578.6'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
+    ['intel-opencl-icd-dbgsym.version']='25.18.33578.6'
+    ['intel-opencl-icd-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd-dbgsym_25.18.33578.6-0_amd64.ddeb'
+    ['intel-opencl-icd.version']='25.18.33578.6'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
+    ['intel-gmmlib.version']='22.7.0'
+    ['intel-gmmlib.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
+    ['libze-intel-gpu1-dbgsym.version']='25.18.33578.6'
+    ['libze-intel-gpu1-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1-dbgsym_25.18.33578.6-0_amd64.ddeb'
+    ['libze-intel-gpu1.version']='25.18.33578.6'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -352,41 +403,48 @@ function setup_openvino() {
 }
 
 # Function to compare package version
-# $1: current installed packare version, maybe with -, i.e. 22.3.19-1ppa1~noble1
+# $1: current installed package version, maybe with -, i.e. 22.3.19-1ppa1~noble1
 # $2: plan to install package version
-# $3: number of elements to compare, versoin could split into 2, 3 or 4 numbers, deduct 1 as index starts from 0
 function is_new_version_avail() {
-    # Split version strings into array
+    # Split version strings into array (support up to 4 levels, e.g. 1.2.3.4)
     IFS=" " read -r -a v1_arr <<< "$(echo "$1" | cut -d '-' -f1 | tr '.' ' ')"
     IFS=" " read -r -a v2_arr <<< "$(echo "$2" | cut -d '-' -f1 | tr '.' ' ')"
 
-    # get shorter array lenth so element to compare is defined
-    local v1_len
-    local v2_len
-    local len
-    v1_len=${#v1_arr[@]}
-    v2_len=${#v2_arr[@]}
-    if [[ $v1_len -lt $v2_len ]]; then
-        len=$v1_len
-    else
-        len=$v2_len
-    fi
+    # Pad arrays to 4 elements with zeros if needed
+    for ((i=${#v1_arr[@]}; i<4; i++)); do v1_arr[i]=0; done
+    for ((i=${#v2_arr[@]}; i<4; i++)); do v2_arr[i]=0; done
 
-    for ((i=0;i<len;i++)); do
-        if [[ ${v1_arr[$i]} -lt ${v2_arr[$i]} ]]; then
-            return 0
-        elif [[ ${v1_arr[$i]} -gt ${v2_arr[$i]} ]]; then
-            return 1
-       fi
+    for ((i=0;i<4;i++)); do
+        if ((10#${v1_arr[$i]} < 10#${v2_arr[$i]})); then
+            return 0  # new version available
+        elif ((10#${v1_arr[$i]} > 10#${v2_arr[$i]})); then
+            return 1  # current is newer
+        fi
     done
-    return 1
+
+    return 1  # not newer
 }
 
 function setup_neo() {
+    local osver
+    osver=$(lsb_release -rs)
     local dest_tmp_path
-    dest_tmp_path=$(realpath "/tmp/linux_compute_runtime_install-${COMPUTE_RUNTIME_REL['version']}")
+    dest_tmp_path=$(realpath "/tmp/linux_compute_runtime_install-$osver")
 
-    log_func check_os "${COMPUTE_RUNTIME_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino GPU support" | tee -a "$LOG_FILE"; return 0)
+    log_func check_os "${COMPUTE_RUNTIME_REL['ubuntu_version_supported']}" \
+        || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino GPU support" \
+        | tee -a "$LOG_FILE"; return 0)
+
+    # Select correct package and meta arrays for the OS version using COMPUTE_RUNTIME_REL
+    local pkgs_var meta_var
+    pkgs_var="${COMPUTE_RUNTIME_REL["$osver-pkgs"]}"
+    meta_var="${COMPUTE_RUNTIME_REL["$osver-meta"]}"
+    if [[ -z "$pkgs_var" || -z "$meta_var" ]]; then
+        echo "Unsupported Ubuntu version: $osver" | tee -a "$LOG_FILE"
+        return 255
+    fi
+    declare -n PKGS="$pkgs_var"
+    declare -n META="$meta_var"
 
     if [[ -d "$dest_tmp_path" ]]; then
         rm -rf "$dest_tmp_path"
@@ -395,139 +453,132 @@ function setup_neo() {
     TMP_FILES+=("$dest_tmp_path")
 
     # remove opencl legacy version
-    if apt list --installed | grep "intel-level-zero-gpu-legacy1"; then
+    if dpkg -l | grep -q "^ii\s\+intel-level-zero-gpu-legacy1\s"; then
         sudo apt-get remove --purge -y intel-level-zero-gpu-legacy1
         echo "INFO: Intel intel-level-zero-gpu-legacy1 is removed" | tee -a "$LOG_FILE"
     fi
-    if apt list --installed | grep "intel-opencl-icd-legacy1"; then
+    if dpkg -l | grep -q "^ii\s\+intel-opencl-icd-legacy1\s"; then
         sudo apt-get remove --purge -y intel-opencl-icd-legacy1
         echo "INFO: Intel intel-opencl-icd-legacy1 is removed" | tee -a "$LOG_FILE"
     fi
 
-    local installed_igc_core_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-igc-core-2"; then
-        installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core-2" | awk '{print $2}')
-        if [[ -z "$installed_igc_core_ver" ]] || ( [[ -n "$installed_igc_core_ver" ]] && ( is_new_version_avail "$installed_igc_core_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
-            echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core-2']}" || return 255
-        else
-            echo "INFO: Intel intel-graphics-compiler-core ver: $installed_igc_core_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-graphics-compiler-core installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-core-2']}" || return 255
-    fi
-    # refresh final installed version
-    installed_igc_core_ver=$(apt list --installed | grep "intel-igc-core-2" | awk '{print $2}')
+    # If installing 24.04 packages, remove any installed old neo packages
+    echo "INFO: Checking for old neo packages to remove..." | tee -a "$LOG_FILE"
+    if [[ "$osver" == "24.04" ]]; then
+        declare -n OLD_PKGS="_COMPUTE_RUNTIME_PKGS_2204"
+        declare -n NEW_META="_COMPUTE_RUNTIME_META_2404"
+        for pkg in "${OLD_PKGS[@]}"; do
+            if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+                continue
+            fi
+            # Get installed version
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "")
+            # Get target version for Ubuntu 24.04 (if available)
+            version_key="${pkg}.version"
+            target_ver="${NEW_META[$version_key]}"
 
-    local installed_igc_opencl_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-igc-opencl-2"; then
-        installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl-2" | awk '{print $2}')
-        if [[ -z "$installed_igc_opencl_ver" ]] || ( [[ -n "$installed_igc_opencl_ver" ]] && ( is_new_version_avail "$installed_igc_opencl_ver" "${COMPUTE_RUNTIME_REL['igc-version']}" )) ; then
-            echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver. Installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl-2']}" || return 255
-        else
-            echo "INFO: Intel intel-graphics-compiler-opencl ver: $installed_igc_opencl_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-graphics-compiler-opencl installing: ${COMPUTE_RUNTIME_REL['igc-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-igc-opencl-2']}" || return 255
-    fi
-    # refresh final installed version
-    installed_igc_opencl_ver=$(apt list --installed | grep "intel-igc-opencl-2" | awk '{print $2}')
+            if [[ -z "$installed_ver" ]]; then
+                continue
+            fi
 
-    if [[ "$installed_igc_core_ver" != "$installed_igc_opencl_ver" ]]; then
-        echo "WARNING: Intel intel-igc-core-2 and intel-igc-opencl-2 version does not macth" | tee -a "$LOG_FILE"
-    fi
+            if [[ -z "$target_ver" ]]; then
+                echo "INFO: Removing old neo package: $pkg (installed: $installed_ver, target: $target_ver)" \
+                    | tee -a "$LOG_FILE"
+                sudo apt-get remove -y "$pkg"
+                continue
+            fi
 
-    local installed_level_zero_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-level-zero-gpu/"; then
-        installed_level_zero_ver=$(apt list --installed | grep "intel-level-zero-gpu/" | awk '{print $2}')
-        if [[ -z "$installed_level_zero_ver" ]] || ( [[ -n "$installed_level_zero_ver" ]] && ( is_new_version_avail "$installed_level_zero_ver" "${COMPUTE_RUNTIME_REL['level-zero-version']}" )) ; then
-            echo "INFO: Intel intel-level-zero-gpu ver: $installed_level_zero_ver. Installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu']}" || return 255
-        else
-            echo "INFO: Intel intel-level-zero-gpu ver: $installed_level_zero_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-level-zero-gpu installing: ${COMPUTE_RUNTIME_REL['level-zero-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-level-zero-gpu']}" || return 255
-    fi
-    # refresh final installed version
-    installed_level_zero_ver=$(apt list --installed | grep "intel-level-zero-gpu/" | awk '{print $2}')
-
-
-    local installed_opencl_icd_ver
-    # check if installed and compare version
-    if apt list --installed | grep "intel-opencl-icd/"; then
-        installed_opencl_icd_ver=$(apt list --installed | grep "intel-opencl-icd/" | awk '{print $2}')
-        if [[ -z "$installed_opencl_icd_ver" ]] || ( [[ -n "$installed_opencl_icd_ver" ]] && ( is_new_version_avail "$installed_opencl_icd_ver" "${COMPUTE_RUNTIME_REL['version']}" )) ; then
-            echo "INFO: Intel intel-opencl-icd ver: $installed_opencl_icd_ver. Installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd']}" || return 255
-        else
-            echo "INFO: Intel intel-opencl-icd ver: $installed_opencl_icd_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-opencl-icd installing: ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-opencl-icd']}" || return 255
-    fi
-    # refresh final installed version
-    installed_opencl_icd_ver=$(apt list --installed | grep "intel-opencl-icd/" | awk '{print $2}')
-
-    local installed_gmmlib_ver
-    # check if installed and compare version
-    if apt list --installed | grep "libigdgmm12"; then
-        installed_gmmlib_ver=$(apt list --installed | grep "libigdgmm12" | awk '{print $2}')
-        if [[ -z "$installed_gmmlib_ver" ]] || ( [[ -n "$installed_gmmlib_ver" ]] && ( is_new_version_avail "$installed_gmmlib_ver" "${COMPUTE_RUNTIME_REL['gmmlib-version']}" )); then
-            echo "INFO: Intel intel-gmmlib ver: $installed_gmmlib_ver. Installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib']}" || return 255
-        else
-            echo "INFO: Intel intel-gmmlib ver: $installed_gmmlib_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-gmmlib installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib']}" || return 255
-    fi
-    # refresh final installed version
-    installed_gmmlib_ver=$(apt list --installed | grep "libigdgmm12" | awk '{print $2}')
-
-    local installed_gmmlib_dev_ver
-    # check if installed and compare version
-    if apt list --installed | grep "libigdgmm-dev"; then
-        installed_gmmlib_dev_ver=$(apt list --installed | grep "libigdgmm-dev" | awk '{print $2}')
-        if [[ -z "$installed_gmmlib_dev_ver" ]] || ( [[ -n "$installed_gmmlib_dev_ver" ]] && ( is_new_version_avail "$installed_gmmlib_dev_ver" "${COMPUTE_RUNTIME_REL['gmmlib-version']}" )) ; then
-            echo "INFO: Intel intel-gmmlib-dev ver: $installed_gmmlib_dev_ver. Installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL["intel-gmmlib-dev"]}" || return 255
-        else
-            echo "INFO: Intel intel-gmmlib-dev ver: $installed_gmmlib_dev_ver is already up to-date" | tee -a "$LOG_FILE"
-        fi
-    else
-        # not yet install, then install from public release
-        echo "INFO: Intel intel-gmmlib-dev installing: ${COMPUTE_RUNTIME_REL['gmmlib-version']}" | tee -a "$LOG_FILE"
-        download_url_checksum "$dest_tmp_path" "${COMPUTE_RUNTIME_REL['intel-gmmlib-dev']}" || return 255
-    fi
-    # refresh final installed version
-    installed_gmmlib_dev_ver=$(apt list --installed | grep "libigdgmm-dev" | awk '{print $2}')
-
-    if [[ "$installed_gmmlib_ver" != "$installed_gmmlib_dev_ver" ]]; then
-        echo "WARNING: Intel intel-gmmlib and intel-gmmlib-dev version does not macth" | tee -a "$LOG_FILE"
-    fi
-
-    # install downloaded files
-    if [[ -n $(ls -A "$dest_tmp_path"/*.deb 2>/dev/null) ]]; then
-        for fname in "$dest_tmp_path"/*.deb; do
-            check_file_valid_nonzero "$fname"
+            if is_new_version_avail "$installed_ver" "$target_ver"; then
+                echo "INFO: Removing old neo package: $pkg (installed: $installed_ver, target: $target_ver)" \
+                    | tee -a "$LOG_FILE"
+                sudo apt-get remove -y "$pkg"
+            else
+                echo "INFO: Keeping $pkg (installed version is up-to-date or newer: $installed_ver)" \
+                    | tee -a "$LOG_FILE"
+            fi
         done
-        echo "INFO: Installing Intel compute-runtime ${COMPUTE_RUNTIME_REL['version']}" | tee -a "$LOG_FILE"
+    fi
+
+    # Install latest available packages from apt before custom install
+    echo "INFO: Installing latest available neo packages from apt..." | tee -a "$LOG_FILE"
+    sudo apt-get update
+    for pkg in "${PKGS[@]}"; do
+        if ! apt-cache show "$pkg" &>/dev/null; then
+            echo "INFO: Package $pkg not available in apt, skipping." | tee -a "$LOG_FILE"
+            continue
+        fi
+
+        current_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "")
+        candidate_ver=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2}')
+        version_key="${pkg}.version"
+        required_ver="${META[$version_key]}"
+
+        if [[ -z "$candidate_ver" || -z "$required_ver" ]]; then
+            echo "INFO: Skipping apt install for $pkg (missing candidate or required version)" | tee -a "$LOG_FILE"
+            continue
+        fi
+
+        if is_new_version_avail "$candidate_ver" "$required_ver"; then
+            echo "INFO: Skipping apt install for $pkg (candidate ver $candidate_ver is older than $required_ver)" \
+                | tee -a "$LOG_FILE"
+            continue
+        fi
+
+        if [[ -z "$current_ver" ]] || is_new_version_avail "$current_ver" "$candidate_ver"; then
+            echo "INFO: Installing/upgrading package from apt: $pkg" | tee -a "$LOG_FILE"
+            sudo apt-get install -y "$pkg"
+        else
+            echo "INFO: Package $pkg is already up to date." | tee -a "$LOG_FILE"
+        fi
+    done
+
+    # Download and install packages
+    echo "INFO: Downloading and installing neo packages from file..." | tee -a "$LOG_FILE"
+    for pkg_file in "${PKGS[@]}"; do
+        local version_key="${pkg_file}.version"
+        local url_key="${pkg_file}.url"
+        local pkg_ver="${META[$version_key]}"
+        local pkg_url="${META[$url_key]}"
+        local pkg_base="${pkg_file%%.*}"
+
+        if [[ -z "$pkg_ver" || -z "$pkg_url" ]]; then
+            echo "ERROR: Missing version or URL for $pkg_file" | tee -a "$LOG_FILE"
+            exit 255
+        fi
+
+        # Check if installed and compare version
+        local installed_ver=""
+        if dpkg-query -W -f='${Status}' "$pkg_base" 2>/dev/null | grep -q "install ok installed"; then
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg_base" 2>/dev/null)
+        fi
+
+        if [[ -z "$installed_ver" ]]; then
+            echo "INFO: $pkg_base not installed. Installing: $pkg_ver" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
+        elif is_new_version_avail "$installed_ver" "$pkg_ver"; then
+            echo "INFO: $pkg_base ver: $installed_ver. Installing: $pkg_ver" | tee -a "$LOG_FILE"
+            download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
+        else
+            echo "INFO: $pkg_base ver: $installed_ver is already up to-date" | tee -a "$LOG_FILE"
+        fi
+    done
+
+    # Install all downloaded .deb/.ddeb files
+    # Check and install .deb files
+    if compgen -G "$dest_tmp_path/*.deb" > /dev/null; then
+        for fname in "$dest_tmp_path"/*.deb; do
+            [[ -e "$fname" ]] && check_file_valid_nonzero "$fname"
+        done
+        echo "INFO: Installing Intel compute-runtime .deb packages" | tee -a "$LOG_FILE"
         sudo dpkg -i "$dest_tmp_path"/*.deb
+    fi
+    # Check and install .ddeb files
+    if compgen -G "$dest_tmp_path/*.ddeb" > /dev/null; then
+        for fname in "$dest_tmp_path"/*.ddeb; do
+            [[ -e "$fname" ]] && check_file_valid_nonzero "$fname"
+        done
+        echo "INFO: Installing Intel compute-runtime .ddeb packages" | tee -a "$LOG_FILE"
+        sudo dpkg -i "$dest_tmp_path"/*.ddeb
     fi
 }
 

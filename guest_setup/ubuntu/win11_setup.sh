@@ -103,7 +103,23 @@ function kill_by_pid() {
     if [[ $# -eq 1 && -n "${1}" && -n "${1+x}" ]]; then
         local pid=$1
         if [[ -n "$(ps -p "$pid" -o pid=)" ]]; then
-            kill -9 "$pid"
+            # Try graceful termination first
+            sudo kill "$pid" 1>/dev/null
+            local count=0
+            local maxcount=20
+            while [[ -n "$(ps -p "$pid" -o pid=)" && $count -lt $maxcount ]]; do
+                sleep 0.2
+                count=$((count+1))
+            done
+            # If still running, force kill
+            if [[ -n "$(ps -p "$pid" -o pid=)" ]]; then
+                sudo kill -9 "$pid" 1>/dev/null
+                count=0
+                while [[ -n "$(ps -p "$pid" -o pid=)" && $count -lt $maxcount ]]; do
+                    sleep 0.2
+                    count=$((count+1))
+                done
+            fi
         fi
     fi
 }
@@ -1683,31 +1699,31 @@ function cleanup () {
       state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
       if [[ -n ${state+x} && "$state" == "running" ]]; then
           echo "Shutting down running domain $WIN_DOMAIN_NAME"
-          virsh shutdown "$WIN_DOMAIN_NAME"
+          virsh shutdown "$WIN_DOMAIN_NAME" 1>/dev/null
           echo "Waiting for domain $WIN_DOMAIN_NAME to shut down..."
           sleep 30
           state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
           if [[ -n ${state+x} && "$state" == "running" ]]; then
-              virsh destroy "$WIN_DOMAIN_NAME"
+              virsh destroy "$WIN_DOMAIN_NAME" 1>/dev/null
           fi
-          virsh undefine --nvram "$WIN_DOMAIN_NAME"
+          virsh undefine --nvram "$WIN_DOMAIN_NAME" 1>/dev/null
       fi
       if virsh list --name --all | grep -q -w $WIN_DOMAIN_NAME; then
-          virsh undefine --nvram "$WIN_DOMAIN_NAME"
+          virsh undefine --nvram "$WIN_DOMAIN_NAME" 1>/dev/null
       fi
       local poolname
       poolname=$(basename '/tmp')
       if virsh pool-list | grep -q "$poolname"; then
-          virsh pool-destroy "$poolname"
+          virsh pool-destroy "$poolname" 1>/dev/null
           if virsh pool-list --all | grep -q "$poolname"; then
-              virsh pool-undefine "$poolname"
+              virsh pool-undefine "$poolname" 1>/dev/null
           fi
       fi
       poolname=$(basename "$WIN_UNATTEND_FOLDER")
       if virsh pool-list | grep -q "$poolname"; then
-          virsh pool-destroy "$poolname"
+          virsh pool-destroy "$poolname" 1>/dev/null
           if virsh pool-list --all | grep -q "$poolname"; then
-              virsh pool-undefine "$poolname"
+              virsh pool-undefine "$poolname" 1>/dev/null
           fi
       fi
       for f in "${TMP_FILES[@]}"; do
@@ -1757,4 +1773,4 @@ fi
 trap 'cleanup' EXIT
 install_windows || exit 255
 
-echo "$(basename "${BASH_SOURCE[0]}") done"
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""
