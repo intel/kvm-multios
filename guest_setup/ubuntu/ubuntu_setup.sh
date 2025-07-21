@@ -189,7 +189,23 @@ function kill_by_pid() {
     if [[ $# -eq 1 && -n "${1}" && -n "${1+x}" ]]; then
         local pid=$1
         if [[ -n "$(ps -p "$pid" -o pid=)" ]]; then
-            sudo kill -9 "$pid"
+            # Try graceful termination first
+            sudo kill "$pid" 1>/dev/null
+            local count=0
+            local maxcount=20
+            while [[ -n "$(ps -p "$pid" -o pid=)" && $count -lt $maxcount ]]; do
+                sleep 0.2
+                count=$((count+1))
+            done
+            # If still running, force kill
+            if [[ -n "$(ps -p "$pid" -o pid=)" ]]; then
+                sudo kill -9 "$pid" 1>/dev/null
+                count=0
+                while [[ -n "$(ps -p "$pid" -o pid=)" && $count -lt $maxcount ]]; do
+                    sleep 0.2
+                    count=$((count+1))
+                done
+            fi
         fi
     fi
 }
@@ -657,23 +673,23 @@ function cleanup () {
     state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
     if [[ -n "${state+x}" && "$state" == "running" ]]; then
         echo "Shutting down running domain $UBUNTU_DOMAIN_NAME"
-        virsh shutdown "$UBUNTU_DOMAIN_NAME"
+        virsh shutdown "$UBUNTU_DOMAIN_NAME" 1>/dev/null
         sleep 10
         state=$(virsh list | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
         if [[ -n "${state+x}" && "$state" == "running" ]]; then
-            virsh destroy "$UBUNTU_DOMAIN_NAME"
+            virsh destroy "$UBUNTU_DOMAIN_NAME" 1>/dev/null
         fi
-        virsh undefine --nvram "$UBUNTU_DOMAIN_NAME"
+        virsh undefine --nvram "$UBUNTU_DOMAIN_NAME" 1>/dev/null
     fi
     if virsh list --name --all | grep -q -w "$UBUNTU_DOMAIN_NAME"; then
-        virsh undefine --nvram "$UBUNTU_DOMAIN_NAME"
+        virsh undefine --nvram "$UBUNTU_DOMAIN_NAME" 1>/dev/null
     fi
     local poolname
     poolname="${UBUNTU_DOMAIN_NAME}_install_tmp_files"
     if virsh pool-list | grep -q "$poolname"; then
-        virsh pool-destroy "$poolname"
+        virsh pool-destroy "$poolname" 1>/dev/null
         if virsh pool-list --all | grep -q "$poolname"; then
-            virsh pool-undefine "$poolname"
+            virsh pool-undefine "$poolname" 1>/dev/null
         fi
     fi
     for f in "${TMP_FILES[@]}"; do
@@ -720,4 +736,4 @@ trap 'cleanup' EXIT
 
 install_ubuntu || exit 255
 
-echo "$(basename "${BASH_SOURCE[0]}") done"
+echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""
