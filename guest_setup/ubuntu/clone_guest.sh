@@ -269,11 +269,27 @@ function update_launch_multios() {
         echo "Cannot find $file for platform $PLATFORM_NAME!"
         return 255
     fi
-    if ! grep -Fq "[\"$NEW_DOMAIN_NAME\"]=" "$file"; then
-        sed -i -e "/\[\"ubuntu\"\]=/i \[\"$NEW_DOMAIN_NAME\"\]=\"$xml_file\"" "$file"
-    else
-        sed -i "s/\[\"$NEW_DOMAIN_NAME\"\]=.*/\[\"$NEW_DOMAIN_NAME\"\]=\"$xml_file\"/" "$file"
-    fi
+
+    # Helper function to update or insert domain entry in a bash array block
+    update_array_entry() {
+        local array_decl="$1"
+        local value="$2"
+        local file="$3"
+        local new_domain="$4"
+        local indent="${5:-  }"  # Default indent is two spaces
+
+        if grep -Fq "$array_decl" "$file"; then
+            if ! sed -n "/$array_decl/,/^)/p" "$file" | grep -Fq "[\"$new_domain\"]="; then
+                sed -i -e "/$array_decl/a\\${indent}[\"$new_domain\"]=$value" "$file"
+            else
+                sed -i -e "/$array_decl/,/^)/s/\\[\"$new_domain\"\\]=.*/${indent}[\"$new_domain\"]=$value/" "$file"
+            fi
+        fi
+    }
+
+    update_array_entry "declare -A VM_DOMAIN" "\"$xml_file\"" "$file" "$NEW_DOMAIN_NAME"
+    update_array_entry "declare -A REDEFINE_DOMAIN" "1" "$file" "$NEW_DOMAIN_NAME"
+    update_array_entry "declare -A EXCLUDED_DOMAIN_BY_USER" "0" "$file" "$NEW_DOMAIN_NAME" "    "
 }
 
 function get_supported_platform_names() {

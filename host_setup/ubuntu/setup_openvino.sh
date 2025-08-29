@@ -208,7 +208,11 @@ function setup_openvino_npu() {
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
     # Linux NPU driver release
-    sudo dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu level-zero
+    for pkg in intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu level-zero; do
+        if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
+           sudo dpkg --purge --force-remove-reinstreq "$pkg"
+        fi
+    done
     echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
     wget -O "$dest_tmp_path/intel-driver-compiler-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-driver-compiler-npu']}" || return 255
     check_file_valid_nonzero "$dest_tmp_path/intel-driver-compiler-npu.deb"

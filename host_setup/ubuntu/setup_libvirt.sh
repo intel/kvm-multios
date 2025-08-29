@@ -107,73 +107,10 @@ if [[ "$UPDATE_LINE" != $(grep -F "$UPDATE_LINE" "$UPDATE_FILE") ]]; then
   sudo sysctl "$UPDATE_LINE"
 fi
 
-# Update default network dhcp host
-
-tee default_network.xml &>/dev/null <<EOF
-<network>
-  <name>default</name>
-  <bridge name='virbr0'/>
-  <forward/>
-  <ip address='192.168.122.1' netmask='255.255.255.0'>
-    <dhcp>
-      <range start='192.168.122.2' end='192.168.122.254'/>
-      <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.122.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.122.22'/>
-      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.122.33'/>
-      <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.122.44'/>
-      <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.122.55'/>
-    </dhcp>
-  </ip>
-</network>
-EOF
-
-echo end of file
-
-if sudo virsh net-list --name | grep -q 'default'; then
-    sudo virsh net-destroy default
-fi
-if sudo virsh net-list --name --all | grep -q 'default'; then
-    sudo virsh net-undefine default
-fi
-sudo virsh net-define default_network.xml
-sudo virsh net-autostart default
-sudo virsh net-start default
-rm default_network.xml
-
-# Define and start isolated guest network
-tee isolated-guest-net.xml &>/dev/null <<EOF
-<network>
-  <name>isolated-guest-net</name>
-  <forward mode='none'/>
-  <bridge name='virbr1' stp='on' delay='0'/>
-  <ip address='192.168.200.1' netmask='255.255.255.0'>
-    <dhcp>
-      <range start='192.168.200.2' end='192.168.200.254'/>
-      <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.200.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.200.22'/>
-      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.200.33'/>
-      <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.200.44'/>
-      <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.200.55'/>
-    </dhcp>
-  </ip>
-</network>
-EOF
-
-if sudo virsh net-list --name | grep -q 'isolated-guest-net'; then
-    sudo virsh net-destroy isolated-guest-net
-fi
-if sudo virsh net-list --name --all | grep -q 'isolated-guest-net'; then
-    sudo virsh net-undefine isolated-guest-net
-fi
-sudo virsh net-define isolated-guest-net.xml
-sudo virsh net-autostart isolated-guest-net
-sudo virsh net-start isolated-guest-net
-rm isolated-guest-net.xml
-
 # a hook-helper for libvirt which allows easier per-VM hooks.
 # usually /etc/libvirt/libvirt/hooks/qemu.d/vm_name/hook_name/state_name/
 # See: https://passthroughpo.st/simple-per-vm-libvirt-hooks-with-the-vfio-tools-hook-helper/
-wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/master/libvirt_hooks/qemu' -O qemu
+wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/4f6d505f7ef032b552c9a544f95e8586d954fe26/libvirt_hooks/qemu' -O qemu
 
 # Configure iGPU SRIOV VF in qemu hook
 tee -a qemu &>/dev/null <<EOF
@@ -209,7 +146,14 @@ if [[ "\${2}" == "prepare" ]]; then
       echo "\$totalvfs" | tee -a /sys/class/drm/card0/device/sriov_numvfs
       echo '1' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
       modprobe vfio-pci || :
-      echo "\$vendor \$device" | tee /sys/bus/pci/drivers/vfio-pci/new_id
+      if modprobe -n i915-vfio-pci &>/dev/null && \
+        lscpu | awk -F: '/Vendor ID:/ {if (\$2 ~ /GenuineIntel/) exit 0; else exit 1;}' && \
+        lscpu | awk -F: '/Model:/ {if (\$2 ~ /197|198/) exit 0; else exit 1;}'; then
+        modprobe i915-vfio-pci || :
+        echo "\$vendor \$device" | tee /sys/bus/pci/drivers/i915-vfio-pci/new_id
+      else
+        echo "\$vendor \$device" | tee /sys/bus/pci/drivers/vfio-pci/new_id
+      fi
       vfschedexecq=25
       vfschedtimeout=500000
       if [[ "\$drm_drv" == "i915" ]]; then

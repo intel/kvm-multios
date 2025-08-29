@@ -441,7 +441,7 @@ function host_set_audio() {
     if which pulseaudio; then
         host_set_pulseaudio || return 255
     elif which pipewire; then
-        if ! apt list --installed | grep -Fq 'pipewire-pulse'; then
+        if ! dpkg -l "pipewire-pulse" 2>/dev/null | grep -q "^ii"; then
             sudo apt-get install -y pipewire-pulse
         fi
         host_set_pipewire_pulse || return 255
@@ -627,6 +627,10 @@ echo "Setting up for power management"
 source "$scriptpath/setup_swap.sh"
 # shellcheck source-path=SCRIPTDIR
 source "$scriptpath/setup_pm_mgmt.sh"
+
+echo "Setting up network"
+bash "$scriptpath/setup_network.sh"
+
 echo "Setting up for OpenVINO"
 openvino_setup_cmd="source $scriptpath/setup_openvino.sh --neo"
 if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then

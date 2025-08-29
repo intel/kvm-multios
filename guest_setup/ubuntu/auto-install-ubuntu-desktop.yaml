@@ -1,6 +1,6 @@
 #cloud-config
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 #
 # Reference from https://github.com/canonical/autoinstall-desktop/blob/main/autoinstall.yaml
@@ -161,7 +161,8 @@ autoinstall:
     # customization. Deploy this postinstall.sh script on the webserver.
     - wget --no-proxy -O /target/tmp/setup_bsp.sh $FILE_SERVER_URL/setup_bsp.sh
     - curtin in-target -- chmod +x /tmp/setup_bsp.sh
-    - curtin in-target -- bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT $DRM_DRV_OPTION
+    - curtin in-target -- >
+      bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT $DRM_DRV_OPTION
     - wget --no-proxy -O /target/usr/local/bin/setup_swap.sh $FILE_SERVER_URL/setup_swap.sh
     - curtin in-target -- chmod +x /usr/local/bin/setup_swap.sh
     - curtin in-target -- bash /usr/local/bin/setup_swap.sh

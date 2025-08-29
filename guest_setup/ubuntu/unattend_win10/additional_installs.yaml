@@ -3,26 +3,42 @@
 
 installations:
   - name: Bluetooth
-    description: 'Intel® Wireless Bluetooth® Drivers for IT Administrators version 23.100.1 (https://www.intel.com/content/www/us/en/download/16807/intel-wireless-bluetooth-drivers-for-it-administrators.html)'
-    filename: BT-23.100.1-64UWD-Win10-Win11.zip
-    download_url: 'https://downloadmirror.intel.com/843140/BT-23.100.1-64UWD-Win10-Win11.zip'
+    description: |-
+      Intel® Wireless Bluetooth® Drivers for IT Administrators version 23.150.0
+      (https://www.intel.com/content/www/us/en/download/16807/intel-wireless-bluetooth-drivers-for-it-administrators.html)
+    filename: BT-23.150.0-64UWD-Win10-Win11.zip
+    download_url: 'https://downloadmirror.intel.com/860917/BT-23.150.0-64UWD-Win10-Win11.zip'
     install_type: msi                 # msi | exe | cab | inf
     install_file: 'Intel Bluetooth.msi'
     silent_install_option: '/qn'
     enable_test_sign: no
   - name: Wireless
-    description: 'Intel® PROSet/Wireless Software and Wi-Fi Drivers for IT Administrators 23.100.0 (https://www.intel.com/content/www/us/en/download/18231/intel-proset-wireless-software-and-wi-fi-drivers-for-it-administrators.html)'
-    filename: WiFi-23.100.0-Driver64-Win10-Win11.zip
-    download_url: 'https://downloadmirror.intel.com/842460/WiFi-23.100.0-Driver64-Win10-Win11.zip'
+    description: |-
+      Intel® PROSet/Wireless Software and Wi-Fi Drivers for IT Administrators 23.150.0
+      (https://www.intel.com/content/www/us/en/download/18231/intel-proset-wireless-software-and-wi-fi-drivers-for-it-administrators.html)
+    filename: WiFi-23.150.0-Driver64-Win10-Win11.zip
+    download_url: 'https://downloadmirror.intel.com/860853/WiFi-23.150.0-Driver64-Win10-Win11.zip'
     install_type: inf                 # msi | exe | cab | inf
     install_file: '*.inf'
     silent_install_option: ''
     enable_test_sign: no
   - name: 'Ethernet-I225-I226'
-    description: 'Intel® Ethernet Adapter Complete Driver Pack 29.5 (https://www.intel.com/content/www/us/en/download/15084/intel-ethernet-adapter-complete-driver-pack.html)'
-    filename: Release_29.5.zip
-    download_url: 'https://downloadmirror.intel.com/843839/Release_29.5.zip'
+    description: |-
+      Intel® Ethernet Adapter Complete Driver Pack 30.3
+      (https://www.intel.com/content/www/us/en/download/15084/intel-ethernet-adapter-complete-driver-pack.html)
+    filename: Release_30.3.zip
+    download_url: 'https://downloadmirror.intel.com/860739/Release_30.3.zip'
     install_type: inf                 # msi | exe | cab | inf
     install_file: 'PRO2500\Winx64\NDIS68\e2f.inf'
+    silent_install_option: ''
+    enable_test_sign: no
+  - name: 'Ethernet-PROAVF'
+    description: |-
+      Intel® Ethernet Adapter Complete Driver Pack 30.3
+      (https://www.intel.com/content/www/us/en/download/15084/intel-ethernet-adapter-complete-driver-pack.html)
+    filename: Release_30.3.zip
+    download_url: 'https://downloadmirror.intel.com/860739/Release_30.3.zip'
+    install_type: inf                 # msi | exe | cab | inf
+    install_file: 'PROAVF\Winx64\NDIS68\iavf68.inf'
     silent_install_option: ''
     enable_test_sign: no

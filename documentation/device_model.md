@@ -13,7 +13,7 @@
     <tr><td>Audio</td><td colspan="4" align="center">emulation</td></tr>
     <tr><td>USB inputs (mouse/keyboard)</td><td colspan="4" align="center">Passthrough or emulation</td></td></tr>
     <tr><td>LAN</td><td colspan="4" align="center">Virtual NAT</td></tr>
-    <tr><td>External PCI Ethernet Adapter</td><td colspan="4" align="center">Passthrough</td></tr>
+    <tr><td>External PCI Ethernet Adapter</td><td colspan="4" align="center">Passthrough or SR-IOV (if supported by NIC)</td></tr>
     <tr><td>External USB Ethernet Adapter</td><td colspan="4" align="center">Passthrough</td></tr>
     <tr><td>TSN i225/i226 Ethernet Adapter</td><td colspan="4" align="center">Passthrough</td></tr>
     <tr><td>Wi-fi</td><td colspan="4" align="center">Passthrough</td></tr>

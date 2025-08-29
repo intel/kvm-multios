@@ -7,6 +7,7 @@
 1. [Host Setup](#host-setup)
     1. [Host Setup (for VMs using GVT-d)](#host-setup-for-vms-using-gvt-d)
     1. [Host Setup (for VMs using GPU SR-IOV)](#host-setup-for-vms-using-gpu-sr-iov)
+    1. [Host Setup for network SR-IOV (if supported by NIC)](#host-setup-for-network-sr-iov-if-supported-by-nic)
 1. [Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration](#remote-desktop-viewer-setup-for-connection-to-vms-using-spice-with-gstreamer-acceleration)
 1. [Virtual Machine Image Creation](#virtual-machine-image-creation)
     1. [Ubuntu/Ubuntu RT VM Image Creation](#ubuntuubuntu-rt-vm-image-creation)
@@ -21,6 +22,7 @@
     1. [VM Power Management](#vm-power-management)
     1. [Automatic VM Power Management During Host Power Management](#automatic-vm-power-management-during-host-power-management)
     1. [VM Cloning](#vm-cloning)
+    1. [VM Snapshots](#vm-snapshots)
 
 # Introduction
 This document contains setup and user guides for KVM (Kernel-based Virtual Machine) MultiOS Portfolio release.
@@ -67,6 +69,7 @@ Note:
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
 | :-- | :--
+| PTL-H | Panther Lake H |
 | BTL | Bartlett Lake |
 | TWL | Twin Lake |
 | ARL | Arrow Lake |
@@ -75,7 +78,6 @@ Note:
 | RPL-PS | Raptor Lake PS |
 | RPL-P | Raptor Lake P |
 | ADL-N | Alder Lake N |
-| PTL-H | Panther Lake H |
 
 Note:
 - Please contact your Intel representative for details on host IoT platform configuration and setup.
@@ -106,6 +108,7 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 ## Platform Naming Convention
 | Supported Intel IoT platform | Platform name to use with KVM MultiOS Portfolio Release
 | :-- | :-- |
+| Panther Lake H | client
 | Bartlett Lake | client
 | Twin Lake | client
 | Arrow Lake | client
@@ -114,7 +117,6 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | Raptor Lake PS | client
 | Raptor Lake P | client
 | Alder Lake N | client
-| Panther Lake H | client
 
 ## Guest OS Domain Naming Convention, MAC/IP Address and Ports
 ***Notes***
@@ -163,6 +165,32 @@ Refer [here](setup_gvtd.md) for steps on setting up Intel IoT hardware platform 
 
 ## Host Setup (for VMs using GPU SR-IOV)
 Refer [here](setup_sriov.md) for steps on setting up Intel IoT hardware platform for VMs using SR-IOV for GPU device acceleration in VM.
+
+## Host Setup for network SR-IOV (if supported by NIC)
+For a system that has NICs that support network SR-IOV, a default number of Virtual Functions (VFs) is created per NIC during host setup.
+Nevertheless, users can choose to customize the number of VFs per NIC after the initial round of host setup.
+
+First, ensure that all guests are shut off and not running.
+
+    $ virsh list --all
+     Id   Name        State
+    ----------------------------
+     -    ubuntu      shut off
+     -    windows11   shut off
+
+Next, run the following command (where N is the number of VFs per NIC):
+
+    $ ./host_setup/ubuntu/setup_network.sh --sriov-vfs N
+
+Lastly, check the virtual function devices created (e.g. 4 VFs for a NIC):
+
+    $ lspci | grep "Virtual Function"
+    0000:01:02.0 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
+    0000:01:02.1 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
+    0000:01:02.2 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
+    0000:01:02.3 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
+
+Note: N is limited by the total number of VFs supported by the NIC
 
 ## Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration
 For remote desktop viewing of VMs using Spice with GStreamer acceleration feature, only Ubuntu based remote viewer is supported.
@@ -263,7 +291,7 @@ Reference: [Libvirt Domain XML format: Memory allocation](https://libvirt.org/fo
 To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt toolkit on xxxx platform.
 **Note: refer to [Guest OS domain naming convention](#guest-os-domain-naming-convention) for domain
 
-        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p <domain> --tpm <type> (<model>) | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
+        ./platform/xxxx/launch_multios.sh [-h|--help] [-f] [-a] [-d domain1 <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> domain1 <domain2> ...] [ -n <sriov|network_name> domain1 <domain2> ...] [-p domain --usb|--pci device <number> | -p <domain> --tpm <type> (<model>) | -p domain --xml file] [-m domain --output <number> |--connectors display port | --full-screen | --show-fps | --extend-abs-mode | --disable-host-input]
 
 ### Launch_multios Script Options
 <table>
@@ -272,13 +300,15 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td>-f</td><td></td><td>Force shutdown, destory and start VM domain(s) even if already running</td></tr>
     <tr><td>-a</td><td></td><td>Launch all supported VM domains for platform</td></tr>
     <tr><td>-d</td><td>&ltdomain&gt...&ltdomainN&gt</td><td>Name of all VM domain(s) to launch. Superset of domain(s) used with -p|-g options.</td></tr>
-    <tr><td rowspan="5">-g</td><td>headless &ltdomain&gt...&ltdomainN&gt</td><td>Headless for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td rowspan="6">-g</td><td>headless &ltdomain&gt...&ltdomainN&gt</td><td>Headless for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
     <tr><td>vnc &ltdomain&gt...&ltdomainN&gt</td><td>Use VNC for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
     <tr><td>spice &ltdomain&gt...&ltdomainN&gt</td><td>Use SPICE for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
     <tr><td>spice-gst &ltdomain&gt...&ltdomainN&gt</td><td>Use SPICE with gstreamer integration for VM domains of names &ltdomain&gt...&ltdomainN&gt</td></tr>
     <tr><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Use SR-IOV for VM domains of names &ltdomain&gt...&ltdomainN&gt. Superset of domain(s) used with -m option.</td></tr>
     <tr><td>gvtd &ltdomain&gt</td><td>Use GVT-d for VM domain</td></tr>
-    <tr><td rowspan="4">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
+    <tr><td rowspan="2">-n</td><td>sriov &ltdomain&gt...&ltdomainN&gt</td><td>Auto-select an available SR-IOV pool for &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td>&ltnetwork name&gt &ltdomain&gt...&ltdomainN&gt</td><td> <network_name> Select a network from 'virsh net-list --name' for &ltdomain&gt...&ltdomainN&gt</td></tr>
+    <tr><td rowspan="5">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --usbtree &lttree&gt [N]</td><td>Passthrough Nth USB bus device tree in host of topology &lttree&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt. Note: not supported on Android VM in this release</td></tr>
@@ -340,6 +370,9 @@ For this sample output, the connected displays are at DP-1 and HDMI-1.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g gvtd windows</td><td>To force launch windows guest VM configured with GVT-d display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows 10 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -n sriov ubuntu</td><td>To force launch ubuntu guest VM configured with SR-IOV network (if supported by NIC)</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -n &ltnetwork_name&gt windows</td><td>To force launch windows 10 guest VM configured with a network from 'virsh net-list --name'</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -n sriov ubuntu windows -n &ltnetwork_name&gt windows11</td><td>To force launch all guest VMs, with Ubuntu and Windows 10 configured with SR-IOV network, and Windows 11 configured with a network from 'virsh net-list --name'</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard</td><td>To force launch all guest VMs and passthrough USB Keyboard to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usbtree bus-port_L1.port_L2...port_Lx </td><td>To force launch all guest VMs and passthrough USB devices to guest VM, using USB tree topology containing the bus and port numbers (see section below).</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci wi-fi</td><td>To force launch all guest VMs and passthrough PCI WiFi to ubuntu guest VM</td></tr>
@@ -529,3 +562,62 @@ New domain created will be automatically added to the platform launch_multios.sh
 
         # Launch both ubuntu/windows and ubuntu_x/windows_x via launch_multios.sh
         ./platform/<plat>/launch_multios.sh -d ubuntu ubuntu_x windows windows_x -g sriov ubuntu ubuntu_x windows windows_x
+
+## VM Snapshots
+The VM Snapshot functionality in KVM MultiOS provides users with the capability to record the state of a virtual machine (VM) at a designated moment. This snapshot serves as a restore point, allowing users to revert the VM to its previous state when necessary. This feature is invaluable for scenarios involving backup, testing, and recovery, as it ensures data integrity and system consistency. By utilizing VM snapshots, users can efficiently manage changes, test configurations, and safeguard against data loss, making it an essential tool for maintaining robust virtual environments.
+
+### Creating a snapshot:
+
+Execute the following command to create a snapshot
+        
+        virsh snapshot-create-as <domain-name> <snapshot-name>
+        Example: virsh snapshot-create-as windows11 sn1
+
+### Viewing snapshots:
+
+Use snapshot-list to view snapshots of a particular domain
+
+        virsh snapshot-list <domain-name>
+        Example: virsh snapshot-list windows11
+
+### View additional info of a snapshot:
+
+Use snapshot-info to view additional info about a particular snapshot
+
+        virsh snapshot-info <domain-name> <snapshot-name>
+        Example: virsh snapshot-info windows11 sn1
+
+### Reverting to a snapshot:
+
+Use snapshot-revert to revert a domain to a specific snapshot
+
+        virsh snapshot-revert <domain-name> <snapshot-name>
+        Example: virsh snapshot-revert windows11 sn1
+
+### Deleting a snapshot:
+
+Use snapshot-delete to delete a specific snapshot
+
+        virsh snapshot-delete <domain-name> <snapshot-name>
+        Example: virsh snapshot-delete windows11 sn1
+
+
+### Limitations:
+
+**1.    Supported platforms:**
+        VM snapshot feature is currently supported on ARL-S platform only.
+
+**2.    Internal snapshot support:**
+        Only internal snapshots are supported.
+
+**3.	Snapshot Migration:**
+	While snapshots are saved as part of the qcow image, booting this image on a different host is currently not supported.
+ 
+**4.	Snapshot Sharing Across VMs:**
+	Each VM's snapshots are unique to its configuration and state. Snapshots from one VM (e.g., Ubuntu_1) cannot be added to a cloned VM (e.g., Ubuntu_2) on the same host.
+ 
+**5.	Cross-graphics-virtualization-technology Snapshot Loading:**
+        Snapshots are tied to the specific display technology used at the time of creation. e.g., Ubuntu_1's snapshot saved on SRIOV cannot be used to load the snapshot when launching Ubuntu_1 in VNC mode. User will be prompted to delete snapshots when switching a domain from one GPU mode to the other. If "-f" is passed while launching VMs, snapshots are automatically deleted without prompting the user.
+
+**6.    Passthrough Device Management:**
+        When handling passthrough devices, it's important to note that if these devices or display connectors are removed after a snapshot is saved and are unavailable during the snapshot loading process, it may lead to complications. Additionally, certain devices, such as network controllers and audio controllers, may not support snapshot creation when they are configured for passthrough.
