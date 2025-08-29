@@ -247,13 +247,13 @@ function is_host_kernel_local_install() {
   local kern_ver
   kern_ver=$(uname -r)
   local kern_header_ppa
-  kern_header_ppa=$(apt list --installed | grep "linux-headers-$kern_ver")
+  kern_header_ppa=$(dpkg -l "linux-headers-$kern_ver" 2>/dev/null | grep "^ii")
   local kern_image_ppa
-  kern_image_ppa=$(apt list --installed | grep "linux-image-$kern_ver")
+  kern_image_ppa=$(dpkg -l "linux-image-$kern_ver" 2>/dev/null | grep "^ii")
   local kern_header_ppa_local
-  kern_header_ppa_local=$(apt list --installed | grep "linux-headers-$kern_ver" | awk -F' ' '{print $4}'| grep "local")
+  kern_header_ppa_local=$(dpkg -l "linux-headers-$kern_ver" 2>/dev/null | awk '{print $3}' | grep "local")
   local kern_image_ppa_local
-  kern_image_ppa_local=$(apt list --installed | grep "linux-image-$kern_ver" | awk -F' ' '{print $4}'| grep "local")
+  kern_image_ppa_local=$(dpkg -l "linux-image-$kern_ver" 2>/dev/null | awk '{print $3}' | grep "local")
 
   if [[ -z "$kern_header_ppa" || -z "$kern_image_ppa" || -n "$kern_header_ppa_local" || -n "$kern_image_ppa_local" ]]; then
     KERN_INSTALL_FROM_LOCAL=1
@@ -453,7 +453,7 @@ function install_ubuntu() {
     if [[ -n $FORCE_KERN_APT_VER ]]; then
       kernel_ver=$FORCE_KERN_APT_VER
     else
-      kernel_ver="${kernel_ver}=$(apt list --installed | grep "linux-headers-$(uname -r)" | awk '{print $2}')"
+      kernel_ver="${kernel_ver}=$(dpkg -l "linux-headers-$(uname -r)" 2>/dev/null | awk '/^ii/ {print $3}')"
     fi
     sed -i "s|\$KERN_INSTALL_OPTION|-kp \'$kernel_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   else
@@ -468,7 +468,7 @@ function install_ubuntu() {
   else
     # use version detected from host
     local linux_fw_ver
-    linux_fw_ver="$(apt list --installed | grep linux-firmware | awk '{print $2}')"
+    linux_fw_ver="$(dpkg -l "linux-firmware" 2>/dev/null | awk '/^ii/ {print $3}')"
   fi
   sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$linux_fw_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 

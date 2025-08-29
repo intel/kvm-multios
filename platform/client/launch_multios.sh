@@ -22,6 +22,9 @@ declare -A device_passthrough
 # Array to store multi-display configuration for specific VM
 declare -A multi_display
 
+# Array to store network name per domain
+declare -A DOMAIN_NET_NAME
+
 # Define variables
 
 # Set default vm image directory and vm config xml file directory
@@ -38,6 +41,9 @@ MULTI_DISPLAY_SCRIPT="./libvirt_scripts/libvirt_multi_display.sh"
 
 # Set libvirt xml script name
 SETUP_LIBVIRT_XML_SCRIPT="./host_setup/ubuntu/setup_libvirt_xml.sh"
+
+# Set libvirt network script name
+LIBVIRT_NETWORK_SCRIPT="./libvirt_scripts/libvirt_network.sh"
 
 # Set default domain force launch option
 FORCE_LAUNCH="false"
@@ -56,6 +62,18 @@ SRIOV_ENABLE="false"
 
 # Error log file
 ERROR_LOG_FILE="/tmp/launch_multios_errors.log"
+
+# This variable is used to check if the domain is already defined
+declare -A REDEFINE_DOMAIN=(
+  ["ubuntu"]=1
+  ["windows"]=1
+  ["ubuntu_rt"]=1
+  ["android"]=1
+  ["windows11"]=1
+)
+
+# This variable is used to check if snapshots should be deleted
+DELETE_SNAPSHOTS=0
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -93,16 +111,22 @@ function log_error() {
 
 # Function to show help info
 function show_help() {
-	printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-p <domain> [[--usb|--pci <device>] (<number>) | [--usbtree <bus-port_L1.port_L2...port_Lx>]] | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
+  printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-n <sriov|network_name> <domain>] [-p <domain> [[--usb|--pci <device>] (<number>) | [--usbtree <bus-port_L1.port_L2...port_Lx>]] | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                                         Show the help message and exit\n"
   printf "  -f                                                Force shutdown, destroy and start VM domain(s) without checking\n"
   printf "                                                    if it's already running\n"
+  printf "                                                    Snapshots will be deleted if any\n"
   printf "  -a                                                Launch all defined VM domains\n"
   printf "  -d <domain(s)>                                    Name of the VM domain(s) to launch\n"
   printf "  -g <headless|vnc|spice|spice-gst|sriov|gvtd>      Type of display model use by the VM domain\n"
   printf "      <domain(s)>                                   \n"
+  printf "  -n <sriov|network_name> <domain(s)>               Attach the specified network to one or more domains.\n"
+  printf "                                                    Choose 'sriov' to auto-select an available SR-IOV pool.\n"
+  printf "                                                    or <network_name> which is any network from 'virsh net-list --name',\n"
+  printf "                                                    Example: -n default ubuntu windows\n"
+  printf "                                                    Example: -n sriov ubuntu\n"
   printf "  -p <domain>                                       Name of the VM domain for device passthrough\n"
   printf "      --usb | --pci                                 Options of interface (eg. --usb or --pci)\n"
   printf "      <device>                                      Name of the device (eg. mouse, keyboard, bluetooth, etc\n"
@@ -324,6 +348,45 @@ function parse_arg() {
         multi_display["$domain"]="${display_args[*]}"
         ;;
 
+      -n)
+        if [[ -z "${2+x}" || -z "$2" ]]; then
+          log_error "Missing network after -n"
+          show_help
+          exit 255
+        fi
+        net_name="$2"
+        shift 2
+        # Accept any network name from virsh net-list, or "sriov" keyword
+        valid_net="false"
+        if [[ "$net_name" == "sriov" ]]; then
+          valid_net="true"
+        else
+          # Check if network exists in virsh net-list
+          if virsh net-list --all --name | grep -Fxq "$net_name"; then
+            valid_net="true"
+          fi
+        fi
+        if [[ "$valid_net" != "true" ]]; then
+          log_error "Invalid network for -n: $net_name (not found in virsh net-list)"
+          show_help
+          exit 255
+        fi
+        if [[ $# -eq 0 || "$1" =~ ^- ]]; then
+          log_error "No domains specified after -n $net_name"
+          show_help
+          exit 255
+        fi
+        while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+          domain="$1"
+          if [[ ! "${!VM_DOMAIN[*]}" =~ $domain ]]; then
+            log_error "Domain $domain is not supported."
+            show_help
+            exit 255
+          fi
+          DOMAIN_NET_NAME["$domain"]="$net_name"
+          shift
+        done
+        ;;
       -?*)
           echo "Error: Invalid option: $1"
           show_help
@@ -371,92 +434,200 @@ function check_virtualization() {
     fi
 }
 
+# Function to handle cleanup of domains
+function cleanup_domain() {
+  local domain="$1"
+  local status
+  status=$(virsh domstate "$domain" 2>&1 ||:)
+
+  if [[ "$FORCE_LAUNCH" == "true" || "$DELETE_SNAPSHOTS" -eq 1 ]]; then
+    delete_all_snapshots "$domain"
+  fi
+
+  # If force launch is set, destroy and undefine the domain without 
+  # user confirmation
+  if [[ "$FORCE_LAUNCH" == "true" ]]; then
+    if [[ "$status" == "running" || "$status" == "paused" ]]; then
+      destroy_domain "$domain"
+    fi
+    undefine_domain "$domain"
+    return 0
+  fi
+
+  # Shutdown domain if it is running or paused
+  if [[ "$status" == "running" || "$status" == "paused" ]]; then
+    destroy_domain "$domain"
+  fi
+
+  # If domain is running, paused or shut off, undefine it
+  if [[ "${REDEFINE_DOMAIN[$domain]}" -eq 1 ]]; then
+    case "$status" in
+      "running"|"paused"|"shut"|"shut off")
+          undefine_domain "$domain"
+        ;;
+    esac
+  fi
+  return 0
+}
+
 # Function to check if domain is already exist or running
 function check_domain() {
-  for domain in "$@"; do
-    status=$(virsh domstate "$domain" 2>&1 ||:)
+  status=$(virsh domstate "$domain" 2>&1 ||:)
+  DELETE_SNAPSHOTS=0
 
-    if [[ "$status" =~ "running" || "$status" =~ "paused" ]]; then
-      if [[ ! "$FORCE_LAUNCH" == "true" ]]; then
-        read -r -p "Domain $domain is already $status. Do you want to continue (y/n)? " choice
-        case "$choice" in
-          y|Y)
-            # Continue to cleanup vm domain
-            cleanup_domain "$domain"
-            ;;
-          n|N)
-            echo "Aborting launch of domain"
-            exit 255
-            ;;
-          *)
-            log_error "Invalid choice. Aborting launch of domain"
-            show_help
-            exit 255
-            ;;
-        esac
+  # Handle not found or error status first
+  if [[ "$status" == "not found" ]] || echo "$status" | grep -iq error; then
+    echo "Domain $domain not found. Proceeding with launch."
+    return 0
+  fi
+
+  # If FORCE_LAUNCH is set, return without any furter checks and prompts
+  # Snapshots will be deleted and domain will be redefined
+  if [[ "$FORCE_LAUNCH" == "true" ]]; then
+    return 0
+  fi
+
+  # Check if domain XML needs to be redefined
+  check_domain_xml_unchanged
+
+  # If domain is already defined and running or paused, prompt user for confirmation
+  if ! prompt_user_for_domain_conflicts "$domain" "$status"; then
+    return 1
+  fi
+  return 0
+}
+
+function check_domain_xml_unchanged() {
+  if virsh list --all | grep -q " $domain " \
+  && [[ -f "$XML_DIR/.${domain}.bak" ]] \
+  && diff "$XML_DIR/${VM_DOMAIN[$domain]}" "$XML_DIR/.${domain}.bak" >/dev/null; then
+      REDEFINE_DOMAIN["$domain"]=0
+  else
+      REDEFINE_DOMAIN["$domain"]=1
+  fi
+}
+
+# To be called only if FORCE_LAUNCH is not set
+function prompt_user_for_domain_conflicts() {
+  local domain="$1"
+  local status="$2"
+  # Since FORCE_LAUNCH is not set, prompt user before proceeding, if domain is already running or paused
+  if [[ "$status" == "running" || "$status" == "paused" ]]; then
+    read -r -p "Domain $domain is already $status. Shutdown and relaunch (y/n)? " choice
+    case "$choice" in
+      y|Y)
+        echo "Continuing with launch of domain $domain"
+        ;;
+      n|N)
+        echo "Aborting launch of domain $domain"
+        return 1
+        ;;
+      *)
+        log_error "Invalid choice. Aborting launch of domain $domain"
+        show_help
+        exit 255
+        ;;
+    esac
+  fi
+
+  # If user proceeds with launch, check and prompt user for deleting snapshots before redefining domain.
+  # Snapshots need not be deleted if relaunching domain with same XML file
+  if virsh snapshot-list "$domain" | tail -n +3 | grep -q -v "^$"; then
+    echo "Domain $domain has snapshots."
+    if [[ "${REDEFINE_DOMAIN[$domain]}" -eq 1 ]]; then
+      read -r -p "Domain cannot be redefined with existing snapshots. Do you want to delete all snapshots for $domain? (y/n) " snap_choice
+      if [[ "$snap_choice" =~ ^[Yy]$ ]]; then
+        DELETE_SNAPSHOTS=1
       else
-        cleanup_domain "$domain"
+        DELETE_SNAPSHOTS=0
+        echo "Aborting domain definition for $domain due to existing snapshots."
+        return 1
       fi
-    elif [[ "$status" =~ "shut off" ]]; then
-      echo "Domain $domain is shut off. Undefining domain $domain"
-      virsh undefine "$domain" --nvram >/dev/null 2>&1 || :
-    #domstate may return "error: failed to get domain" for undefine domain
-    elif [[ "$status" =~ "not found" || "$status" =~ "error" ]]; then
-      echo "Domain $domain not found. Proceeding with launch"
-    else
-      echo "Domain $domain is $status. Destroy and undefine domain"
-      virsh destroy "$domain" >/dev/null 2>&1 || :
-      sleep 5
-      virsh undefine "$domain" --nvram >/dev/null 2>&1 || :
     fi
+  fi
+}
+
+function delete_all_snapshots() {
+  local domain="$1"
+  for snap in $(virsh snapshot-list "$domain" --name); do
+    virsh snapshot-delete "$domain" --snapshotname "$snap"
   done
 }
 
 # Function to shutdown and undefine a domain
-function cleanup_domain() {
+function destroy_domain() {
   local domain="$1"
-  echo "Shutting down and undefining domain $domain"
+  echo "Shutting down domain $domain"
   virsh shutdown "$domain" >/dev/null 2>&1 || :
   # check if VM has shutdown at 15s interval, timeout 60s
   for (( x=0; x<4; x++ )); do
       echo "Wait for $domain to shutdown: $x"
       sleep 15
       state=$(virsh list --all | grep " $domain " | awk '{ print $3}')
-      if [[ "$state" == "shut" ]];then
+      if [[ "$state" == "shut" || "$state" == "shut off" ]];then
           break
       fi
   done
   state=$(virsh list --all | grep " $domain " | awk '{ print $3}')
-  if [[ "$state" != "shut" ]];then
+  if [[ "$state" != "shut" && "$state" != "shut off" ]];then
       echo "$domain in $state, force destroy $domain"
       virsh destroy "$domain" >/dev/null 2>&1 || :
       sleep 5
   fi
+}
+
+function undefine_domain() {
+  local domain="$1"
   virsh undefine "$domain" --nvram >/dev/null 2>&1 || :
+  # Delete backup XML file if it exists
+  if [[ -f "$XML_DIR/.${domain}.bak" ]]; then
+    rm -f "$XML_DIR/.${domain}.bak"
+  fi
 }
 
 # Function to launch domain(s)
 function launch_domains() {
+  # Array to store the domains to launch
+  local -A EXCLUDED_DOMAIN_BY_USER=(
+    ["ubuntu"]=0
+    ["windows"]=0
+    ["ubuntu_rt"]=0
+    ["android"]=0
+    ["windows11"]=0
+  )
+
   for domain in "$@"; do
     # Check if domain is supported
     if [[ ! "${VM_DOMAIN[*]}" =~ $domain ]]; then
       # By right should not come here, just double check
       log_error "Domain $domain is not supported."
-      print_help
+      show_help
       exit 255
     fi
   done
 
   for domain in "$@"; do
-    check_domain "$domain" || return 255
+    # If multiple domains are to be launched with single command, mark the ones where 
+    # relaunch is not needed. Eg, if user inputs no to the prompt for Windows but 
+    # proceeds with Ubuntu
+    if ! check_domain "$domain"; then
+      EXCLUDED_DOMAIN_BY_USER["$domain"]=1
+    fi
   done
 
   for domain in "$@"; do
+    # If domain is excluded by user, skip it and continue with next domain
+    if [[ -n "${EXCLUDED_DOMAIN_BY_USER[$domain]+_}" && "${EXCLUDED_DOMAIN_BY_USER[$domain]}" -eq 1 ]]; then
+      continue
+    fi
+    cleanup_domain "$domain"
     check_file_valid_nonzero "$XML_DIR/${VM_DOMAIN[$domain]}"
-
-    # Define domain
-    echo "Define domain $domain"
-    virsh define "$XML_DIR/${VM_DOMAIN[$domain]}" || return 255
+    if [[ "${REDEFINE_DOMAIN[$domain]}" -eq 0 ]]; then
+      echo "Domain $domain is already defined. Skipping new definition."
+    else
+      virsh define "$XML_DIR/${VM_DOMAIN[$domain]}" || return 255
+      cp "$XML_DIR/${VM_DOMAIN[$domain]}" "$XML_DIR/.${domain}.bak"
+    fi
 
     # Configure multi-display for domain if present
     if [[ "${multi_display[$domain]+_}" ]]; then
@@ -469,6 +640,12 @@ function launch_domains() {
     # Passthrough devices
     echo "Passthrough device to domain $domain if any"
     passthrough_devices "$domain" || return 255
+
+    # Configure network for domain (use network defined in domain xml if not set)
+    net_name="${DOMAIN_NET_NAME[$domain]:-}"
+    if [[ -n "$net_name" ]]; then
+      "$LIBVIRT_NETWORK_SCRIPT" "$net_name" "$domain"  || return 255
+    fi
 
     # Start domain
     echo "Starting domain $domain..."

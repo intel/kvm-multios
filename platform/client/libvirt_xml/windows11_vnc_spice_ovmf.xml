@@ -1,8 +1,9 @@
+<?xml version="1.0"?>
 <!--
  Copyright (c) 2024-2025 Intel Corporation.
  All rights reserved.
 -->
-<domain type="kvm">
+<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
   <name>windows11</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">

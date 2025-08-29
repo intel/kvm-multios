@@ -161,6 +161,78 @@ function setup_xml() {
         done
     fi
 
+    # Check if i915-vfio-pci module is available and if the device is ARL-S(model ID 197 or 198)
+    if modprobe -n i915-vfio-pci &>/dev/null && \
+       lscpu | awk -F: '/Vendor ID:/ {if ($2 ~ /GenuineIntel/) exit 0; else exit 1;}' && \
+       lscpu | awk -F: '/Model:/ {if ($2 ~ /197|198/) exit 0; else exit 1;}'
+    then
+        for file in "${xmlfiles[@]}"; do
+            local ovmf_settings="file=/usr/share/OVMF/OVMF_CODE_4M.fd,format=raw,if=pflash,unit=0,readonly=on"
+
+            check_file_valid_nonzero "$file"
+            # Delete the loader, nvram, and boot lines if present and not already deleted
+            xmlstarlet ed -L \
+                -d '/domain/os/loader[@readonly="yes" and @type="pflash" and text()="/usr/share/OVMF/OVMF_CODE_4M.fd"]' \
+                -d '/domain/os/nvram[@template="/usr/share/OVMF/OVMF_VARS_4M.fd"]' \
+                -d '/domain/os/boot[@dev="hd"]' \
+                "$file"
+
+            # Ensure <qemu:commandline> section exists before adding OVMF settings
+            if ! xmlstarlet sel -t -v "/domain/qemu:commandline" "$file" | grep -q .; then
+                xmlstarlet ed -L -s "/domain" -t elem -n "qemu:commandline" "$file"
+            fi
+
+            # Remove all existing OVMF -drive and file args
+            xmlstarlet ed -L \
+                -N qemu="http://libvirt.org/schemas/domain/qemu/1.0" \
+                -d "//qemu:commandline/qemu:arg[@value=\"-drive\"]/following-sibling::qemu:arg[1][@value=\"$ovmf_settings\"]" \
+                -d '//qemu:commandline/qemu:arg[@value="-drive"][@value="-drive"]' \
+                "$file"
+
+            # Now add a single correct pair if not present
+            if ! xmlstarlet sel -N qemu="http://libvirt.org/schemas/domain/qemu/1.0" \
+                -t \
+                -v '//qemu:commandline/qemu:arg[@value="-drive"]/following-sibling::qemu:arg[1][@value="'"$ovmf_settings"'"]' \
+                "$file" | grep -q .; then
+
+                xmlstarlet ed -L \
+                    -N qemu="http://libvirt.org/schemas/domain/qemu/1.0" \
+                    -s '/domain/qemu:commandline' -t elem -n 'argTMP1' \
+                    -i '/domain/qemu:commandline/argTMP1' -t attr -n 'value' -v '-drive' \
+                    -r '/domain/qemu:commandline/argTMP1' -v 'qemu:arg' \
+                    -s '/domain/qemu:commandline' -t elem -n 'argTMP2' \
+                    -i '/domain/qemu:commandline/argTMP2' -t attr -n 'value'\
+                    -v 'file=/usr/share/OVMF/OVMF_CODE_4M.fd,format=raw,if=pflash,unit=0,readonly=on' \
+                    -r '/domain/qemu:commandline/argTMP2' -v 'qemu:arg' \
+                    "$file"
+            fi
+            # Enable migration only if it is SRIOV and has the specific PCI address
+            local sriov_params="@domain='0' and @bus='0' and @slot='2' and @function='0'"
+            if [[ $(xmlstarlet sel -t -v \
+                "count(/domain/devices/hostdev[@mode='subsystem'][@type='pci'][@managed='yes'][address[@type='pci'][\"$sriov_params\"]])" \
+                "$file") -gt 0 ]]; then
+                # Change managed="yes" to managed="no" for the matching hostdev
+                xmlstarlet ed -L \
+                    -u "/domain/devices/hostdev[@mode='subsystem'][@type='pci'][@managed='yes'][address[@type='pci'][\"$sriov_params\"]]/@managed"\
+                    -v "no" \
+                    "$file"
+                # Ensure <qemu:override> section exists before adding device properties
+                if ! xmlstarlet sel -t -v "/domain/qemu:override" "$file" | grep -q .; then
+                    xmlstarlet ed -L -s "/domain" -t elem -n "qemu:override" "$file"
+                fi
+                # Add <qemu:device alias="hostdev0"> override if not already present
+                if ! grep -q '<qemu:device alias="hostdev0">' "$file"; then
+                    sed -i '/<\/qemu:override>/i\    <qemu:device alias="hostdev0">\
+      <qemu:frontend>\
+        <qemu:property name="enable-migration" type="string" value="on"/>\
+        <qemu:property name="x-pre-copy-dirty-page-tracking" type="string" value="off"/>\
+      </qemu:frontend>\
+    </qemu:device>' "$file"
+                fi
+            fi
+        done
+    fi 
+
 }
 
 #-------------    main processes    -------------

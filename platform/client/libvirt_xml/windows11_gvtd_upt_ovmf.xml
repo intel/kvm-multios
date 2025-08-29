@@ -1,5 +1,6 @@
+<?xml version="1.0"?>
 <!--
- Copyright (c) 2024 Intel Corporation.
+ Copyright (c) 2024-2025 Intel Corporation.
  All rights reserved.
 -->
 <domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
