@@ -20,8 +20,6 @@ TMP_FILES=()
 declare -A OPENVINO_REL=(
     ['version']='2025.2.0'
     ['ubuntu_version_supported']='22.04, 24.04'
-    ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/linux/openvino_toolkit_ubuntu22_2025.2.0.19140.c01cd93e24d_x86_64.tgz'
-    ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/linux/openvino_toolkit_ubuntu24_2025.2.0.19140.c01cd93e24d_x86_64.tgz'
 )
 
 INSTALL_NPU=0
@@ -52,43 +50,49 @@ declare -A COMPUTE_RUNTIME_REL=(
 _COMPUTE_RUNTIME_PKGS_2204=(
     "intel-igc-core-2"
     "intel-igc-opencl-2"
-    "intel-level-zero-gpu"
+    "intel-ocloc"
     "intel-opencl-icd"
     "libigdgmm12"
+    "libze-intel-gpu1"
 )
 
 declare -A _COMPUTE_RUNTIME_META_2204=(
-    ['intel-igc-core-2.version']='2.10.8'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.10.8'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb'
-    ['intel-level-zero-gpu.version']='1.6.33276.16'
-    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb'
-    ['intel-opencl-icd.version']='25.13.33276.16'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb'
+    ['intel-igc-core-2.version']='2.11.7'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.11.7'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
+    ['intel-ocloc.version']='25.18.33578.6'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
+    ['intel-opencl-icd.version']='25.18.33578.6'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
     ['libigdgmm12.version']='22.7.0'
-    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
+    ['libze-intel-gpu1.version']='25.18.33578.6'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
 )
 
 _COMPUTE_RUNTIME_PKGS_2404=(
     "intel-igc-core-2"
     "intel-igc-opencl-2"
-    "intel-level-zero-gpu"
+    "intel-ocloc"
     "intel-opencl-icd"
     "libigdgmm12"
+    "libze-intel-gpu1"
 )
 
 declare -A _COMPUTE_RUNTIME_META_2404=(
-    ['intel-igc-core-2.version']='2.10.8'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.10.8'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb'
-    ['intel-level-zero-gpu.version']='1.6.33276.16'
-    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb'
-    ['intel-opencl-icd.version']='25.13.33276.16'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb'
+    ['intel-igc-core-2.version']='2.11.7'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.11.7'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
+    ['intel-ocloc.version']='25.18.33578.6'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
+    ['intel-opencl-icd.version']='25.18.33578.6'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
     ['libigdgmm12.version']='22.7.0'
-    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
+    ['libze-intel-gpu1.version']='25.18.33578.6'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -338,82 +342,85 @@ function download_url_checksum() {
 
 function get_active_openvino_version() {
     # Get the currently active OpenVINO version
-    local active_version
-    active_version=$(python3 -c "from openvino import get_version; print(get_version())" 2>/dev/null || echo "")
+    local active_version=""
+
+    # Find the highest version among all installed openvino packages
+    local highest_version=""
+    while IFS=$'\t' read -r package version; do
+        if [[ -n "$package" && -n "$version" ]]; then
+            # If this is the first version or it's higher than current highest
+            if [[ -z "$highest_version" ]] || dpkg --compare-versions "$version" gt "$highest_version" 2>/dev/null; then
+                highest_version="$version"
+            fi
+        fi
+    done < <(dpkg-query -W -f='${Package}\t${Version}\n' 'openvino-*' 2>/dev/null)
+    
+    if [[ -n "$highest_version" ]]; then
+        active_version="$highest_version"
+    fi
 
     echo "$active_version"
 }
 
 function setup_openvino() {
-    local dest_tmp_path
-    dest_tmp_path=$(realpath "/tmp/linux_openvino_install")
-    log_func check_os "${OPENVINO_REL['ubuntu_version_supported']}" || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino support" | tee -a "$LOG_FILE"; return 0)
+    log_func check_os "${OPENVINO_REL['ubuntu_version_supported']}" || \
+        (echo "INFO: Use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino support" | tee -a "$LOG_FILE"; return 0)
 
     local active_version
     active_version=$(get_active_openvino_version)
 
     if [[ -n "$active_version" ]] && ! is_new_version_avail "$active_version" "${OPENVINO_REL['version']}"; then
-        echo "INFO: Installed Active OpenVINO version ($active_version) is up-to-date or newer than the target version (${OPENVINO_REL['version']})." | tee -a "$LOG_FILE"
+        echo "INFO: OpenVINO ($active_version) is up-to-date or newer than target (${OPENVINO_REL['version']})." | tee -a "$LOG_FILE"
         return 0
     fi
 
-    if [[ -d "$dest_tmp_path" ]]; then
-        rm -rf "$dest_tmp_path"
-    fi
-    mkdir -p "$dest_tmp_path"
-    TMP_FILES+=("$dest_tmp_path")
+    echo "INFO: Installing OpenVINO ${OPENVINO_REL['version']} using Debian packages" | tee -a "$LOG_FILE"
 
-    echo "INFO: Installing Openvino ${OPENVINO_REL['version']} from archive" | tee -a "$LOG_FILE"
+    # Install GPG key for Intel repository
+    local gpg_key_path="/tmp/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"
+    echo "INFO: Installing Intel GPG key" | tee -a "$LOG_FILE"
+    if ! wget -O "$gpg_key_path" "https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB"; then
+        echo "ERROR: Failed to download Intel GPG key" | tee -a "$LOG_FILE"
+        return 255
+    fi
+    TMP_FILES+=("$gpg_key_path")
+
+    sudo gpg --yes --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor "$gpg_key_path" || return 255
+
+    # Add Intel OpenVINO repository
     local osver
     osver=$(lsb_release -rs)
-    download_url_checksum "$dest_tmp_path/${OPENVINO_REL['version']}.tgz" "${OPENVINO_REL[$osver]}" "${OPENVINO_REL[$osver]}.sha256" || return 255
+    local repo_name
+    case "$osver" in
+        "22.04")
+            repo_name="ubuntu22"
+            ;;
+        "24.04")
+            repo_name="ubuntu24"
+            ;;
+        *)
+            echo "ERROR: Unsupported Ubuntu version: $osver" | tee -a "$LOG_FILE"
+            return 255
+            ;;
+    esac
 
-    tar -xf "$dest_tmp_path/${OPENVINO_REL['version']}.tgz" -C "$dest_tmp_path" || return 255
-    if [[ ! -d /opt/intel ]]; then
-        sudo mkdir /opt/intel
-    fi
-    check_dir_valid /opt/intel
-    local extracted_folder
-    extracted_folder=$(find "$dest_tmp_path" -name "openvino_toolkit_ubuntu*")
-    extracted_folder=$(realpath "$extracted_folder")
-    if [[ -d "/opt/intel/openvino_${OPENVINO_REL['version']}" ]]; then
-        sudo rm -rf "/opt/intel/openvino_${OPENVINO_REL['version']}"
-    fi
-    sudo mv "$extracted_folder" "/opt/intel/openvino_${OPENVINO_REL['version']}"
-    cd "/opt/intel/openvino_${OPENVINO_REL['version']}"
-    sudo -E ./install_dependencies/install_openvino_dependencies.sh -y || return 255
-    cd -
+    echo "INFO: Adding Intel OpenVINO repository for Ubuntu $osver" | tee -a "$LOG_FILE"
+    echo "deb https://apt.repos.intel.com/openvino $repo_name main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list
 
-    local -a ver
-    mapfile -td ' ' ver <<< "${OPENVINO_REL['version']//./ }"
-    cd /opt/intel
+    # Update package list
+    echo "INFO: Updating package list" | tee -a "$LOG_FILE"
+    sudo apt-get update || return 255
 
-    # Check and remove existing symbolic link for major version
-    if [[ -L "/opt/intel/openvino_${ver[0]}" ]]; then
-        sudo unlink "/opt/intel/openvino_${ver[0]}"
-    fi
-    # Create symbolic link for major version
-    sudo ln -s "openvino_${OPENVINO_REL['version']}" "openvino_${ver[0]}"
+    # Install OpenVINO package
+    local package_name="openvino-${OPENVINO_REL['version']}"
+    echo "INFO: Installing OpenVINO package: $package_name" | tee -a "$LOG_FILE"
+    sudo apt-get install -y "$package_name" || return 255
 
-    # Check and remove existing symbolic link for generic 'openvino'
-    if [[ -L "/opt/intel/openvino" ]]; then
-        sudo unlink "/opt/intel/openvino"
-    fi
-    # Create symbolic link for generic 'openvino'
-    sudo ln -s "openvino_${OPENVINO_REL['version']}" "openvino"
+    # Clean up unused packages from previous installations
+    echo "INFO: Cleaning up unused packages" | tee -a "$LOG_FILE"
+    sudo apt-get autoremove -y
 
-    cd -
-    # Deactivate old version
-    sudo sed -i "/source \/opt\/intel\/openvino_/d" /etc/bash.bashrc
-
-    # Activate new version
-    if ! grep -Fq "source /opt/intel/openvino_${ver[0]}/setupvars.sh" /etc/bash.bashrc; then
-        # Add to first line of bash.bashrc so that it will be called even for non interactive shell
-        sudo sed -i "1s:^:source /opt/intel/openvino_${ver[0]}/setupvars.sh\n:" /etc/bash.bashrc
-    fi
-
-    # Ensure echo is only for interactive shells
-    sudo sed -i "s/^echo \"\[setupvars.sh\] OpenVINO environment initialized\"/\[ ! -z \"\$PS1\" \] \&\& echo \"\[setupvars.sh\] OpenVINO environment initialized\"/" "/opt/intel/openvino_${ver[0]}/setupvars.sh"
+    echo "INFO: OpenVINO ${OPENVINO_REL['version']} installation completed" | tee -a "$LOG_FILE"
 }
 
 # Function to compare package version using dpkg's version comparison
@@ -423,13 +430,21 @@ function is_new_version_avail() {
     local current_ver="$1"
     local target_ver="$2"
 
-    # Remove any suffix after '-' for basic version comparison if needed
-    # Comment out these lines if you want to keep full version strings
-    # current_ver=$(echo "$current_ver" | cut -d '-' -f1)
-    # target_ver=$(echo "$target_ver" | cut -d '-' -f1)
+    # Handle empty versions
+    if [[ -z "$current_ver" ]]; then
+        return 0  # no current version, so new version is available
+    fi
+    if [[ -z "$target_ver" ]]; then
+        return 1  # no target version, so current is newer/equal
+    fi
 
-    # Use dpkg's built-in version comparison
-    if dpkg --compare-versions "$current_ver" lt "$target_ver"; then
+    # Sanitize versions to fix dpkg syntax issues
+    # Replace problematic characters like '/' with '-' to make them dpkg-compatible
+    current_ver=${current_ver//\//-}
+    target_ver=${target_ver//\//-}
+
+    # Use dpkg's built-in version comparison - it handles most version formats well
+    if dpkg --compare-versions "$current_ver" lt "$target_ver" 2>/dev/null; then
         return 0  # new version available
     else
         return 1  # current is newer or equal

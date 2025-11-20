@@ -544,7 +544,9 @@ function prompt_user_for_domain_conflicts() {
 
   # If user proceeds with launch, check and prompt user for deleting snapshots before redefining domain.
   # Snapshots need not be deleted if relaunching domain with same XML file
-  if virsh snapshot-list "$domain" | tail -n +3 | grep -q -v "^$"; then
+  # Only check for snapshots if domain actually exists to avoid 'failed to get domain' errors
+  if virsh list --all | grep -q " $domain " && \
+     virsh snapshot-list "$domain" 2>/dev/null | tail -n +3 | grep -q -v "^$"; then
     echo "Domain $domain has snapshots."
     if [[ "${REDEFINE_DOMAIN[$domain]}" -eq 1 ]]; then
       read -r -p "Domain cannot be redefined with existing snapshots. Do you want to delete all snapshots for $domain? (y/n) " snap_choice
@@ -561,9 +563,12 @@ function prompt_user_for_domain_conflicts() {
 
 function delete_all_snapshots() {
   local domain="$1"
-  for snap in $(virsh snapshot-list "$domain" --name); do
-    virsh snapshot-delete "$domain" --snapshotname "$snap"
-  done
+  # Only attempt to delete snapshots if domain exists
+  if virsh list --all | grep -q " $domain "; then
+    for snap in $(virsh snapshot-list "$domain" --name 2>/dev/null); do
+      virsh snapshot-delete "$domain" --snapshotname "$snap"
+    done
+  fi
 }
 
 # Function to shutdown and undefine a domain

@@ -160,7 +160,9 @@ autoinstall:
     # A postinstall script may optionally be used for further install
     # customization. Deploy this postinstall.sh script on the webserver.
     - wget --no-proxy -O /target/tmp/setup_bsp.sh $FILE_SERVER_URL/setup_bsp.sh
+    - wget --no-proxy -O /target/tmp/bsp_packages.sh $FILE_SERVER_URL/bsp_packages.sh
     - curtin in-target -- chmod +x /tmp/setup_bsp.sh
+    - curtin in-target -- chmod +x /tmp/bsp_packages.sh
     - curtin in-target -- >
       bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT $DRM_DRV_OPTION
     - wget --no-proxy -O /target/usr/local/bin/setup_swap.sh $FILE_SERVER_URL/setup_swap.sh
@@ -176,6 +178,7 @@ autoinstall:
     - curtin in-target -- chmod +x /tmp/setup_dpdk.sh
     - curtin in-target -- bash /tmp/setup_dpdk.sh
     - rm /target/tmp/setup_bsp.sh
+    - rm /target/tmp/bsp_packages.sh
     - rm /target/tmp/setup_pm_mgmt.sh
     - rm /target/tmp/setup_openvino.sh
     - rm /target/tmp/setup_dpdk.sh

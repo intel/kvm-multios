@@ -251,26 +251,48 @@ function setup_overlay_ppa() {
 function install_userspace_pkgs() {
     $LOGD "${FUNCNAME[0]} begin"
 
-    # bsp packages as per Intel bsp overlay release
-    local overlay_packages=(
-    vim ocl-icd-libopencl1 curl openssh-server net-tools gir1.2-gst-plugins-bad-1.0 gir1.2-gst-plugins-base-1.0 gir1.2-gstreamer-1.0 gir1.2-gst-rtsp-server-1.0 gstreamer1.0-alsa gstreamer1.0-gl gstreamer1.0-gtk3 gstreamer1.0-opencv gstreamer1.0-plugins-bad gstreamer1.0-plugins-bad-apps gstreamer1.0-plugins-base gstreamer1.0-plugins-base-apps gstreamer1.0-plugins-good gstreamer1.0-plugins-ugly gstreamer1.0-pulseaudio gstreamer1.0-qt5 gstreamer1.0-rtsp gstreamer1.0-tools gstreamer1.0-vaapi gstreamer1.0-wpe gstreamer1.0-x intel-media-va-driver-non-free jhi jhi-tests itt-dev itt-staticdev libmfx1 libmfx-dev libmfx-tools libd3dadapter9-mesa libd3dadapter9-mesa-dev libdrm-amdgpu1 libdrm-common libdrm-dev libdrm-intel1 libdrm-nouveau2 libdrm-radeon1 libdrm-tests libdrm2 libegl-mesa0 libegl1-mesa libegl1-mesa-dev libgbm-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri libgl1-mesa-glx libglapi-mesa libgles2-mesa libgles2-mesa-dev libglx-mesa0 libgstrtspserver-1.0-dev libgstrtspserver-1.0-0 libgstreamer-gl1.0-0 libgstreamer-opencv1.0-0 libgstreamer-plugins-bad1.0-0 libgstreamer-plugins-bad1.0-dev libgstreamer-plugins-base1.0-0 libgstreamer-plugins-base1.0-dev libgstreamer-plugins-good1.0-0 libgstreamer-plugins-good1.0-dev libgstreamer1.0-0 libgstreamer1.0-dev libigdgmm-dev libigdgmm12 libigfxcmrt-dev libigfxcmrt7 libmfx-gen1.2 libosmesa6 libosmesa6-dev libtpms-dev libtpms0 libva-dev libva-drm2 libva-glx2 libva-wayland2 libva-x11-2 libva2 libwayland-bin libwayland-client0 libwayland-cursor0 libwayland-dev libwayland-doc libwayland-egl-backend-dev libwayland-egl1 libwayland-egl1-mesa libwayland-server0 libweston-9-0 libweston-9-dev libxatracker-dev libxatracker2 mesa-common-dev mesa-utils mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers libvpl-dev libmfx-gen-dev onevpl-tools ovmf ovmf-ia32 qemu qemu-efi qemu-block-extra qemu-guest-agent qemu-system qemu-system-arm qemu-system-common qemu-system-data qemu-system-gui qemu-system-mips qemu-system-misc qemu-system-ppc qemu-system-s390x qemu-system-sparc qemu-system-x86 qemu-system-x86-microvm qemu-user qemu-user-binfmt qemu-utils va-driver-all vainfo weston xserver-xorg-core libvirt0 libvirt-clients libvirt-daemon libvirt-daemon-config-network libvirt-daemon-config-nwfilter libvirt-daemon-driver-lxc libvirt-daemon-driver-qemu libvirt-daemon-driver-storage-gluster libvirt-daemon-driver-storage-iscsi-direct libvirt-daemon-driver-storage-rbd libvirt-daemon-driver-storage-zfs libvirt-daemon-driver-vbox libvirt-daemon-driver-xen libvirt-daemon-system libvirt-daemon-system-systemd libvirt-dev libvirt-doc libvirt-login-shell libvirt-sanlock libvirt-wireshark libnss-libvirt swtpm swtpm-tools bmap-tools adb autoconf automake libtool cmake g++ gcc git intel-gpu-tools libssl3 libssl-dev make mosquitto mosquitto-clients build-essential apt-transport-https default-jre docker-compose ffmpeg git-lfs gnuplot lbzip2 libglew-dev libglm-dev libsdl2-dev mc openssl pciutils python3-pandas python3-pip python3-seaborn terminator vim wmctrl wayland-protocols gdbserver ethtool iperf3 msr-tools powertop linuxptp lsscsi tpm2-tools tpm2-abrmd binutils cifs-utils i2c-tools xdotool gnupg lsb-release intel-igc-core intel-igc-opencl intel-opencl-icd intel-level-zero-gpu ethtool iproute2 socat virt-viewer spice-client-gtk
-    )
+    # Load bsp packages from configuration file
+    local script_dir
+    script_dir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+    if [[ ! -f "$script_dir/bsp_packages.sh" ]]; then
+        $LOGE "Error: Package configuration file not found: $script_dir/bsp_packages.sh"
+        return 255
+    fi
+
+    # Source the packages configuration
+    # shellcheck source-path=SCRIPTDIR
+    source "$script_dir/bsp_packages.sh"
+
+    # Process comma-separated string directly into space-separated string, removing empty entries and whitespace
+    local package_list=""
+    local old_ifs="$IFS"
+    IFS=','
+    for pkg in $bsp_packages; do
+        # Trim whitespace, newlines, and carriage returns, skip empty entries
+        pkg=$(echo "$pkg" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        if [[ -n "$pkg" ]]; then
+            package_list+="$pkg "
+        fi
+    done
+    IFS="$old_ifs"
+
+    # Add additional packages
     if [[ -n $LINUX_FW_PPA_VER ]]; then
-        overlay_packages+=("linux-firmware=$LINUX_FW_PPA_VER")
+        package_list+="linux-firmware=$LINUX_FW_PPA_VER "
     else
-        overlay_packages+=("linux-firmware")
+        package_list+="linux-firmware "
     fi
 
     # for SPICE with SRIOV cursor support
-    overlay_packages+=("spice-vdagent")
+    package_list+="spice-vdagent "
 
-    # install bsp overlay packages
-    for package in "${overlay_packages[@]}"; do
-        if [[ -n ${package+x} && -n $package ]]; then
-            echo "Installing overlay package: $package"
-            sudo apt-get install -y --allow-downgrades "$package"
-        fi
-    done
+    # install all bsp overlay packages in a single command
+    if [[ -n "$package_list" ]]; then
+        echo "Installing BSP overlay packages..."
+        # shellcheck disable=SC2086
+        sudo apt-get install -y --allow-downgrades $package_list
+    fi
 
     # other non overlay packages
     for package in "${PACKAGES_ADD_INSTALL[@]}"; do
