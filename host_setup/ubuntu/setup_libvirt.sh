@@ -117,6 +117,114 @@ tee -a qemu &>/dev/null <<EOF
 
 VM_XML=\$(cat -)
 
+function setup_sriov_guc() {
+  local drm_drv="\$1"
+  local base_path="\$2"
+  local numvfs="\$3"
+
+  # Set PF resource values
+  gtt_spare_pf=\$((500 * 1024 * 1024)) # MB
+  contex_spare_pf=9216
+  doorbell_spare_pf=32
+
+  # Apply PF resource configuration
+  if [[ "\$drm_drv" == "xe" ]]; then
+    echo \$gtt_spare_pf | tee \$base_path/gt0/pf/ggtt_spare
+    echo \$contex_spare_pf | tee \$base_path/gt0/pf/contexts_spare
+    echo \$doorbell_spare_pf | tee \$base_path/gt0/pf/doorbells_spare
+  fi
+
+  # Set VF resource values
+  gtt_spare_vf_manual=\$((3 * 1024 * 1024 * 1024)) # 3GB
+  context_spare_vf_manual=51200
+  if [[ "\$drm_drv" == "xe" ]]; then
+    doorbell_spare_vf_manual=224  # xe specific value
+  fi
+
+  # Calculate values per VF
+  gtt_spare_vf=\$((gtt_spare_vf_manual / numvfs))
+  context_spare_vf=\$((context_spare_vf_manual / numvfs))
+  doorbell_spare_vf=\$((doorbell_spare_vf_manual / numvfs))
+
+  # Apply VF resource configuration
+  for (( i = 1; i <= numvfs; i++ )); do
+    if [[ "\$drm_drv" == "xe" ]]; then
+      # Configure gt0 for xe
+      echo \$gtt_spare_vf | tee \$base_path/gt0/vf\$i/ggtt_quota
+      echo \$context_spare_vf | tee \$base_path/gt0/vf\$i/contexts_quota
+      echo \$doorbell_spare_vf | tee \$base_path/gt0/vf\$i/doorbells_quota
+
+      # Configure gt1 if it exists (xe doesn't set GTT for gt1)
+      if [[ -d "\$base_path/gt1/vf\$i" ]]; then
+        echo \$context_spare_vf | tee \$base_path/gt1/vf\$i/contexts_quota
+        echo \$doorbell_spare_vf | tee \$base_path/gt1/vf\$i/doorbells_quota
+      fi
+    fi
+  done
+}
+
+function setup_sriov_provisioning() {
+  local drm_drv="\$1"
+  local base_path="\$2"
+  local numvfs="\$3"
+  local vendor="\$4"
+  local device="\$5"
+
+  modprobe i2c-algo-bit
+  modprobe video
+
+  # Set auto_provisioning for i915 driver only
+  if [[ "\$drm_drv" == "i915" ]]; then
+    if [[ -f "\$base_path/pf/auto_provisioning" ]]; then
+      echo '1' | tee -a \$base_path/pf/auto_provisioning
+    fi
+  fi
+
+  echo '0' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
+  echo "\$numvfs" | tee -a /sys/class/drm/card0/device/sriov_numvfs
+  echo '1' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
+  modprobe vfio-pci || :
+    if modprobe -n i915-vfio-pci &>/dev/null && \
+        lscpu | awk -F: '/Vendor ID:/ {if (\$2 ~ /GenuineIntel/) exit 0; else exit 1;}' && \
+        lscpu | awk -F: '/Model:/ {if (\$2 ~ /197|198/) exit 0; else exit 1;}'; then
+    modprobe i915-vfio-pci || :
+    echo "\$vendor \$device" | tee /sys/bus/pci/drivers/i915-vfio-pci/new_id
+  else
+    echo "\$vendor \$device" | tee /sys/bus/pci/drivers/vfio-pci/new_id
+  fi
+}
+
+function setup_sriov_scheduling() {
+  local drm_drv="\$1"
+  local base_path="\$2"
+  local numvfs="\$3"
+
+  vfschedexecq=25
+  vfschedtimeout=500000
+
+  if [[ "\$drm_drv" == "xe" ]]; then
+    for (( i = 1; i <= numvfs; i++ )); do
+      echo "\$vfschedexecq" | tee \$base_path/gt0/vf\$i/exec_quantum_ms
+      echo "\$vfschedtimeout" | tee \$base_path/gt0/vf\$i/preempt_timeout_us
+      if [[ -d "\$base_path/gt1" ]]; then
+        echo "\$vfschedexecq" | tee \$base_path/gt1/vf\$i/exec_quantum_ms
+        echo "\$vfschedtimeout" | tee \$base_path/gt1/vf\$i/preempt_timeout_us
+      fi
+    done
+  else
+    for (( i = 1; i <= numvfs; i++ )); do
+      if [[ -d "\$base_path/vf\$i/gt0" ]]; then
+        echo "\$vfschedexecq" | tee "\$base_path/vf\$i/gt0/exec_quantum_ms"
+        echo "\$vfschedtimeout" | tee "\$base_path/vf\$i/gt0/preempt_timeout_us"
+      fi
+      if [[ -d "\$base_path/vf\$i/gt1" ]]; then
+        echo "\$vfschedexecq" | tee "\$base_path/vf\$i/gt1/exec_quantum_ms"
+        echo "\$vfschedtimeout" | tee "\$base_path/vf\$i/gt1/preempt_timeout_us"
+      fi
+    done
+  fi
+}
+
 # Setup iGPU SRIOV VF
 if [[ "\${2}" == "prepare" ]]; then
   sriov_vf_hex=\$(xmllint --xpath "string(//domain/devices/hostdev/source/address[@domain='0x0000' and @bus='0x00' and @slot='0x02']/@function)" - <<<"\$VM_XML" )
@@ -127,67 +235,39 @@ if [[ "\${2}" == "prepare" ]]; then
       totalvfs=\$(cat /sys/class/drm/card0/device/sriov_totalvfs)
       vendor=\$(cat /sys/bus/pci/devices/0000:00:02.0/vendor)
       device=\$(cat /sys/bus/pci/devices/0000:00:02.0/device)
+
+      # Detect driver type and set consolidated paths
       drm_drv=\$(lspci -D -k  -s 00:02.0 | grep "Kernel driver in use" | awk -F ':' '{print \$2}' | xargs)
       if [[ "\$drm_drv" == "xe" ]]; then
-        gtt_spare_pf=\$((500 * 1024 * 1024)) # MB
-        contex_spare_pf=8192
-        doorbell_spare_pf=32
-        echo \$gtt_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/ggtt_spare
-        echo \$contex_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/contexts_spare
-        echo \$doorbell_spare_pf | tee /sys/kernel/debug/dri/0/gt0/pf/doorbells_spare
-      fi
-      modprobe i2c-algo-bit
-      modprobe video
-      # Only modify auto_provisioning if the file exists
-      if [[ -f '/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov/pf/auto_provisioning' ]]; then
-        echo '1' | tee -a '/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov/pf/auto_provisioning'
-      fi
-      echo '0' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
-      echo "\$totalvfs" | tee -a /sys/class/drm/card0/device/sriov_numvfs
-      echo '1' | tee '/sys/bus/pci/devices/0000:00:02.0/sriov_drivers_autoprobe'
-      modprobe vfio-pci || :
-      if modprobe -n i915-vfio-pci &>/dev/null && \
-        lscpu | awk -F: '/Vendor ID:/ {if (\$2 ~ /GenuineIntel/) exit 0; else exit 1;}' && \
-        lscpu | awk -F: '/Model:/ {if (\$2 ~ /197|198/) exit 0; else exit 1;}'; then
-        modprobe i915-vfio-pci || :
-        echo "\$vendor \$device" | tee /sys/bus/pci/drivers/i915-vfio-pci/new_id
-      else
-        echo "\$vendor \$device" | tee /sys/bus/pci/drivers/vfio-pci/new_id
-      fi
-      vfschedexecq=25
-      vfschedtimeout=500000
-      if [[ "\$drm_drv" == "i915" ]]; then
-        iov_path="/sys/class/drm/card0/iov"
-        if [[ -d "/sys/class/drm/card0/prelim_iov" ]]; then
-          iov_path="/sys/class/drm/card0/prelim_iov"
+        # Verify xe debug path exists
+        if [[ ! -d "/sys/kernel/debug/dri/0000:00:02.0" ]]; then
+          echo "Error: xe driver detected but debug path not available" >&2
+          exit 1
         fi
-        for (( i = 1; i <= totalvfs; i++ )); do
-          if [[ -d "\${iov_path}/vf\$i/gt" ]]; then
-            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt/exec_quantum_ms"
-            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt/preempt_timeout_us"
-          fi
-          if [[ -d "\${iov_path}/vf\$i/gt0" ]]; then
-            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt0/exec_quantum_ms"
-            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt0/preempt_timeout_us"
-          fi
-          if [[ -d "\${iov_path}/vf\$i/gt1" ]]; then
-            echo "\$vfschedexecq" | tee "\${iov_path}/vf\$i/gt1/exec_quantum_ms"
-            echo "\$vfschedtimeout" | tee "\${iov_path}/vf\$i/gt1/preempt_timeout_us"
-          fi
-        done
-      elif [[ "\$drm_drv" == "xe"  ]]; then
-        iov_path="/sys/kernel/debug/dri/0000:00:02.0"
-        for (( i = 1; i <= totalvfs; i++ )); do
-          if [[ -d "\${iov_path}/gt0/vf\$i" ]]; then
-            echo "\$vfschedexecq" | tee "\${iov_path}/gt0/vf\$i/exec_quantum_ms"
-            echo "\$vfschedtimeout" | tee "\${iov_path}/gt0/vf\$i/preempt_timeout_us"
-          fi
-          if [[ -d "\${iov_path}/gt1/vf\$i" ]]; then
-            echo "\$vfschedexecq" | tee "\${iov_path}/gt1/vf\$i/exec_quantum_ms"
-            echo "\$vfschedtimeout" | tee "\${iov_path}/gt1/vf\$i/preempt_timeout_us"
-          fi
-        done
+        base_path="/sys/kernel/debug/dri/0000:00:02.0"
+      elif [[ "\$drm_drv" == "i915" ]]; then
+        # For i915 driver, check for prelim_iov or iov paths
+        if [[ -d "/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov" ]]; then
+          base_path="/sys/devices/pci0000:00/0000:00:02.0/drm/card0/prelim_iov"
+        elif [[ -d "/sys/class/drm/card0/iov" ]]; then
+          base_path="/sys/class/drm/card0/iov"
+        else
+          echo "Error: Neither prelim_iov nor iov path available for i915 driver" >&2
+          exit 1
+        fi
+      else
+        echo "Error: Unsupported graphics driver: \$drm_drv" >&2
+        exit 1
       fi
+
+      # setup sriov guc
+      setup_sriov_guc "\$drm_drv" "\$base_path" "\$totalvfs"
+
+      # setup sriov provisioning
+      setup_sriov_provisioning "\$drm_drv" "\$base_path" "\$totalvfs" "\$vendor" "\$device"
+
+      # setup sriov scheduling
+      setup_sriov_scheduling "\$drm_drv" "\$base_path" "\$totalvfs"
     fi
   fi
 fi

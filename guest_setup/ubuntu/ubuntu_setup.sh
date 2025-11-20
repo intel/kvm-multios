@@ -15,7 +15,7 @@ UBUNTU_INSTALLER_ISO=ubuntu.iso
 UBUNTU_SEED_ISO=ubuntu-seed.iso
 declare -A UBUNTU_INSTALLER_ISO_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
-  ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.2-live-server-amd64.iso'
+  ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.3-live-server-amd64.iso'
 )
 declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
@@ -320,20 +320,32 @@ function verify_ubuntu_iso() {
   echo "INFO: Verifying $ubuntu_ver iso: $iso_to_check"
   wget -O "$dest_tmp_path/SHA256SUMS" "${UBUNTU_INSTALLER_SHA256SUMS_URLS[$ubuntu_ver]}" || return 255
   wget -O "$dest_tmp_path/SHA256SUMS_OLD_RELEASES" "${UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS[$ubuntu_ver]}SHA256SUMS" || return 255
-  cat "$dest_tmp_path/SHA256SUMS_OLD_RELEASES" >> "$dest_tmp_path/SHA256SUMS"
+
   local isochksum
   isochksum=$(sha256sum "$iso_to_check" | awk '{print $1}')
   local verifychksum
   local iso_fname
   iso_fname=$(basename "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}")
-  verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}')
+
+  # Try main SHA256SUMS first
+  echo "INFO: Trying verification against main releases SHA256SUMS"
+  verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS" | awk '{print $1}' | head -1)
+
+  # If not found or doesn't match, try old releases SHA256SUMS
+  if [[ -z "$verifychksum" || "$isochksum" != "$verifychksum" ]]; then
+    echo "INFO: Falling back to old releases SHA256SUMS"
+    verifychksum=$(grep "$iso_fname" < "$dest_tmp_path/SHA256SUMS_OLD_RELEASES" | awk '{print $1}' | head -1)
+  fi
+
   if [[ "$isochksum" == "$verifychksum" ]]; then
     # downloaded iso is okay.
     echo "Verified Ubuntu $ubuntu_ver iso checksum as expected: $isochksum"
     sudo cp "$iso_to_check" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
     sudo chown root:root "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
   else
-    echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match that of ${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}"
+    echo "ERROR: provided Ubuntu ISO $iso_to_check SHA256 checksum does not match expected checksum"
+    echo "Expected: $verifychksum for file: $iso_fname"
+    echo "Actual: $isochksum"
     return 255
   fi
 }

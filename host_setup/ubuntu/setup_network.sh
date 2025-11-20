@@ -121,6 +121,26 @@ function search_network_sriov() {
     fi
 }
 
+function check_vfs_requested() {
+    # Skip the check if no SR-IOV NICs found
+    if [[ "${#sriov_nics[@]}" -eq 0 ]]; then
+        return
+    fi
+
+    # Check if the requested number of VFs exceeds the maximum supported by any NIC
+    for device_name in "${sriov_nics[@]}"; do
+        local sriov_totalvfs="/sys/class/net/$device_name/device/sriov_totalvfs"
+        if [[ -f "$sriov_totalvfs" ]]; then
+            local totalvfs
+            totalvfs=$(cat "$sriov_totalvfs")
+            if [[ "$totalvfs" -lt "$NUM_VFS" ]]; then
+                log "Error: Requested $NUM_VFS VFs exceeds maximum supported VFs ($totalvfs) for device $device_name"
+                exit 255
+            fi
+        fi
+    done
+}
+
 function setup_network_sriov() {
     # Skip if no SR-IOV NICs found
     if [[ "${#sriov_nics[@]}" -eq 0 ]]; then
@@ -136,8 +156,14 @@ function setup_network_sriov() {
 
     # Enable SR-IOV VFs and create pools for each NIC
     for device_name in "${sriov_nics[@]}"; do
-        enable_sriov_vfs "$device_name" || continue
-        create_sriov_pool "$device_name"
+        if ! enable_sriov_vfs "$device_name"; then
+            log "Error: Failed to configure SR-IOV device $device_name with $NUM_VFS VFs."
+            exit 255
+        fi
+        if ! create_sriov_pool "$device_name"; then
+            log "Error: Failed to create SR-IOV pool for device $device_name."
+            exit 255
+        fi
     done
 }
 
@@ -162,7 +188,7 @@ function enable_sriov_vfs() {
     # Check if the device supports SR-IOV
     if [[ ! -f "$sriov_totalvfs" || ! -f "$sriov_numvfs" ]]; then
         log "Error: Device $device_name does not support SR-IOV."
-        return
+        return 1
     fi
 
     # Check the requested number of VFs is supported
@@ -171,7 +197,7 @@ function enable_sriov_vfs() {
     if [[ "$totalvfs" -lt "$NUM_VFS" ]]; then
         log "Error: Unable to set $NUM_VFS VFs on $device_name"
         log "Device $device_name supports only $totalvfs VFs, skipping."
-        return
+        return 1
     fi
 
     # Enable SR-IOV VFs
@@ -251,9 +277,18 @@ function create_sriov_pool() {
 </network>
 EOF
     # Define and start the pool
-    sudo virsh net-define "$pool_xml" || log "Pool $pool_name already defined"
-    sudo virsh net-autostart "$pool_name"
-    sudo virsh net-start "$pool_name"
+    if ! sudo virsh net-define "$pool_xml"; then
+        log "Error: Failed to define pool $pool_name"
+        return 1
+    fi
+    if ! sudo virsh net-autostart "$pool_name"; then
+        log "Error: Failed to set autostart for pool $pool_name"
+        return 1
+    fi
+    if ! sudo virsh net-start "$pool_name"; then
+        log "Error: Failed to start pool $pool_name"
+        return 1
+    fi
     log "Created libvirt pool $pool_name"
 }
 
@@ -279,10 +314,38 @@ function destroy_sriov_pool() {
     fi
 }
 
+function install_dpdk() {
+    local need_install=0
+    if ! dpkg -l "dpdk" 2>/dev/null | grep -q "^ii"; then
+        need_install=1
+    fi
+    if ! dpkg -l "dpdk-dev" 2>/dev/null | grep -q "^ii"; then
+        need_install=1
+    fi
+
+    if [[ $need_install -eq 1 ]]; then
+        local dpdk_version="23.11.4-0ubuntu0.24.04.1"
+        sudo apt-get update
+        sudo apt-get install -y dpdk=${dpdk_version} dpdk-dev=${dpdk_version}
+    fi
+}
+
 function parse_arg() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --sriov-vfs)
+                if [[ $# -lt 2 ]]; then
+                    echo "Error: --sriov-vfs requires an argument"
+                    exit 255
+                fi
+                if [[ ! "$2" =~ ^[0-9]+$ ]]; then
+                    echo "Error: --sriov-vfs argument must be a positive integer"
+                    exit 255
+                fi
+                if [[ "$2" -eq 0 ]]; then
+                    echo "Error: --sriov-vfs argument must be greater than 0"
+                    exit 255
+                fi
                 NUM_VFS="$2"
                 shift 2
                 ;;
@@ -302,10 +365,12 @@ function parse_arg() {
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
-parse_arg "$@" || exit 255
+parse_arg "$@"
 create_default_network || exit 255
 create_isolated_network || exit 255
 search_network_sriov
+check_vfs_requested || exit 255
 setup_network_sriov || exit 255
+install_dpdk || exit 255
 
 echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

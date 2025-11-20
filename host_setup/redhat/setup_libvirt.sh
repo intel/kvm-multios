@@ -166,7 +166,7 @@ rm isolated-guest-net.xml
 # a hook-helper for libvirt which allows easier per-VM hooks.
 # usually /etc/libvirt/libvirt/hooks/qemu.d/vm_name/hook_name/state_name/
 # See: https://passthroughpo.st/simple-per-vm-libvirt-hooks-with-the-vfio-tools-hook-helper/
-wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/master/libvirt_hooks/qemu' -O qemu
+wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/4f6d505f7ef032b552c9a544f95e8586d954fe26/libvirt_hooks/qemu' -O qemu
 
 # Configure port forwarding from host to VMs
 tee -a qemu &>/dev/null <<EOF

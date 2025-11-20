@@ -6,9 +6,8 @@
 set -Eeuo pipefail
 
 #------------ global variables -------------
-domain=""
-net_name=""
-available_sriov_net_name=""
+declare -a net_domain_pairs=()
+declare -A processed_domains=()
 
 #-------------    functions    -------------
 function check_network() {
@@ -89,14 +88,20 @@ function check_available_sriov_connection() {
 }
 
 function setup_network() {
-    # Detach all existing network interfaces from the specified VM domain.
-    iface_list=$(virsh domiflist "$domain" | awk 'NR>2 {print $5}')
-    for iface in $iface_list; do
-        if [[ -n "$iface" && "$iface" != "-" ]]; then
-            echo "Detaching interface $iface from domain: $domain"
-            virsh detach-interface "$domain" --type network --mac "$iface" --config || true
-        fi
-    done
+    local net_name="$1"
+    local domain="$2"
+
+    # Detach all existing network interfaces from the specified VM domain only once per domain.
+    if [[ -z "${processed_domains[$domain]:-}" ]]; then
+        iface_list=$(virsh domiflist "$domain" | awk 'NR>2 {print $5}')
+        for iface in $iface_list; do
+            if [[ -n "$iface" && "$iface" != "-" ]]; then
+                echo "Detaching interface $iface from domain: $domain"
+                virsh detach-interface "$domain" --type network --mac "$iface" --config || true
+            fi
+        done
+        processed_domains[$domain]="processed"
+    fi
 
     # Attach the requested network to the domain.
     if [[ "$net_name" == "sriov" ]]; then
@@ -109,9 +114,10 @@ function setup_network() {
 }
 
 function show_help() {
-    echo "Usage: $0 <net_name> <domain>"
+    echo "Usage: $0 <net_name1> <domain1> [<net_name2> <domain2> ...]"
     echo ""
-    echo "Attach a libvirt network to a VM domain, replacing any existing network interfaces."
+    echo "Attach libvirt networks to VM domains, replacing any existing network interfaces."
+    echo "All network-domain pairs should be for the same domain when called from launch_multios.sh."
     echo ""
     echo "Arguments:"
     echo "  <net_name>   Name of the libvirt network to attach (from 'virsh net-list --all --name'),"
@@ -121,9 +127,11 @@ function show_help() {
     echo "Examples:"
     echo "  $0 default ubuntu"
     echo "  $0 sriov windows11"
+    echo "  $0 default ubuntu sriov ubuntu"
     echo ""
-    echo "This script will detach all existing network interfaces from the domain and attach the specified network."
+    echo "This script will detach all existing network interfaces from the domain once and attach the specified networks."
     echo "If 'sriov' is specified, the script will select the first SR-IOV pool with available connections."
+    echo "Multiple networks can be attached to the same domain by specifying multiple network-domain pairs."
 }
 
 function parse_arg() {
@@ -131,35 +139,50 @@ function parse_arg() {
         show_help
         exit 0
     fi
-    if [[ $# -ne 2 ]]; then
+    if [[ $# -eq 0 || $(($# % 2)) -ne 0 ]]; then
         show_help
-        echo "Error: Invalid arguments." >&2
+        echo "Error: Arguments must be provided in pairs (net_name domain)." >&2
         exit 255
     fi
-    net_name="$1"
-    domain="$2"
 
-    # Basic sanity checks
-    if [[ -z "$domain" ]]; then
-        show_help
-        echo "Error: domain argument is empty" >&2
-        exit 255
-    fi
-    if [[ -z "$net_name" ]]; then
-        show_help
-        echo "Error: net_name argument is empty" >&2
-        exit 255
-    fi
+    # Parse network-domain pairs
+    while [[ $# -gt 0 ]]; do
+        local net_name="$1"
+        local domain="$2"
+
+        # Basic sanity checks
+        if [[ -z "$net_name" ]]; then
+            show_help
+            echo "Error: net_name argument is empty" >&2
+            exit 255
+        fi
+        if [[ -z "$domain" ]]; then
+            show_help
+            echo "Error: domain argument is empty" >&2
+            exit 255
+        fi
+
+        net_domain_pairs+=("$net_name" "$domain")
+        shift 2
+    done
 }
 
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
-echo ""
-echo "Preparing to configure network '$net_name' for domain: $domain"
-echo ""
-check_network
-setup_network
+
+# Process each network-domain pair
+for ((i=0; i<${#net_domain_pairs[@]}; i+=2)); do
+    net_name="${net_domain_pairs[i]}"
+    domain="${net_domain_pairs[i+1]}"
+
+    echo ""
+    echo "Preparing to configure network '$net_name' for domain: $domain"
+    echo ""
+
+    check_network
+    setup_network "$net_name" "$domain"
+done
 
 echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

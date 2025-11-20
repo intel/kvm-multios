@@ -23,7 +23,7 @@ declare -A device_passthrough
 declare -A multi_display
 
 # Array to store network name per domain
-declare -A DOMAIN_NET_NAME
+declare -a DOMAIN_NET_PAIRS=()
 
 # Define variables
 
@@ -111,7 +111,7 @@ function log_error() {
 
 # Function to show help info
 function show_help() {
-  printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-n <sriov|network_name> <domain>] [-p <domain> [[--usb|--pci <device>] (<number>) | [--usbtree <bus-port_L1.port_L2...port_Lx>]] | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
+  printf "%s [-h|--help] [-f] [-a] [-d <domain1> <domain2> ...] [-g <headless|vnc|spice|spice-gst|sriov|gvtd> <domain>] [-n <sriov|network_name> <domain(s)>] [-p <domain> [[--usb|--pci <device>] (<number>) | [--usbtree <bus-port_L1.port_L2...port_Lx>]] | -p <domain> --tpm <type> (<model>) | -p <domain> --xml <xml file>]\n" "$(basename "${BASH_SOURCE[0]}")"
   printf "Launch one or more guest VM domain(s) with libvirt\n\n"
   printf "Options:\n"
   printf "  -h,--help                                         Show the help message and exit\n"
@@ -124,9 +124,10 @@ function show_help() {
   printf "      <domain(s)>                                   \n"
   printf "  -n <sriov|network_name> <domain(s)>               Attach the specified network to one or more domains.\n"
   printf "                                                    Choose 'sriov' to auto-select an available SR-IOV pool.\n"
-  printf "                                                    or <network_name> which is any network from 'virsh net-list --name',\n"
-  printf "                                                    Example: -n default ubuntu windows\n"
-  printf "                                                    Example: -n sriov ubuntu\n"
+  printf "                                                    or <network_name> which is any network from 'virsh net-list --name'.\n"
+  printf "                                                    Multiple domains can be specified after a network name.\n"
+  printf "                                                    This option can be used multiple times for different combinations.\n"
+  printf "                                                    Example: -n default ubuntu windows11 -n sriov ubuntu -n isolated-guest-net windows11\n"
   printf "  -p <domain>                                       Name of the VM domain for device passthrough\n"
   printf "      --usb | --pci                                 Options of interface (eg. --usb or --pci)\n"
   printf "      <device>                                      Name of the device (eg. mouse, keyboard, bluetooth, etc\n"
@@ -356,6 +357,7 @@ function parse_arg() {
         fi
         net_name="$2"
         shift 2
+
         # Accept any network name from virsh net-list, or "sriov" keyword
         valid_net="false"
         if [[ "$net_name" == "sriov" ]]; then
@@ -371,21 +373,31 @@ function parse_arg() {
           show_help
           exit 255
         fi
-        if [[ $# -eq 0 || "$1" =~ ^- ]]; then
-          log_error "No domains specified after -n $net_name"
-          show_help
-          exit 255
-        fi
-        while [[ $# -gt 0 && ! "$1" =~ ^- ]]; do
+
+        # Process domains for this network
+        domains_found=0
+        while [[ $# -gt 0 ]]; do
+          # Check if this looks like an option (starts with -)
+          if [[ "$1" =~ ^- ]]; then
+            break
+          fi
           domain="$1"
           if [[ ! "${!VM_DOMAIN[*]}" =~ $domain ]]; then
             log_error "Domain $domain is not supported."
             show_help
             exit 255
           fi
-          DOMAIN_NET_NAME["$domain"]="$net_name"
+          # Store network-domain pair
+          DOMAIN_NET_PAIRS+=("$net_name" "$domain")
+          domains_found=1
           shift
         done
+
+        if [[ $domains_found -eq 0 ]]; then
+          log_error "Missing domain(s) after -n $net_name"
+          show_help
+          exit 255
+        fi
         ;;
       -?*)
           echo "Error: Invalid option: $1"
@@ -444,7 +456,7 @@ function cleanup_domain() {
     delete_all_snapshots "$domain"
   fi
 
-  # If force launch is set, destroy and undefine the domain without 
+  # If force launch is set, destroy and undefine the domain without
   # user confirmation
   if [[ "$FORCE_LAUNCH" == "true" ]]; then
     if [[ "$status" == "running" || "$status" == "paused" ]]; then
@@ -607,8 +619,8 @@ function launch_domains() {
   done
 
   for domain in "$@"; do
-    # If multiple domains are to be launched with single command, mark the ones where 
-    # relaunch is not needed. Eg, if user inputs no to the prompt for Windows but 
+    # If multiple domains are to be launched with single command, mark the ones where
+    # relaunch is not needed. Eg, if user inputs no to the prompt for Windows but
     # proceeds with Ubuntu
     if ! check_domain "$domain"; then
       EXCLUDED_DOMAIN_BY_USER["$domain"]=1
@@ -641,10 +653,19 @@ function launch_domains() {
     echo "Passthrough device to domain $domain if any"
     passthrough_devices "$domain" || return 255
 
-    # Configure network for domain (use network defined in domain xml if not set)
-    net_name="${DOMAIN_NET_NAME[$domain]:-}"
-    if [[ -n "$net_name" ]]; then
-      "$LIBVIRT_NETWORK_SCRIPT" "$net_name" "$domain"  || return 255
+    # Configure networks for this specific domain
+    local -a domain_network_args=()
+    if [[ ${#DOMAIN_NET_PAIRS[@]} -gt 0 ]]; then
+      for ((i=0; i<${#DOMAIN_NET_PAIRS[@]}; i+=2)); do
+        if [[ "${DOMAIN_NET_PAIRS[i+1]}" == "$domain" ]]; then
+          domain_network_args+=("${DOMAIN_NET_PAIRS[i]}" "$domain")
+        fi
+      done
+    fi
+
+    if [[ ${#domain_network_args[@]} -gt 0 ]]; then
+      echo "Configuring networks for domain $domain..."
+      "$LIBVIRT_NETWORK_SCRIPT" "${domain_network_args[@]}" || return 255
     fi
 
     # Start domain
