@@ -1,13 +1,13 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2025 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
 
 #---------  Global variables  -------------------
 GUEST_DOMAIN=""
-GUEST_DISP_TYPE="-display gtk,gl=on"
+GUEST_DISP_TYPE="-display gtk,gl=on,hw-cursor=true"
 GUEST_DISPLAY_MAX=4
 GUEST_DISPLAY_MIN=1
 GUEST_MAX_OUTPUTS=1

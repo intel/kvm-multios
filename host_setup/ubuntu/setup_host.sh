@@ -94,6 +94,15 @@ function check_virtualization() {
     fi
 }
 
+function check_bios() {
+    # Check if VMD kernel driver is in use
+    if lspci -k | grep -i "kernel driver in use" | grep -i vmd; then
+        echo "Error: VMD is enabled"
+        echo "Please check the BIOS settings and disable VMD"
+        exit 255
+    fi
+}
+
 function check_sriov() {
     # Check SR-IOV only if there is GUI
     if [[ "$(systemctl get-default)" == "graphical.target" ]]; then
@@ -600,6 +609,7 @@ parse_arg "$@" || exit 255
 
 log_clean
 log_func check_virtualization || exit 255
+log_func check_bios || exit 255
 log_func check_sriov || exit 255
 log_func check_os || exit 255
 

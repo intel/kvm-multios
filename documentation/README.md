@@ -520,41 +520,59 @@ Upon host wake up from suspend, all previously suspended VMs will be automatical
 All successfully hibernated guest VM will be in "Shut off" state as shown by "virsh list" command. Such guests will automatically resume from hibernated state when restarted using launch_multios.sh as per [VM Launch](#vm-launch)
 
 ## VM Cloning
-KVM MultiOS Portfolio release provides an ease of use script (./guest_setup/ubuntu/clone_guest.sh) to clone Ubuntu/Ubuntu-RT/Windows guest from an existing domain or XML file. The original guest image to be cloned must be available before using the script as per the installation procedure in [Ubuntu](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) and [Windows](windows_vm.md#automated-windows-vm-installation). In addition to the feature provided by [virt-clone](http://man.docs.sk/1/virt-clone.html), the script supports assignment of iGPU SRIOV VF used for cloned guest domain if iGPU VF is assigned in the source domain or XML file via auto or manual assignment.
+KVM MultiOS Portfolio release provides an easy-to-use script (./guest_setup/ubuntu/clone_guest.sh) to clone Ubuntu/Ubuntu-RT/Windows guests from an existing domain or XML file. The original guest image to be cloned must be available before using the script, as per the installation procedures in [Ubuntu](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) and [Windows](windows_vm.md#automated-windows-vm-installation). In addition to the features provided by [virt-clone](http://man.docs.sk/1/virt-clone.html), the script supports assignment of iGPU SR-IOV VFs for cloned guest domains if an iGPU VF is assigned in the source domain or XML file via automatic or manual assignment.
+
+By default, the script removes USB and PCI passthrough device configurations from the cloned domain to prevent conflicts when explicitly attaching devices via launch script options. iGPU SRIOV VF devices (bus=0x00, slot=0x02, functions 0x1-0x7) are preserved. Use the --preserve_passthrough option to retain all device passthrough configurations from the source.
+
+The script also provides a system state summary feature (--sys_state) that displays comprehensive information about all defined domains, XML configurations, disk images, and iGPU VF assignments, including detection of missing disk images and VF assignment conflicts.
 
         Usage:
         $ ./guest_setup/ubuntu/clone_guest.sh --help
         clone_guest.sh [-h] [-s source_domain] [-x source_xml] [-n new_domain] [-p platform]
-        [--igpu_vf_auto start_vf_num] [--igpu_vf vf_num] [--igpu_vf_force vf_num] [--forceclean] [--forceclean_domain] [--preserve_data]
+        [--igpu_vf_auto start_vf_num] [--igpu_vf vf_num] [--igpu_vf_force vf_num]
+        [--forceclean] [--forceclean_domain] [--preserve_data] [--preserve_passthrough] [--sys_state]
         
         Options:
                 -h                           Show this help message
-                -s source_domain             Source domain name to clone from, mutually exclusive with -x option
-                -x source_xml                Source XML to clone from, mutually exclusive with -o option
+                -s source_domain             Source domain name to clone from,
+                                             mutually exclusive with -x option
+                -x source_xml                Source XML to clone from,
+                                             mutually exclusive with -s option
                 -n new_domain                New domain name
                 -p platform                  Specific platform to setup for, eg. "-p client "
                                              Accepted values:
-                                             server
                                              client
-                --igpu_vf_auto start_vf_num  Auto search for available vf, starting from start_vf_num to maximum available vf
-                --igpu_vf vf_num             Use vf_num for igpu sriov in the new domain only if vf_num has not been used in existing domains
-                --igpu_vf_force vf_num       Use vf_num for igpu sriov in the new domain, not considering if the vf_num has been used in existing domains
-                --forceclean                 Delete both new domain and image if already exists. Default not enabled, mutually exclusive with --preserve
-                --forceclean_domain          Delete only new domain if already exists. Default not enabled
-                --preserve_data              Preserve new domain image if already exists, create new one if not exist. Default not enabled
+                                             server
+                --igpu_vf_auto start_vf_num  Auto search for available VF, starting from
+                                             start_vf_num to maximum available VF
+                --igpu_vf vf_num             Use vf_num for iGPU SRIOV in the new domain
+                                             only if vf_num has not been used in existing domains
+                --igpu_vf_force vf_num       Use vf_num for iGPU SRIOV in the new domain,
+                                             not considering if the vf_num has been used
+                                             in existing domains
+                --forceclean                 Delete both new domain and image data if they already
+                                             exist. Default not enabled, mutually exclusive
+                                             with --preserve_data
+                --forceclean_domain          Delete only new domain if it already exists.
+                                             Default not enabled
+                --preserve_data              Preserve new domain image data if it already exists,
+                                             create new one if it does not exist. Default not enabled
+                --preserve_passthrough       Preserve USB and PCI passthrough device configurations
+                                             from source domain/XML in the cloned domain. Default not enabled.
+                                             By default, passthrough devices are removed to avoid conflicts
+                --sys_state                  Show current system state (domains, XML files, VF usage)
+                                             for the specified platform and exit without performing
+                                             any cloning operations. Requires -p parameter.
         
         Usage examples:
-        # Clone a new VM named ubuntu_x/windows_x from existing ubuntu/windows domain, auto adjust the iGPU VF to the next availability
-        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_x -p client
-        ./guest_setup/ubuntu/clone_guest.sh -s windows -n windows_x -p client
+        # Clone from existing ubuntu domain, auto search available iGPU VF starting from 4
+        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_2 -p client --igpu_vf_auto 4
 
-        # Clone a new VM named ubuntu_x/windows_x from ubuntu_sriov.xml/windows_sriov_ovmf.xml, auto adjust the iGPU VF to the next availability
-        ./guest_setup/ubuntu/clone_guest.sh -x ubuntu_sriov.xml -n ubuntu_x -p client
-        ./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_x -p client
+        # Clone from windows xml, using iGPU VF 4
+        ./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_2 -p client --igpu_vf 4
 
-        # Clone a new VM named ubuntu_x/windows_x from existing ubuntu/windows domain, specify the iGPU VF to be used in the new VM
-        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_x -p client --igpu_vf <vf_num>
-        ./guest_setup/ubuntu/clone_guest.sh -s windows -n windows_x -p client --igpu_vf <vf_num>
+        # Display system state summary for client platform
+        ./guest_setup/ubuntu/clone_guest.sh --sys_state -p client
 
 New domain created will be automatically added to the platform launch_multios.sh and the domain xml saved in the libvirt_xml folder. The new domain can be launched via virsh or launch_multios.sh
 

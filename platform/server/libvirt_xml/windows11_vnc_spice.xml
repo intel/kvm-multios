@@ -68,9 +68,9 @@
       <source mode="bind"/>
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
-    <input type="tablet" bus="usb"/>
     <graphics type="vnc" port="5905" listen="0.0.0.0"/>
     <sound model="ich9"/>
+    <input type="tablet" bus="usb"/>
     <tpm model='tpm-crb'>
       <backend type='emulator' version='2.0'/>
     </tpm>

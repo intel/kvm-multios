@@ -92,7 +92,6 @@
       <source mode="bind"/>
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
-    <input type="tablet" bus="usb"/>
     <sound model="ich9">
       <codec type="duplex"/>
       <audio id="1"/>
