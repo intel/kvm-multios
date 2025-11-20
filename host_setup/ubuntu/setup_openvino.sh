@@ -18,27 +18,23 @@ TMP_FILES=()
 
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
-    ['version']='2025.1.0'
+    ['version']='2025.2.0'
     ['ubuntu_version_supported']='22.04, 24.04'
-    ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/linux/openvino_toolkit_ubuntu22_2025.1.0.18503.6fec06580ab_x86_64.tgz'
-    ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/linux/openvino_toolkit_ubuntu24_2025.1.0.18503.6fec06580ab_x86_64.tgz'
+    ['22.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/linux/openvino_toolkit_ubuntu22_2025.2.0.19140.c01cd93e24d_x86_64.tgz'
+    ['24.04']='https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/linux/openvino_toolkit_ubuntu24_2025.2.0.19140.c01cd93e24d_x86_64.tgz'
 )
 
 INSTALL_NPU=0
 declare -A _LINUX_NPU_DRV_REL_2204=(
-    ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
-    ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
-    ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu22.04_amd64.deb'
-    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u22.04_amd64.deb'
+    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2204.tar.gz'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb'
 )
 declare -A _LINUX_NPU_DRV_REL_2404=(
-    ['intel-driver-compiler-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
-    ['intel-fw-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
-    ['intel-level-zero-npu']='https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb'
-    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u24.04_amd64.deb'
+    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb'
 )
 declare -A LINUX_NPU_DRV_REL=(
-    ['version']="v1.13.0"
+    ['version']="v1.23.0"
     ['ubuntu_version_supported']='22.04, 24.04'
     ['22.04']="_LINUX_NPU_DRV_REL_2204"
     ['24.04']="_LINUX_NPU_DRV_REL_2404"
@@ -58,56 +54,41 @@ _COMPUTE_RUNTIME_PKGS_2204=(
     "intel-igc-opencl-2"
     "intel-level-zero-gpu"
     "intel-opencl-icd"
-    "intel-gmmlib"
-    "intel-gmmlib-dev"
+    "libigdgmm12"
 )
 
 declare -A _COMPUTE_RUNTIME_META_2204=(
-    ['intel-igc-core-2.version']='2.1.12'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-core-2_2.1.12+18087_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.1.12'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.1.12/intel-igc-opencl-2_2.1.12+18087_amd64.deb'
-    ['intel-level-zero-gpu.version']='1.6.31740.9'
-    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-level-zero-gpu_1.6.31740.9_amd64.deb'
-    ['intel-opencl-icd.version']='24.45.31740.9'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/intel-opencl-icd_24.45.31740.9_amd64.deb'
-    ['intel-gmmlib.version']='22.5.2'
-    ['intel-gmmlib.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm12_22.5.2_amd64.deb'
-    ['intel-gmmlib-dev.version']='22.5.2'
-    ['intel-gmmlib-dev.url']='https://github.com/intel/compute-runtime/releases/download/24.45.31740.9/libigdgmm-dev_22.5.2_amd64.deb'
+    ['intel-igc-core-2.version']='2.10.8'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.10.8'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb'
+    ['intel-level-zero-gpu.version']='1.6.33276.16'
+    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb'
+    ['intel-opencl-icd.version']='25.13.33276.16'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb'
+    ['libigdgmm12.version']='22.7.0'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb'
 )
 
 _COMPUTE_RUNTIME_PKGS_2404=(
     "intel-igc-core-2"
     "intel-igc-opencl-2"
-    "intel-ocloc-dbgsym"
-    "intel-ocloc"
-    "intel-opencl-icd-dbgsym"
+    "intel-level-zero-gpu"
     "intel-opencl-icd"
-    "intel-gmmlib"
-    "libze-intel-gpu1-dbgsym"
-    "libze-intel-gpu1"
+    "libigdgmm12"
 )
 
 declare -A _COMPUTE_RUNTIME_META_2404=(
-    ['intel-igc-core-2.version']='2.11.7'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.11.7'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
-    ['intel-ocloc-dbgsym.version']='25.18.33578.6'
-    ['intel-ocloc-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc-dbgsym_25.18.33578.6-0_amd64.ddeb'
-    ['intel-ocloc.version']='25.18.33578.6'
-    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
-    ['intel-opencl-icd-dbgsym.version']='25.18.33578.6'
-    ['intel-opencl-icd-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd-dbgsym_25.18.33578.6-0_amd64.ddeb'
-    ['intel-opencl-icd.version']='25.18.33578.6'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
-    ['intel-gmmlib.version']='22.7.0'
-    ['intel-gmmlib.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
-    ['libze-intel-gpu1-dbgsym.version']='25.18.33578.6'
-    ['libze-intel-gpu1-dbgsym.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1-dbgsym_25.18.33578.6-0_amd64.ddeb'
-    ['libze-intel-gpu1.version']='25.18.33578.6'
-    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
+    ['intel-igc-core-2.version']='2.10.8'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-core-2_2.10.8+18926_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.10.8'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.10.8/intel-igc-opencl-2_2.10.8+18926_amd64.deb'
+    ['intel-level-zero-gpu.version']='1.6.33276.16'
+    ['intel-level-zero-gpu.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-level-zero-gpu_1.6.33276.16_amd64.deb'
+    ['intel-opencl-icd.version']='25.13.33276.16'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/intel-opencl-icd_25.13.33276.16_amd64.deb'
+    ['libigdgmm12.version']='22.7.0'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.13.33276.16/libigdgmm12_22.7.0_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -207,25 +188,54 @@ function setup_openvino_npu() {
     fi
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
-    # Linux NPU driver release
-    for pkg in intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu level-zero; do
-        if dpkg -l "$pkg" 2>/dev/null | grep -q "^ii"; then
-           sudo dpkg --purge --force-remove-reinstreq "$pkg"
+
+    # Download and extract NPU driver archive
+    echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
+    wget -O "$dest_tmp_path/npu-driver-archive.tar.gz" "${LINUX_NPU_DRV_REL_BIN['npu-driver-archive']}" || return 255
+    check_file_valid_nonzero "$dest_tmp_path/npu-driver-archive.tar.gz"
+
+    # Extract the tar.gz archive
+    tar -xzf "$dest_tmp_path/npu-driver-archive.tar.gz" -C "$dest_tmp_path" || return 255
+
+    # Purge old packages with the same name as those from the archive
+    echo "INFO: Checking for conflicting NPU packages in archive..." | tee -a "$LOG_FILE"
+    for deb_file in "$dest_tmp_path"/*.deb; do
+        if [[ -f "$deb_file" ]]; then
+            local pkg_name
+            pkg_name=$(dpkg-deb -f "$deb_file" Package 2>/dev/null)
+            if [[ -n "$pkg_name" ]] && dpkg -l "$pkg_name" 2>/dev/null | grep -q "^ii"; then
+                echo "INFO: Removing existing package: $pkg_name" | tee -a "$LOG_FILE"
+                if ! sudo dpkg --purge --force-remove-reinstreq "$pkg_name" 2>/dev/null; then
+                    echo "WARNING: Could not remove $pkg_name, continuing anyway..." | tee -a "$LOG_FILE"
+                fi
+            fi
         fi
     done
-    echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
-    wget -O "$dest_tmp_path/intel-driver-compiler-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-driver-compiler-npu']}" || return 255
-    check_file_valid_nonzero "$dest_tmp_path/intel-driver-compiler-npu.deb"
-    wget -O "$dest_tmp_path/intel-fw-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-fw-npu']}" || return 255
-    check_file_valid_nonzero "$dest_tmp_path/intel-fw-npu.deb"
-    wget -O "$dest_tmp_path/intel-level-zero-npu.deb" "${LINUX_NPU_DRV_REL_BIN['intel-level-zero-npu']}" || return 255
-    check_file_valid_nonzero "$dest_tmp_path/intel-level-zero-npu.deb"
-    wget -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL_BIN['level-zero']}" || return 255
-    check_file_valid_nonzero "$dest_tmp_path/level-zero.deb"
 
-    echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
+    # Ensure libtbb12 dependency is installed
+    echo "INFO: Installing dependencies for Linux NPU Driver" | tee -a "$LOG_FILE"
     sudo apt-get install -y libtbb12
-    sudo dpkg -i "$dest_tmp_path"/*.deb
+
+    # Install all NPU driver packages from archive
+    echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
+    for deb_file in "$dest_tmp_path"/*.deb; do
+        if [[ -f "$deb_file" ]]; then
+            echo "INFO: Installing $(basename "$deb_file")" | tee -a "$LOG_FILE"
+            sudo dpkg -i "$deb_file" || echo "WARNING: Failed to install $(basename "$deb_file")" | tee -a "$LOG_FILE"
+        fi
+    done
+
+    # Install level-zero only if it's missing
+    if ! dpkg -l "level-zero" 2>/dev/null | grep -q "^ii"; then
+        echo "INFO: Downloading level-zero package" | tee -a "$LOG_FILE"
+        wget -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL_BIN['level-zero']}" || return 255
+        check_file_valid_nonzero "$dest_tmp_path/level-zero.deb"
+
+        echo "INFO: Installing level-zero package" | tee -a "$LOG_FILE"
+        sudo dpkg -i "$dest_tmp_path/level-zero.deb" || echo "WARNING: Failed to install level-zero" | tee -a "$LOG_FILE"
+    else
+        echo "INFO: level-zero is already installed. Skipping installation." | tee -a "$LOG_FILE"
+    fi
 
     # add user to the render group
     local username=""
@@ -406,27 +416,24 @@ function setup_openvino() {
     sudo sed -i "s/^echo \"\[setupvars.sh\] OpenVINO environment initialized\"/\[ ! -z \"\$PS1\" \] \&\& echo \"\[setupvars.sh\] OpenVINO environment initialized\"/" "/opt/intel/openvino_${ver[0]}/setupvars.sh"
 }
 
-# Function to compare package version
+# Function to compare package version using dpkg's version comparison
 # $1: current installed package version, maybe with -, i.e. 22.3.19-1ppa1~noble1
 # $2: plan to install package version
 function is_new_version_avail() {
-    # Split version strings into array (support up to 4 levels, e.g. 1.2.3.4)
-    IFS=" " read -r -a v1_arr <<< "$(echo "$1" | cut -d '-' -f1 | tr '.' ' ')"
-    IFS=" " read -r -a v2_arr <<< "$(echo "$2" | cut -d '-' -f1 | tr '.' ' ')"
+    local current_ver="$1"
+    local target_ver="$2"
 
-    # Pad arrays to 4 elements with zeros if needed
-    for ((i=${#v1_arr[@]}; i<4; i++)); do v1_arr[i]=0; done
-    for ((i=${#v2_arr[@]}; i<4; i++)); do v2_arr[i]=0; done
+    # Remove any suffix after '-' for basic version comparison if needed
+    # Comment out these lines if you want to keep full version strings
+    # current_ver=$(echo "$current_ver" | cut -d '-' -f1)
+    # target_ver=$(echo "$target_ver" | cut -d '-' -f1)
 
-    for ((i=0;i<4;i++)); do
-        if ((10#${v1_arr[$i]} < 10#${v2_arr[$i]})); then
-            return 0  # new version available
-        elif ((10#${v1_arr[$i]} > 10#${v2_arr[$i]})); then
-            return 1  # current is newer
-        fi
-    done
-
-    return 1  # not newer
+    # Use dpkg's built-in version comparison
+    if dpkg --compare-versions "$current_ver" lt "$target_ver"; then
+        return 0  # new version available
+    else
+        return 1  # current is newer or equal
+    fi
 }
 
 function setup_neo() {
@@ -450,58 +457,28 @@ function setup_neo() {
     declare -n PKGS="$pkgs_var"
     declare -n META="$meta_var"
 
+    # Check if compute runtime packages are already installed
+    local packages_installed=0
+    for pkg in "${PKGS[@]}"; do
+        local pkg_base="${pkg%%.*}"
+        if dpkg-query -W -f='${Status}' "$pkg_base" 2>/dev/null | grep -q "install ok installed"; then
+            local installed_ver
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg_base" 2>/dev/null)
+            echo "INFO: $pkg_base is already installed (version: $installed_ver). Skipping compute runtime installation." | tee -a "$LOG_FILE"
+            packages_installed=1
+        fi
+    done
+
+    if [[ $packages_installed -eq 1 ]]; then
+        echo "INFO: Compute runtime packages are already installed. Skipping installation." | tee -a "$LOG_FILE"
+        return 0
+    fi
+
     if [[ -d "$dest_tmp_path" ]]; then
         rm -rf "$dest_tmp_path"
     fi
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
-
-    # remove opencl legacy version
-    if dpkg -l | grep -q "^ii\s\+intel-level-zero-gpu-legacy1\s"; then
-        sudo apt-get remove --purge -y intel-level-zero-gpu-legacy1
-        echo "INFO: Intel intel-level-zero-gpu-legacy1 is removed" | tee -a "$LOG_FILE"
-    fi
-    if dpkg -l | grep -q "^ii\s\+intel-opencl-icd-legacy1\s"; then
-        sudo apt-get remove --purge -y intel-opencl-icd-legacy1
-        echo "INFO: Intel intel-opencl-icd-legacy1 is removed" | tee -a "$LOG_FILE"
-    fi
-
-    # If installing 24.04 packages, remove any installed old neo packages
-    echo "INFO: Checking for old neo packages to remove..." | tee -a "$LOG_FILE"
-    if [[ "$osver" == "24.04" ]]; then
-        declare -n OLD_PKGS="_COMPUTE_RUNTIME_PKGS_2204"
-        declare -n NEW_META="_COMPUTE_RUNTIME_META_2404"
-        for pkg in "${OLD_PKGS[@]}"; do
-            if ! dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
-                continue
-            fi
-            # Get installed version
-            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "")
-            # Get target version for Ubuntu 24.04 (if available)
-            version_key="${pkg}.version"
-            target_ver="${NEW_META[$version_key]}"
-
-            if [[ -z "$installed_ver" ]]; then
-                continue
-            fi
-
-            if [[ -z "$target_ver" ]]; then
-                echo "INFO: Removing old neo package: $pkg (installed: $installed_ver, target: $target_ver)" \
-                    | tee -a "$LOG_FILE"
-                sudo apt-get remove -y "$pkg"
-                continue
-            fi
-
-            if is_new_version_avail "$installed_ver" "$target_ver"; then
-                echo "INFO: Removing old neo package: $pkg (installed: $installed_ver, target: $target_ver)" \
-                    | tee -a "$LOG_FILE"
-                sudo apt-get remove -y "$pkg"
-            else
-                echo "INFO: Keeping $pkg (installed version is up-to-date or newer: $installed_ver)" \
-                    | tee -a "$LOG_FILE"
-            fi
-        done
-    fi
 
     # Install latest available packages from apt before custom install
     echo "INFO: Installing latest available neo packages from apt..." | tee -a "$LOG_FILE"
@@ -530,7 +507,9 @@ function setup_neo() {
 
         if [[ -z "$current_ver" ]] || is_new_version_avail "$current_ver" "$candidate_ver"; then
             echo "INFO: Installing/upgrading package from apt: $pkg" | tee -a "$LOG_FILE"
-            sudo apt-get install -y "$pkg"
+            if ! sudo apt-get install -y "$pkg"; then
+                echo "WARNING: Failed to install $pkg from apt, will try custom installation" | tee -a "$LOG_FILE"
+            fi
         else
             echo "INFO: Package $pkg is already up to date." | tee -a "$LOG_FILE"
         fi

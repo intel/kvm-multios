@@ -172,9 +172,13 @@ autoinstall:
     - wget --no-proxy -O /target/tmp/setup_openvino.sh $FILE_SERVER_URL/setup_openvino.sh
     - curtin in-target -- chmod +x /tmp/setup_openvino.sh
     - curtin in-target -- bash /tmp/setup_openvino.sh $OPENVINO_INSTALL_OPTIONS
+    - wget --no-proxy -O /target/tmp/setup_dpdk.sh $FILE_SERVER_URL/setup_dpdk.sh
+    - curtin in-target -- chmod +x /tmp/setup_dpdk.sh
+    - curtin in-target -- bash /tmp/setup_dpdk.sh
     - rm /target/tmp/setup_bsp.sh
     - rm /target/tmp/setup_pm_mgmt.sh
     - rm /target/tmp/setup_openvino.sh
+    - rm /target/tmp/setup_dpdk.sh
     - cp /var/log/syslog /target/root/syslog_setup
 
   error-commands:

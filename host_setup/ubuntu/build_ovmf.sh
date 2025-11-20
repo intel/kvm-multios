@@ -53,7 +53,7 @@ git clone https://github.com/tianocore/edk2.git
 
 cd "$WORK_DIR"/edk2
 git checkout -b stable202205 edk2-stable202205
-wget https://raw.githubusercontent.com/projectceladon/vendor-intel-utils/master/host/ovmf/0001-OvmfPkg-add-IgdAssignmentDxe.patch
+wget https://raw.githubusercontent.com/projectceladon/vendor-intel-utils/0269c099c69765dbfbbc621358bd37161fbdd77d/host/ovmf/0001-OvmfPkg-add-IgdAssignmentDxe.patch
 patch -p1 < 0001-OvmfPkg-add-IgdAssignmentDxe.patch
 git submodule update --init
 set +u
