@@ -12,6 +12,35 @@ script=$(realpath "${BASH_SOURCE[0]}")
 scriptpath=$(dirname "$script")
 
 LOG_FILE="/tmp/host_setup_redhat.log"
+
+check_virtualization() {
+    local error=0
+    local vt_support vtd_support
+
+    # Check VT-x/AMD-V
+    vt_support=$(lscpu | grep -E 'VT-x|AMD-V' || :)
+    if [[ -z "$vt_support" ]]; then
+        echo "ERROR: VT-x/AMD-V not enabled." | tee -a "$LOG_FILE"
+        error=1
+    fi
+
+
+    # Check VT-d/IOMMU
+    vtd_support=$(dmesg | grep -iE 'DMAR|IOMMU' | grep -i "Virtualization Technology for Directed I/O" || :)
+    if [[ -z "$vtd_support" ]]; then
+        if ! [[ -d "/sys/class/iommu" || -d "/sys/kernel/iommu_groups" ]] && \
+           ! grep -qE "intel_iommu=on|amd_iommu=on" /proc/cmdline; then
+            echo "ERROR: VT-d/IOMMU not enabled." | tee -a "$LOG_FILE"
+            error=1
+        fi
+    fi
+
+    if [[ "$error" -eq 1 ]]; then
+        echo "ERROR: One or more virtualization features missing. Please check BIOS settings." | tee -a "$LOG_FILE"
+        exit 255
+    fi
+}
+
 #PLATFORM_NAME=""
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -235,6 +264,7 @@ trap 'echo "Error $(realpath ${BASH_SOURCE[0]}) line ${LINENO}: $BASH_COMMAND"' 
 parse_arg "$@" || exit 255
 
 log_clean
+log_func check_virtualization || exit 255
 log_func check_os || exit 255
 
 #if [ -z $PLATFORM_NAME ]; then

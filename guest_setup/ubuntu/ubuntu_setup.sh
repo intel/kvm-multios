@@ -163,7 +163,7 @@ function run_file_server() {
       kill_by_pid "$existing_pid"
     fi
     cd "$folder"
-    python3 -m http.server -b "$ip" "$port" &
+    python3 -m http.server -b "$ip" "$port" > /dev/null 2>&1 &
     sleep 5
     pid=$(pgrep -f "python3 -m http.server -b $ip $port")
     cd -
@@ -181,7 +181,17 @@ function run_nc_server() {
     local out_file=$3
     local -n pid=$4
 
-    nc -l -s "$ip" -p "$port" > "$out_file" &
+    # Run nc in a loop to accept multiple connections
+    # Each connection appends to the output file
+    # Loop will run for up to 2 hours (120 iterations * 60 sec timeout)
+    (
+        local max_iterations=120
+        local iteration=0
+        while [[ $iteration -lt $max_iterations ]]; do
+            nc -l -s "$ip" -p "$port" -w 60 >> "$out_file" 2>/dev/null || true
+            iteration=$((iteration + 1))
+        done
+    ) &
     pid=$!
 }
 
@@ -490,7 +500,7 @@ function install_ubuntu() {
 
   # update for drm driver selection install based on host
   drm_drv_target=""
-  if lspci -D -k -s 0000:00:02.0 | grep "Kernel driver in use"; then
+  if lspci -D -k -s 0000:00:02.0 | grep -q "Kernel driver in use"; then
     drm_drv_target=$(lspci -D -k  -s 00:02.0 | grep "Kernel driver in use" | awk -F ':' '{print $2}' | xargs)
   fi
   sed -i "s|\$DRM_DRV_OPTION|-drm \'$drm_drv_target\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
@@ -505,7 +515,7 @@ function install_ubuntu() {
   if [[ $SETUP_DEBUG -eq 1 ]]; then
     openvino_install_opt="$openvino_install_opt --debug"
   fi
-  if sudo journalctl -k -o cat --no-pager | grep 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then
+  if sudo journalctl -k -o cat --no-pager | grep -q 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then
     if  is_npu_supported ; then
       openvino_install_opt="$openvino_install_opt --npu"
     fi
@@ -519,7 +529,7 @@ function install_ubuntu() {
 
   echo "$(date): Start ubuntu guest creation and auto-installation"
   if [[ "$VIEWER" -eq "1" ]]; then
-    virt-viewer -w -r --domain-name "${UBUNTU_DOMAIN_NAME}" &
+    virt-viewer -w -r --domain-name "${UBUNTU_DOMAIN_NAME}" &>/dev/null &
     VIEWER_DAEMON_PID=$!
   fi
   sudo virt-install \
@@ -543,7 +553,14 @@ function install_ubuntu() {
   --wait=-1
 
   if grep -Fq "ERROR" "$host_nc_file_out"; then
-    echo "Error: Ubuntu guest install failed. Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for details."
+    echo "Error: Ubuntu guest install failed."
+    echo ""
+    echo "Errors reported from guest installation:"
+    echo "=========================================="
+    grep "^ERROR:" "$host_nc_file_out" || true
+    echo "=========================================="
+    echo ""
+    echo "Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for full details."
     return 255
   fi
 
@@ -559,7 +576,14 @@ function install_ubuntu() {
       state=$(virsh list --all | awk -v a="$UBUNTU_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
       if [[ -n ${state+x} && $state == "running" ]]; then
         if grep -Fq "ERROR" "$host_nc_file_out"; then
-          echo "$(date): Error: Ubuntu guest install failed. Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for details."
+          echo "$(date): Error: Ubuntu guest install failed."
+          echo ""
+          echo "Errors reported from guest installation:"
+          echo "=========================================="
+          grep "^ERROR:" "$host_nc_file_out" || true
+          echo "=========================================="
+          echo ""
+          echo "Check ${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log for full details."
           return 255
         else
           sleep 60
@@ -733,6 +757,40 @@ fi
 if [[ $FORCE_KERN_FROM_DEB == "1" && -n $FORCE_KERN_APT_VER ]]; then
     echo "--force-kern-from-deb and --force-kern-apt-version cannot be used together"
     exit 255
+fi
+
+if [[ $VIEWER == "1" && -z "${DISPLAY:-}" ]]; then
+    echo "Error: No DISPLAY available. --viewer requires graphical display (X11/Wayland)."
+    echo "Run without --viewer for headless installation, or enable X11 forwarding (ssh -X)."
+    exit 255
+fi
+
+# Validate required kernel .deb files exist if --force-kern-from-deb is specified
+if [[ $FORCE_KERN_FROM_DEB == "1" ]]; then
+    script=$(realpath "${BASH_SOURCE[0]}")
+    scriptpath=$(dirname "$script")
+    missing_files=()
+    for file in "${REQUIRED_DEB_FILES[@]}"; do
+        rfile="$scriptpath/unattend_ubuntu/$file"
+        if [[ -L "$rfile" ]]; then
+            echo "Error: The following file is a symlink:"
+            echo "  $rfile"
+            exit 255
+        fi
+        if [[ ! -f "$rfile" || ! -s "$rfile" ]]; then
+            missing_files+=("$file")
+        fi
+    done
+    if [[ ${#missing_files[@]} -gt 0 ]]; then
+        echo "Error: Missing required kernel .deb files for --force-kern-from-deb installation."
+        echo "Location: $scriptpath/unattend_ubuntu"
+        echo "Missing files:"
+        for file in "${missing_files[@]}"; do
+            echo "  - $file"
+        done
+        echo "Please place the required kernel .deb files in the location above before running."
+        exit 255
+    fi
 fi
 
 if [[ $FORCECLEAN == "1" ]]; then

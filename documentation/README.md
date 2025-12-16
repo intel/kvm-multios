@@ -5,10 +5,8 @@
 1. [Virtual Machine Device Model Supported](#virtual-machine-device-model-supported)
 1. [Repository Layout and Naming Conventions](#repository-layout-and-naming-conventions)
 1. [Host Setup](#host-setup)
-    1. [Host Setup (for VMs using GVT-d)](#host-setup-for-vms-using-gvt-d)
-    1. [Host Setup (for VMs using GPU SR-IOV)](#host-setup-for-vms-using-gpu-sr-iov)
-    1. [Host Setup for network SR-IOV (if supported by NIC)](#host-setup-for-network-sr-iov-if-supported-by-nic)
-1. [Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration](#remote-desktop-viewer-setup-for-connection-to-vms-using-spice-with-gstreamer-acceleration)
+    1. [GPU Passthrough Host Configuration](#gpu-passthrough-host-configuration)
+    1. [Network SR-IOV Host Configuration](#network-sr-iov-host-configuration)
 1. [Virtual Machine Image Creation](#virtual-machine-image-creation)
     1. [Ubuntu/Ubuntu RT VM Image Creation](#ubuntuubuntu-rt-vm-image-creation)
     1. [Windows VM Image Creation](#windows-vm-image-creation)
@@ -19,6 +17,7 @@
     1. [VM Memory Allocation](#vm-memory-allocation)
     1. [VM Launch](#vm-launch)
     1. [VM Misc Operations](#vm-misc-operations)
+    1. [VM Usage with Remote Desktop Viewer](#vm-usage-with-remote-desktop-viewer)
     1. [VM Power Management](#vm-power-management)
     1. [Automatic VM Power Management During Host Power Management](#automatic-vm-power-management-during-host-power-management)
     1. [VM Cloning](#vm-cloning)
@@ -158,62 +157,30 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | windows11_sriov_ovmf.xml | Windows 11 | Local Display | SR-IOV | UEFI | Yes |
 
 # Host Setup
-The Intel IoT platform host needs to be configured differently when using GVT-d or SR-IOV with GPU virtualization in VMs running on the host.
+Before running virtual machines on an Intel IoT platform, the host system must be configured to enable hardware acceleration for graphics and networking (depending on the specific hardware support). This section provides guidance for setting up GPU virtualization and network acceleration features using straightforward automated scripts.
 
-## Host Setup (for VMs using GVT-d)
-Refer [here](setup_gvtd.md) for steps on setting up Intel IoT hardware platform for VMs using GVT-d for GPU device acceleration in VM.
+Each configuration requires running the host setup script (`setup_host.sh`) with the appropriate parameters for the chosen GPU virtualization mode. The setup process will configure necessary kernel parameters, install required packages, and reboot the system. Refer to the linked setup guides below for detailed step-by-step instructions, BIOS requirements, and prerequisites.
 
-## Host Setup (for VMs using GPU SR-IOV)
-Refer [here](setup_sriov.md) for steps on setting up Intel IoT hardware platform for VMs using SR-IOV for GPU device acceleration in VM.
+Once configured, the host will be ready to run multiple virtual machines with excellent performance, based on the platform's capabilities.
 
-## Host Setup for network SR-IOV (if supported by NIC)
-For a system that has NICs that support network SR-IOV, a default number of Virtual Functions (VFs) is created per NIC during host setup.
-Nevertheless, users can choose to customize the number of VFs per NIC after the initial round of host setup.
+## GPU Passthrough Host Configuration
+The host platform supports two mutually exclusive GPU passthrough technologies for providing graphics acceleration to virtual machines:
 
-First, ensure that all guests are shut off and not running.
+- **GPU SR-IOV (Single Root I/O Virtualization)**
+- **GVT-d (Graphics Virtualization Technology - direct)**
 
-    $ virsh list --all
-     Id   Name        State
-    ----------------------------
-     -    ubuntu      shut off
-     -    windows11   shut off
+The recommended method is to use **GPU SR-IOV**, which enables the GPU to be partitioned into multiple Virtual Functions (VFs), allowing multiple VMs to share the same physical GPU simultaneously with hardware-accelerated graphics. This technology provides efficient resource utilization by enabling concurrent GPU access across multiple virtual machines. For GPU SR-IOV setup instructions, see [setup_sriov.md](setup_sriov.md).
 
-Next, run the following command (where N is the number of VFs per NIC):
+As an alternative, **GVT-d** provides full device passthrough where the entire GPU is dedicated to a single virtual machine. This approach offers native performance since the VM has direct, exclusive access to the GPU hardware. However, this limits GPU usage to one VM at a time, as the physical device cannot be shared. This method is suitable for scenarios requiring dedicated GPU access. For GVT-d setup instructions, see [setup_gvtd.md](setup_gvtd.md).
 
-    $ ./host_setup/ubuntu/setup_network.sh --sriov-vfs N
+**Note:** Either GPU SR-IOV or GVT-d must be chosen during host setup. The two modes cannot be used simultaneously on the same system.
 
-Lastly, check the virtual function devices created (e.g. 4 VFs for a NIC):
+## Network SR-IOV Host Configuration
+Network SR-IOV (Single Root I/O Virtualization) enables network interface cards to be virtualized at the hardware level, allowing multiple virtual machines to share a single physical NIC while maintaining near-native network performance. SR-IOV partitions a physical network adapter into multiple Virtual Functions (VFs), where each VF can be directly assigned to a guest VM, bypassing the hypervisor's virtual network stack. This results in enhanced network throughput, reduced latency, and lower CPU overhead compared to traditional software-based network virtualization.
 
-    $ lspci | grep "Virtual Function"
-    0000:01:02.0 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
-    0000:01:02.1 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
-    0000:01:02.2 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
-    0000:01:02.3 Ethernet controller: Intel Corporation Ethernet Virtual Function 700 Series (rev 02)
+For systems with SR-IOV capable NICs, virtual network functions can be configured to provide network acceleration to virtual machines. Refer to [setup_network.md](setup_network.md) for detailed configuration instructions.
 
-Note: N is limited by the total number of VFs supported by the NIC
-
-## Remote Desktop Viewer Setup for Connection to VMs using Spice with GStreamer Acceleration
-For remote desktop viewing of VMs using Spice with GStreamer acceleration feature, only Ubuntu based remote viewer is supported.
-
-### Prerequisites
-- machine running remote viewer client already setup  with same BSP release as per Intel IoT platform host machine which is running VM to be connected to.
-- virt-viewer package has been installed via below command. virt-viewer package in Ubuntu provides the "remote-viewer" remote viewer client for viewing remote desktop of running VMs over SPICE channel.
-```
-sudo apt install virt-viewer
-```
-- "\<ip_of_host_running_vm\>" which refers to IP address of the host machine running the VM to be connected to is known.
-- "\<spice_port_of_vm\>" which refers to port assigned to the VM for SPICE is known. Refer to [Guest OS Domain Naming Convention, MAC/IP Address and Ports](#guest-os-domain-naming-convention-macip-address-and-ports) for default SPICE port assignment. SPICE display info of VM could also be obtained from host running the VM via below command where /<doman/> is the VM domain name.
-    ```
-    virsh domdisplay --type spice <domain>
-    ```
-
-Use the below command to remotely view any running VM over SPICE channel:
-where:
-- "\<ip_of_host_running_vm\>" is the IP address of the Intel IoT machine hosting the VM to be connected to
-- "\<spice_port_of_vm\>" is the SPICE port assigned to the VM.
-```
-remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
-```
+**Note:** Network SR-IOV is independent of GPU passthrough and can be used with either GVT-d or GPU SR-IOV configurations.
 
 # Virtual Machine Image Creation
 This section is a guide on how to install and configure the different operating systems supported for using them as virtual machine images on the supported Intel platforms, for the supported feature set.
@@ -368,6 +335,12 @@ For this sample output, the connected displays are at DP-1 and HDMI-1.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu</td><td>To force launch ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g gvtd ubuntu</td><td>To force launch ubuntu guest VM configured with GVT-d display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g gvtd windows</td><td>To force launch windows guest VM configured with GVT-d display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g vnc ubuntu</td><td>To force launch ubuntu guest VM with VNC display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g vnc windows</td><td>To force launch windows guest VM with VNC display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g spice ubuntu</td><td>To force launch ubuntu guest VM with SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g spice windows</td><td>To force launch windows guest VM with SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g spice-gst ubuntu</td><td>To force launch ubuntu guest VM with SPICE-GST (SPICE with GStreamer acceleration) display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g spice-gst windows</td><td>To force launch windows guest VM with SPICE-GST (SPICE with GStreamer acceleration) display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows 10 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -n sriov ubuntu</td><td>To force launch ubuntu guest VM configured with SR-IOV network (if supported by NIC)</td></tr>
@@ -468,6 +441,105 @@ Lastly, to start guest VMs and passthrough the keyboards to the various guest VM
 
 Use "virsh --help" for more help information or refer to [libvirt virsh manpage](https://www.libvirt.org/manpages/virsh.html) documentation for more commands.
 
+## VM Usage with Remote Desktop Viewer
+
+This section describes how to connect to running VMs using remote desktop viewers for VNC, SPICE, and SPICE-GST.
+
+### Prerequisites
+
+- A separate machine must be set up with Ubuntu BSP to run the remote viewer client. It should have the same Ubuntu BSP release as the Intel IoT platform host machine that is running the guest VMs.
+- The virt-viewer package included in the Ubuntu BSP release provides the `remote-viewer` client needed for viewing remote desktops of running VMs over VNC and SPICE channels.
+
+### Connecting via VNC
+
+To connect to a VM using VNC:
+
+1. Launch the VM with VNC display. For example:
+
+        $ ./platform/client/launch_multios.sh -f -d <domain> -g vnc <domain>
+
+2. Determine the VNC display assigned to the VM:
+
+        $ virsh domdisplay --type vnc <domain>
+
+   This will output something like `vnc://localhost:1`, where `:1` is the display number.
+
+   To calculate the actual VNC port, add 5900 to the display number. For example:
+   - Display `:0` = Port 5900
+   - Display `:1` = Port 5901
+   - Display `:2` = Port 5902
+
+3. On the separate machine, use `remote-viewer` to connect:
+
+        $ remote-viewer vnc://<ip_of_host_running_vm>:<vnc_port_of_vm>
+
+   For example, if the display is `:1` and the host IP is 192.168.122.1, use:
+
+        $ remote-viewer vnc://192.168.122.1:5901
+
+### Connecting via SPICE
+
+To connect to a VM using SPICE:
+
+1. Launch the VM with SPICE display. For example:
+
+        $ ./platform/client/launch_multios.sh -f -d <domain> -g spice <domain>
+
+2. Determine the SPICE port assigned to the VM:
+
+        $ virsh domdisplay --type spice <domain>
+
+   This will output something like `spice://localhost:5951`, which directly shows the SPICE port number.
+
+3. On the separate machine, use `remote-viewer` to connect:
+
+        $ remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
+
+   For example, if the host IP is 192.168.122.1 and the port is 5951, use:
+
+        $ remote-viewer spice://192.168.122.1:5951
+
+### Connecting via SPICE-GST
+
+To connect to a VM using SPICE with GStreamer acceleration:
+
+1. Launch the VM with SPICE-GST display. For example:
+
+        $ ./platform/client/launch_multios.sh -f -d <domain> -g spice-gst <domain>
+
+2. Determine the SPICE port assigned to the VM:
+
+        $ virsh domdisplay --type spice <domain>
+
+   This will output something like `spice://localhost:5951`, which directly shows the SPICE port number.
+
+3. On the separate machine, use `remote-viewer` to connect:
+
+        $ remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
+
+   For example, if the host IP is 192.168.122.1 and the port is 5951, use:
+
+        $ remote-viewer spice://192.168.122.1:5951
+
+**Note:** For remote desktop viewing of VMs using SPICE with GStreamer acceleration feature, only Ubuntu-based remote viewer is supported.
+
+### Troubleshooting
+
+**Network Connectivity:**
+- Ensure the separate machine running `remote-viewer` can reach the host machine's IP address. Connectivity can be tested using `ping <ip_of_host_running_vm>`.
+- Replace `<ip_of_host_running_vm>` with the actual IP address of the host machine that is accessible from the separate machine (not `localhost` or `127.0.0.1`).
+- To find the host's IP address, run `ip addr` or `hostname -I` on the host machine.
+
+**Firewall Configuration:**
+- Ensure the firewall on the host machine allows incoming connections on the VNC/SPICE ports.
+- For VNC, the default ports are 5900-5910 (display :0 through :10).
+- For SPICE, the default ports are 5951-5960.
+- On Ubuntu hosts, these ports can be allowed using:
+  ```
+  $ sudo ufw allow 5900:5910/tcp  # For VNC
+  $ sudo ufw allow 5951:5960/tcp  # For SPICE
+  ```
+
 ## VM Power Management
 KVM MultiOS Portfolio release provides an ease of use script (libvirt_scripts/libvirt-guests-sleep.sh) to suspend/hibernate/resume all running supported guest VM domains (Ubuntu/Windows only).
 
@@ -520,17 +592,60 @@ Upon host wake up from suspend, all previously suspended VMs will be automatical
 All successfully hibernated guest VM will be in "Shut off" state as shown by "virsh list" command. Such guests will automatically resume from hibernated state when restarted using launch_multios.sh as per [VM Launch](#vm-launch)
 
 ## VM Cloning
-KVM MultiOS Portfolio release provides an easy-to-use script (./guest_setup/ubuntu/clone_guest.sh) to clone Ubuntu/Ubuntu-RT/Windows guests from an existing domain or XML file. The original guest image to be cloned must be available before using the script, as per the installation procedures in [Ubuntu](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) and [Windows](windows_vm.md#automated-windows-vm-installation). In addition to the features provided by [virt-clone](http://man.docs.sk/1/virt-clone.html), the script supports assignment of iGPU SR-IOV VFs for cloned guest domains if an iGPU VF is assigned in the source domain or XML file via automatic or manual assignment.
+KVM MultiOS Portfolio release provides an easy-to-use script to clone guests from an existing domain or XML file.
 
-By default, the script removes USB and PCI passthrough device configurations from the cloned domain to prevent conflicts when explicitly attaching devices via launch script options. iGPU SRIOV VF devices (bus=0x00, slot=0x02, functions 0x1-0x7) are preserved. Use the --preserve_passthrough option to retain all device passthrough configurations from the source.
+### Prerequisites
+The source guest image must be created before using the script, as described in the installation procedures for [Ubuntu](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) and [Windows](windows_vm.md#automated-windows-vm-installation).
 
+### Cloning Source Options
+The script supports two methods for specifying the cloning source:
+- `-s` option: Clone from an existing domain
+- `-x` option: Clone from an XML template file
+
+The `-s` (Existing Domain) option clones from an existing, defined domain on the system (visible in `virsh list --all`). The cloned VM will use a duplicate copy of the source domain's XML configuration and inherit the same graphics configuration (VNC, SPICE, SR-IOV, GVT-d, etc.). By default, the source domain's disk image is duplicated to create a new independent disk image for the cloned VM.
+
+With the `-x` (XML Template) option, the script clones from an XML template file in the `platform/<platform>/libvirt_xml/` directory. This allows you to create a new VM with a specific graphics setup by selecting the appropriate XML file (e.g., `windows_sriov_ovmf.xml` for SR-IOV, `windows_vnc_spice_ovmf.xml` for VNC/SPICE). When used alone, the disk image referenced in the XML file must already exist. By default, it will be duplicated to create a new independent disk image for the cloned VM.
+
+### Image Handling Options
+The script provides several options for handling disk images during cloning:
+- `--forceclean`: Removes both the domain and existing disk image if they exist, then creates new ones
+- `--preserve_data`: Preserves an existing disk image if present, or creates a new one if not
+- `--import_data`: Imports an existing qcow2 image file from an external location
+- `--image_path`: Specifies a custom directory for storing the cloned VM image
+
+The `--forceclean` option ensures a clean slate by removing both the domain definition and its associated disk image if they already exist before creating the new cloned VM. This is useful when you want to completely recreate a VM from scratch without any remnants of previous configurations. The `--preserve_data` option provides the opposite behavior by preserving an existing disk image if one is found at the target location, or creating a new one if no existing image is present. This is particularly useful for maintaining existing VM data while updating the domain configuration. Note that `--forceclean` and `--preserve_data` are mutually exclusive options.
+
+The `--import_data` option allows importing an existing qcow2 image file when creating a new domain from an XML template (requires `-x`). The qcow2 file will be copied to the image storage location and named as `<new_domain>.qcow2`. This is useful for migrating existing VM images or creating domains from pre-configured disk images. This option requires the `-x` option and is mutually exclusive with `-s`. It cannot be combined with `--preserve_data` as the image is always copied from the source location.
+
+The `--image_path` option allows storing the cloned VM image in a custom directory instead of the default `/var/lib/libvirt/images/` location. Either an absolute path (e.g., `/home/user/vm-images`) or a relative path (e.g., `./vm-images` or `~/vm-images`) can be specified, which will be automatically resolved to an absolute path. The script automatically creates the directory if it doesn't exist (with user confirmation) and sets up a libvirt storage pool for proper management. This is useful for organizing VMs in different storage locations, using separate disks/partitions for different VMs, or managing storage quotas. Multiple storage pools can coexist simultaneously, allowing VMs to be mixed between the default location and custom locations.
+
+### iGPU SR-IOV VF Assignment
+The script extends [virt-clone](http://man.docs.sk/1/virt-clone.html) functionality by supporting iGPU SR-IOV VF assignment for cloned guest domains. If an iGPU VF is assigned in the source domain or XML file, the script provides three options for VF assignment to the cloned domain:
+- `--igpu_vf_auto` option: Automatic assignment
+- `--igpu_vf` option: Manual assignment with validation
+- `--igpu_vf_force` option: Forced manual assignment
+
+The `--igpu_vf_auto` (Automatic Assignment) option enables the script to automatically search for an available VF starting from a specified VF number up to the maximum available VF. This option prevents conflicts by selecting only VFs that are not currently assigned to other domains. For example, `--igpu_vf_auto 4` will search for the first available VF starting from VF 4.
+
+With `--igpu_vf` (Manual Assignment with Validation), you manually specify a VF number for the cloned domain. The script validates that the specified VF is not already assigned to an existing domain before proceeding with the assignment. If the VF is already in use, the cloning operation will fail with an error.
+
+For `--igpu_vf_force` (Forced Manual Assignment), you manually specify a VF number without checking if it's already assigned to other domains. Use this option with caution as it may result in VF conflicts if multiple domains attempt to use the same VF simultaneously.
+
+### VNC and SPICE Port Assignment
+For cloned domains that use VNC or SPICE display, `virt-clone` automatically sets the port to -1 (auto) to enable automatic port assignment by libvirt. This prevents port conflicts between the source and cloned domains. To verify the assigned port number for a cloned domain, use `virsh domdisplay --type vnc <domain>` or `virsh domdisplay --type spice <domain>`.
+
+### Passthrough Device Handling
+By default, the script removes USB and PCI passthrough device configurations from the cloned domain to prevent conflicts when explicitly attaching devices via launch script options. iGPU SRIOV VF devices (bus=0x00, slot=0x02, functions 0x1-0x7) are preserved. Use the `--preserve_passthrough` option to retain all device passthrough configurations from the source.
+
+### System State Summary
 The script also provides a system state summary feature (--sys_state) that displays comprehensive information about all defined domains, XML configurations, disk images, and iGPU VF assignments, including detection of missing disk images and VF assignment conflicts.
 
-        Usage:
+### Usage
         $ ./guest_setup/ubuntu/clone_guest.sh --help
         clone_guest.sh [-h] [-s source_domain] [-x source_xml] [-n new_domain] [-p platform]
         [--igpu_vf_auto start_vf_num] [--igpu_vf vf_num] [--igpu_vf_force vf_num]
-        [--forceclean] [--forceclean_domain] [--preserve_data] [--preserve_passthrough] [--sys_state]
+        [--forceclean] [--forceclean_domain] [--preserve_data] [--import_data qcow2_file] [--image_path directory]
+        [--preserve_passthrough] [--sys_state]
         
         Options:
                 -h                           Show this help message
@@ -557,6 +672,14 @@ The script also provides a system state summary feature (--sys_state) that displ
                                              Default not enabled
                 --preserve_data              Preserve new domain image data if it already exists,
                                              create new one if it does not exist. Default not enabled
+                --import_data qcow2_file     Import an existing qcow2 image file (absolute or relative path).
+                                             The file will be copied to the image path and
+                                             named <new_domain>.qcow2. Must be used with -x option, not with -s.
+                                             Cannot be combined with --preserve_data
+                --image_path directory       Store the cloned image in a custom directory (absolute or relative path).
+                                             Relative paths will be resolved to absolute paths.
+                                             If not specified, defaults to /var/lib/libvirt/images.
+                                             A libvirt storage pool will be automatically created for custom paths.
                 --preserve_passthrough       Preserve USB and PCI passthrough device configurations
                                              from source domain/XML in the cloned domain. Default not enabled.
                                              By default, passthrough devices are removed to avoid conflicts
@@ -571,9 +694,16 @@ The script also provides a system state summary feature (--sys_state) that displ
         # Clone from windows xml, using iGPU VF 4
         ./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_2 -p client --igpu_vf 4
 
+        # Import existing qcow2 image with ubuntu configuration
+        ./guest_setup/ubuntu/clone_guest.sh -x ubuntu_sriov.xml --import_data /path/to/existing.qcow2 -n ubuntu_imported -p client
+
+        # Clone to a custom image location
+        ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_2 -p client --image_path ~/vm-images
+
         # Display system state summary for client platform
         ./guest_setup/ubuntu/clone_guest.sh --sys_state -p client
 
+### Launching Cloned Domains
 New domain created will be automatically added to the platform launch_multios.sh and the domain xml saved in the libvirt_xml folder. The new domain can be launched via virsh or launch_multios.sh
 
         # Launch ubuntu_x/windows_x via virsh

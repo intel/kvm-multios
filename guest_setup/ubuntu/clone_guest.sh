@@ -8,9 +8,12 @@ set -Eeuo pipefail
 
 #---------      Global variable     -------------------
 LIBVIRT_DEFAULT_IMAGES_PATH=/var/lib/libvirt/images
+CUSTOM_IMAGE_PATH=""
+IMAGE_PATH=""  # Resolved path (either custom or default)
 NEW_DOMAIN_NAME=""
 SOURCE_DOMAIN_NAME=""
 SOURCE_XML=""
+IMPORT_DATA=""
 FORCECLEAN=0
 FORCECLEAN_DOMAIN=0
 PRESERVE_DATA=0
@@ -96,16 +99,20 @@ function next_available_igpu_vf() {
     done
 
     # Scan platform XML files for static VF assignments
-    local -a platpaths
-    mapfile -t platpaths < <(find "$scriptpath/../../platform/" -maxdepth 1 -mindepth 1 -type d)
-    for platpath in "${platpaths[@]}"; do
-        local xml_dir="$platpath/libvirt_xml"
-        [[ ! -d "$xml_dir" ]] && continue
-
+    local xml_dir="$scriptpath/../../platform/$PLATFORM_NAME/libvirt_xml"
+    if [[ -d "$xml_dir" ]]; then
         local -a xml_files
         mapfile -t xml_files < <(find "$xml_dir" -maxdepth 1 -name "*.xml" -type f)
         for xml_file in "${xml_files[@]}"; do
             [[ ! -f "$xml_file" ]] && continue
+
+            # Skip XML files belonging to the domain being created
+            # to prevent stale VF assignments from previous runs
+            local xml_basename
+            xml_basename="$(basename "$xml_file")"
+            if [[ "$xml_basename" =~ ^${NEW_DOMAIN_NAME}_.*\.xml$ ]]; then
+                continue
+            fi
 
             # Use single XPath that matches both hex and decimal formats
             local xml_vf_hex
@@ -121,7 +128,7 @@ function next_available_igpu_vf() {
                 static_vf_map[$xml_vf_num]="$(basename "$xml_file")"
             fi
         done
-    done
+    fi
 
     # Handle --igpu_vf_force: Use specified VF with warnings
     if [[ $IGPU_VF_FORCE -gt 0 ]]; then
@@ -197,6 +204,143 @@ function is_valid_igpu_vf() {
     fi
 }
 
+function setup_storage_pool() {
+    local pool_path="$1"
+    local pool_name="$2"
+
+    # Check if a pool already exists for this path (regardless of name)
+    local existing_pool
+    existing_pool=$(virsh pool-list --all --name 2>/dev/null | xargs -n1 | while read -r pool; do
+        [[ -z "$pool" ]] && continue
+        local pool_path_xml
+        pool_path_xml=$(virsh pool-dumpxml "$pool" 2>/dev/null | xmllint --xpath 'string(/pool/target/path)' - 2>/dev/null || true)
+        if [[ "$pool_path_xml" == "$pool_path" ]]; then
+            echo "$pool"
+            break
+        fi
+    done)
+
+    if [[ -n "$existing_pool" ]]; then
+        # Pool exists for this path, verify it's active
+        local pool_state
+        pool_state=$(virsh pool-info "$existing_pool" 2>/dev/null | grep "^State:" | awk '{print $2}')
+        if [[ "$pool_state" != "running" ]]; then
+            echo "Starting existing storage pool: $existing_pool"
+            sudo virsh pool-start "$existing_pool"
+        else
+            echo "Using existing storage pool: $existing_pool"
+        fi
+        return 0
+    fi
+
+    # Create the directory if it doesn't exist
+    if [[ ! -d "$pool_path" ]]; then
+        echo "Directory does not exist: $pool_path"
+        read -p "Create this directory for storage pool? (y/n): " -r
+        if [[ -z "$REPLY" ]]; then
+            echo "Error: No input provided. Please enter 'y' or 'n'" >&2
+            return 255
+        elif [[ "$REPLY" =~ ^[Nn]$ ]]; then
+            echo "Error: Directory creation cancelled by user" >&2
+            return 255
+        elif [[ ! "$REPLY" =~ ^[Yy]$ ]]; then
+            echo "Error: Invalid input '$REPLY'. Please enter 'y' or 'n'" >&2
+            return 255
+        fi
+        echo "Creating directory for storage pool: $pool_path"
+        if ! sudo mkdir -p "$pool_path"; then
+            echo "Error: Failed to create directory: $pool_path" >&2
+            echo "Check sudo permissions or directory path" >&2
+            return 255
+        fi
+        if ! sudo chown "$USER:$USER" "$pool_path"; then
+            echo "Error: Failed to change ownership of: $pool_path" >&2
+            return 255
+        fi
+        if ! sudo chmod 0775 "$pool_path"; then
+            echo "Error: Failed to change permissions of: $pool_path" >&2
+            return 255
+        fi
+    fi
+
+    # Define the storage pool
+    echo "Creating storage pool '$pool_name' at $pool_path"
+    sudo virsh pool-define-as "$pool_name" dir - - - - "$pool_path"
+
+    # Build and start the pool
+    sudo virsh pool-build "$pool_name" 2>/dev/null || true
+    sudo virsh pool-start "$pool_name"
+    sudo virsh pool-autostart "$pool_name"
+
+    echo "Storage pool '$pool_name' created and activated"
+}
+
+function validate_custom_image_path() {
+    local path="$1"
+
+    # Check if original path is a symlink before any resolution
+    if [[ -L "$path" ]]; then
+        echo "Error: Image path cannot be a symlink: $path" >&2
+        return 255
+    fi
+
+    # Convert relative path to absolute path and canonicalize
+    # (resolves .., ., ~, //, trailing slashes, etc.)
+    if [[ "$path" != /* ]]; then
+        # Use realpath -m to canonicalize paths even if they don't exist yet
+        path="$(realpath -m "$path")" || {
+            echo "Error: Cannot resolve path: $1" >&2
+            return 255
+        }
+        echo "Resolved relative path to: $path" >&2
+    fi
+
+    # If path exists, verify it's a directory
+    if [[ -e "$path" && ! -d "$path" ]]; then
+        echo "Error: Image path exists but is not a directory: $path" >&2
+        return 255
+    fi
+
+    # Check parent directory accessibility if path doesn't exist
+    if [[ ! -e "$path" ]]; then
+        local parent_dir
+        parent_dir=$(dirname "$path")
+        if [[ ! -d "$parent_dir" ]]; then
+            echo "Error: Parent directory does not exist: $parent_dir" >&2
+            echo "Please create the parent directory first or choose an existing location" >&2
+            return 255
+        fi
+        if [[ ! -w "$parent_dir" ]]; then
+            echo "Error: No write permission to parent directory: $parent_dir" >&2
+            return 255
+        fi
+    fi
+
+    # Return the resolved absolute path via stdout for caller to capture
+    echo "$path"
+    return 0
+}
+
+function setup_image_path() {
+    if [[ -n "$CUSTOM_IMAGE_PATH" ]]; then
+        # Validate custom path and get resolved absolute path
+        local resolved_path
+        resolved_path=$(validate_custom_image_path "$CUSTOM_IMAGE_PATH") || exit 255
+        IMAGE_PATH="$resolved_path"
+        echo "Using custom image path: $IMAGE_PATH"
+
+        # Generate pool name from path (replace / with _ and remove leading underscores)
+        local pool_name
+        pool_name="$(echo "$IMAGE_PATH" | sed 's/\//_/g' | sed 's/^_*//')"
+
+        # Ensure storage pool exists for custom location
+        setup_storage_pool "$IMAGE_PATH" "$pool_name" || exit 255
+    else
+        # Use default location
+        IMAGE_PATH="$LIBVIRT_DEFAULT_IMAGES_PATH"
+    fi
+}
+
 # Function to remove USB and PCI passthrough devices from domain XML
 # This allows devices to be explicitly attached via launch script passthrough options
 # Preserves iGPU devices (bus=0x00/0, slot=0x02/2, functions 0x0-0x7/0-7)
@@ -228,23 +372,44 @@ function remove_passthrough_devices() {
 }
 
 function clone_vm() {
-    local clone_option=("--auto-clone")
+    local clone_option=()
     local clone_xml=""
-    if [[ -f "$LIBVIRT_DEFAULT_IMAGES_PATH/${NEW_DOMAIN_NAME}.qcow2" ]]; then
+    local dest_image="$IMAGE_PATH/${NEW_DOMAIN_NAME}.qcow2"
+
+    # Phase 1: Handle disk image preparation
+    # Check if destination image exists and handle according to flags
+    if [[ -f "$dest_image" ]]; then
         if [[ "$FORCECLEAN" == "1" ]]; then
-            echo "$NEW_DOMAIN_NAME.qcow2 image already exists, remove before creating new image"
-            # Delete the existing image
-            sudo rm "$LIBVIRT_DEFAULT_IMAGES_PATH/$NEW_DOMAIN_NAME.qcow2"
-        fi
-        if [[ "$PRESERVE_DATA" == "1" ]]; then
+            echo "Destination image already exists, removing: $dest_image"
+            sudo rm "$dest_image"
+            # Use custom path for clone
+            clone_option=("-f" "$dest_image")
+        elif [[ "$PRESERVE_DATA" == "1" ]]; then
+            # Preserve existing image if requested
             echo "Use existing $NEW_DOMAIN_NAME.qcow2 image for new VM creation"
-            clone_option=("-f" "$LIBVIRT_DEFAULT_IMAGES_PATH/$NEW_DOMAIN_NAME.qcow2" "--preserve-data")
+            clone_option=("-f" "$dest_image" "--preserve-data")
         fi
+    else
+        # Destination doesn't exist, specify the custom path
+        clone_option=("-f" "$dest_image")
     fi
-    # Check if iGPU SRIOV is present and update to the next available vf
+
+    # Perform image copy operation for import mode
+    if [[ -n "${IMPORT_DATA:-}" && ! -f "$dest_image" ]]; then
+        echo "Copying qcow2 image from $IMPORT_DATA to $dest_image"
+        sudo cp "$IMPORT_DATA" "$dest_image"
+        sudo chown libvirt-qemu:kvm "$dest_image" 2>/dev/null || sudo chown qemu:qemu "$dest_image" 2>/dev/null || true
+        sudo chmod 644 "$dest_image"
+        echo "Successfully copied qcow2 image"
+        clone_option=("-f" "$dest_image" "--preserve-data")
+    fi
+
+    # Phase 2: Load XML configuration based on source type
     if [[ -n "${SOURCE_DOMAIN_NAME+x}" && -n "$SOURCE_DOMAIN_NAME" ]]; then
+        # Clone from existing domain
         clone_xml=$(virsh dumpxml "$SOURCE_DOMAIN_NAME")
     else
+        # Clone from XML template (used by both import mode and regular XML clone)
         local xmlfile
         xmlfile=$(realpath "$scriptpath/../../platform/$PLATFORM_NAME/libvirt_xml/$SOURCE_XML")
         clone_xml=$(xmlstarlet ed -d '//comment()' "$xmlfile")
@@ -415,14 +580,15 @@ function set_platform_name() {
 
 function show_help() {
     printf "\n"
-    printf "%s [-h] [-s source_domain] [-x source_xml] [-n new_domain] [-p platform] \n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [-s source_domain] [-x source_xml] [-i qcow2_file] [-n new_domain] [-p platform] \n" "$(basename "${BASH_SOURCE[0]}")"
     printf "[--igpu_vf_auto start_vf_num] [--igpu_vf vf_num] [--igpu_vf_force vf_num]\n"
     printf "[--forceclean] [--forceclean_domain] [--preserve_data] [--preserve_passthrough] [--sys_state]\n"
     printf "\n"
-    printf "This script clones a new Ubuntu or Windows guest VM from an existing domain\n"
-    printf "or XML file using virt-clone. It supports changing the iGPU SRIOV VF in the new\n"
-    printf "guest VM if iGPU VF is passed through in the source. The input vf_num will be\n"
-    printf "checked to ensure it is within the valid range from 1 to the maximum iGPU VF supported.\n"
+    printf "This script clones a new Ubuntu or Windows guest VM from an existing domain,\n"
+    printf "XML file, or imports an existing qcow2 image file using virt-clone. It supports\n"
+    printf "changing the iGPU SRIOV VF in the new guest VM if iGPU VF is passed through in\n"
+    printf "the source. The input vf_num will be checked to ensure it is within the valid\n"
+    printf "range from 1 to the maximum iGPU VF supported.\n"
     printf "By default, --igpu_vf_auto 1 is enabled and all existing domains and platform XML files\n"
     printf "are checked for iGPU VF usage. First, truly available VFs (not used by defined domains or\n"
     printf "statically assigned in XML files) are preferred. If no truly available VFs exist,\n"
@@ -457,6 +623,14 @@ function show_help() {
     printf "\t                             Default not enabled\n"
     printf "\t--preserve_data              Preserve new domain image data if it already exists,\n"
     printf "\t                             create new one if it does not exist. Default not enabled\n"
+    printf "\t--import_data qcow2_file     Import an existing qcow2 image file (absolute or relative path).\n"
+    printf "\t                             The file will be copied to the image path and\n"
+    printf "\t                             named <new_domain>.qcow2. Must be used with -x option, not with -s.\n"
+    printf "\t                             Cannot be combined with --preserve_data\n"
+    printf "\t--image_path directory       Store the cloned image in a custom directory (absolute or relative path).\n"
+    printf "\t                             Relative paths will be resolved to absolute paths.\n"
+    printf "\t                             If not specified, defaults to /var/lib/libvirt/images.\n"
+    printf "\t                             A libvirt storage pool will be automatically created for custom paths.\n"
     printf "\t--preserve_passthrough       Preserve USB and PCI passthrough device configurations\n"
     printf "\t                             from source domain/XML in the cloned domain. Default not enabled.\n"
     printf "\t                             By default, passthrough devices are removed to avoid conflicts\n"
@@ -469,6 +643,12 @@ function show_help() {
     printf "\n"
     printf "Clone from windows xml, using iGPU VF 4\n"
     printf "./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_2 -p client --igpu_vf 4\n"
+    printf "\n"
+    printf "Import existing qcow2 image with ubuntu configuration\n"
+    printf "./guest_setup/ubuntu/clone_guest.sh -x ubuntu_sriov.xml --import_data /path/to/existing.qcow2 -n ubuntu_imported -p client\n"
+    printf "\n"
+    printf "Clone to a custom image location\n"
+    printf "./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_2 -p client --image_path ~/vm-images\n"
     printf "\n"
     printf "Display system state summary for client platform\n"
     printf "./guest_setup/ubuntu/clone_guest.sh --sys_state -p client\n"
@@ -532,6 +712,24 @@ function parse_arg() {
                 ;;
             --preserve_passthrough)
                 PRESERVE_PASSTHROUGH=1
+                ;;
+            --import_data)
+                if [[ $# -lt 2 || -z "${2// }" || "$2" == -* ]]; then
+                    echo "Error: --import_data requires a non-empty qcow2 file path"
+                    show_help
+                    return 255
+                fi
+                IMPORT_DATA=$2
+                shift
+                ;;
+            --image_path)
+                if [[ $# -lt 2 || -z "${2// }" || "$2" == -* ]]; then
+                    echo "Error: --image_path requires a non-empty directory path"
+                    show_help
+                    return 255
+                fi
+                CUSTOM_IMAGE_PATH=$2
+                shift
                 ;;
             --igpu_vf)
                 if [[ $# -lt 2 || -z "${2// }" || "$2" == -* ]]; then
@@ -681,6 +879,60 @@ function validate_source_xml() {
     return 255
 }
 
+function validate_import_qcow2() {
+    local qcow2_file="$1"
+
+    # Convert to absolute path if relative
+    if [[ ! "$qcow2_file" = /* ]]; then
+        qcow2_file=$(realpath "$qcow2_file" 2>/dev/null || echo "$qcow2_file")
+    fi
+
+    # Check if file exists
+    if [[ ! -f "$qcow2_file" ]]; then
+        echo "Error: qcow2 file does not exist: $qcow2_file"
+        return 255
+    fi
+
+    # Check if file is readable
+    if [[ ! -r "$qcow2_file" ]]; then
+        echo "Error: qcow2 file is not readable: $qcow2_file"
+        return 255
+    fi
+
+    # Check if file has .qcow2 extension
+    if [[ ! "$qcow2_file" == *.qcow2 ]]; then
+        echo "Error: File must have .qcow2 extension: $qcow2_file"
+        return 255
+    fi
+
+    # Check if file is non-zero sized
+    if [[ ! -s "$qcow2_file" ]]; then
+        echo "Error: qcow2 file is zero-sized or empty: $qcow2_file"
+        return 255
+    fi
+
+    # Verify it's a valid qcow2 file using qemu-img
+    if command -v qemu-img >/dev/null 2>&1; then
+        local qemu_output
+        if ! qemu_output=$(qemu-img info "$qcow2_file" 2>&1); then
+            echo "Error: File does not appear to be a valid qcow2 image: $qcow2_file"
+            echo "qemu-img error: $qemu_output"
+            return 255
+        fi
+
+        # Verify the format is actually qcow2
+        if ! echo "$qemu_output" | grep -q "^file format: qcow2"; then
+            echo "Error: File is not in qcow2 format: $qcow2_file"
+            echo "Detected format: $(echo "$qemu_output" | grep '^file format:' || echo 'unknown')"
+            return 255
+        fi
+    else
+        echo "Warning: qemu-img not found, skipping qcow2 format validation"
+    fi
+
+    return 0
+}
+
 # Function to check if new domain already exists
 function validate_new_domain() {
     local domain="$NEW_DOMAIN_NAME"
@@ -705,7 +957,7 @@ function validate_new_domain() {
     fi
 
     local image_exists=0
-    if [[ -f "$LIBVIRT_DEFAULT_IMAGES_PATH/$NEW_DOMAIN_NAME.qcow2" ]]; then
+    if [[ -f "$IMAGE_PATH/$NEW_DOMAIN_NAME.qcow2" ]]; then
         image_exists=1
     fi
 
@@ -817,12 +1069,34 @@ function validate_arguments() {
         exit 255
     fi
 
-    # Phase 3: Check the validity of the source arguments
+    # Phase 3: Check the validity of the source arguments and --import_data
+    # Validate source domain or XML first
     if [[ -n "${SOURCE_DOMAIN_NAME:-}" ]]; then
         validate_source_domain "$SOURCE_DOMAIN_NAME" || exit 255
     fi
     if [[ -n "${SOURCE_XML:-}" ]]; then
         validate_source_xml "$SOURCE_XML" || exit 255
+    fi
+
+    # Validate --import_data flag combinations and qcow2 file
+    if [[ -n "${IMPORT_DATA:-}" ]]; then
+        # --import_data requires -x
+        if [[ -z "${SOURCE_XML:-}" ]]; then
+            echo "Error: when using --import_data, -x (source XML) is required to specify the domain configuration"
+            exit 255
+        fi
+        # --import_data must be used with -x (not -s)
+        if [[ -n "${SOURCE_DOMAIN_NAME:-}" ]]; then
+            echo "Error: --import_data must be used with -x, not with -s"
+            exit 255
+        fi
+        # --import_data is mutually exclusive with --preserve_data
+        if [[ "$PRESERVE_DATA" == "1" ]]; then
+            echo "Error: --preserve_data cannot be used with --import_data"
+            exit 255
+        fi
+        # Validate the qcow2 file
+        validate_import_qcow2 "$IMPORT_DATA" || exit 255
     fi
 
     # Phase 4: Check the validity of the -n new domain argument and related options
@@ -888,13 +1162,39 @@ function show_system_state() {
         all_xml_files=$(find "$xml_dir" -maxdepth 1 -type f -name "*.xml" -printf '%f\n' 2>/dev/null | sort)
 
         # Group XML files by domain
+        # Pattern: domain.xml or domain_suffix.xml (where suffix is display type like sriov, gvtd, vnc_spice, etc.)
         while IFS= read -r xml_file; do
             [[ -z "$xml_file" ]] && continue
-            local domain_name="${xml_file%%_*}"
-            # Check if this domain is in our list
+            local xml_basename="${xml_file%.xml}"
+            
+            # Strip common display type suffixes to extract the domain name
+            # This handles: domain_sriov, domain_gvtd, domain_vnc, domain_spice, domain_vnc_spice, etc.
+            local domain_from_xml="$xml_basename"
+            # Strip compound suffixes first (longer patterns before shorter ones)
+            domain_from_xml="${domain_from_xml%_gvtd_upt_ovmf}"
+            domain_from_xml="${domain_from_xml%_vnc_spice_ovmf}"
+            domain_from_xml="${domain_from_xml%_spice-gst_ovmf}"
+            domain_from_xml="${domain_from_xml%_sriov_ovmf}"
+            domain_from_xml="${domain_from_xml%_gvtd_ovmf}"
+            domain_from_xml="${domain_from_xml%_rt_headless}"
+            domain_from_xml="${domain_from_xml%_vnc_spice}"
+            domain_from_xml="${domain_from_xml%_spice-gst}"
+            domain_from_xml="${domain_from_xml%_spice_gst}"
+            domain_from_xml="${domain_from_xml%_virtio-gpu}"
+            domain_from_xml="${domain_from_xml%_upt_ovmf}"
+            # Strip simple suffixes
+            domain_from_xml="${domain_from_xml%_headless}"
+            domain_from_xml="${domain_from_xml%_install}"
+            domain_from_xml="${domain_from_xml%_setup}"
+            domain_from_xml="${domain_from_xml%_sriov}"
+            domain_from_xml="${domain_from_xml%_gvtd}"
+            domain_from_xml="${domain_from_xml%_spice}"
+            domain_from_xml="${domain_from_xml%_ovmf}"
+            domain_from_xml="${domain_from_xml%_vnc}"
+            
+            # Now check if this extracted domain name matches any defined domain
             for domain in "${all_domains[@]}"; do
-                if [[ "$domain_name" == "$domain" || "${xml_file%.xml}" == "$domain" ]]; then
-                    # Append XML file to domain's list (newline-separated)
+                if [[ "$domain_from_xml" == "$domain" ]]; then
                     local current_files="${domain_xml_files[$domain]:-}"
                     domain_xml_files[$domain]="${current_files:+${current_files}$'\n'}$xml_file"
                     break
@@ -919,116 +1219,160 @@ function show_system_state() {
         echo "  (XML directory not found: $xml_dir_abs)"
     fi
 
-    # Disk images processing
+    # Disk images processing - scan all active storage pools
     echo ""
-    echo "Disk images in $LIBVIRT_DEFAULT_IMAGES_PATH:"
-    if [[ ! -d "$LIBVIRT_DEFAULT_IMAGES_PATH" ]]; then
-        echo "  (Libvirt images directory not found: $LIBVIRT_DEFAULT_IMAGES_PATH)"
+    echo "Disk images across all storage pools:"
+
+    # Get all active storage pools and their paths
+    local -A pool_paths=()
+    local -a pool_list
+    mapfile -t pool_list < <(virsh pool-list --name 2>/dev/null | sed '/^[[:space:]]*$/d')
+
+    for pool in "${pool_list[@]}"; do
+        # Trim whitespace from pool name
+        pool=$(echo "$pool" | xargs)
+        [[ -z "$pool" ]] && continue
+        # Get pool type and path
+        local pool_xml
+        pool_xml=$(virsh pool-dumpxml "$pool" 2>/dev/null || echo "")
+        [[ -z "$pool_xml" ]] && continue
+
+        # Only process directory-type pools
+        local pool_type
+        pool_type=$(xmllint --xpath 'string(//pool/@type)' - <<<"$pool_xml" 2>/dev/null || echo "")
+        [[ "$pool_type" != "dir" ]] && continue
+
+        local pool_path
+        pool_path=$(xmllint --xpath 'string(//pool/target/path)' - <<<"$pool_xml" 2>/dev/null || echo "")
+        [[ -n "$pool_path" && -d "$pool_path" ]] && pool_paths[$pool]="$pool_path"
+    done
+
+    if [[ ${#pool_paths[@]} -eq 0 ]]; then
+        echo "  (No active directory-type storage pools found)"
     else
-        local -a image_files
-        mapfile -t image_files < <(
-            if [[ -r "$LIBVIRT_DEFAULT_IMAGES_PATH" ]]; then
-                find "$LIBVIRT_DEFAULT_IMAGES_PATH" -maxdepth 1 -type f \
-                    \( -name "*.qcow2" -o -name "*.img" -o -name "*.raw" -o -name "*.vmdk" \) \
-                    -printf '%f\n' 2>/dev/null | sort
-            else
-                sudo find "$LIBVIRT_DEFAULT_IMAGES_PATH" -maxdepth 1 -type f \
-                    \( -name "*.qcow2" -o -name "*.img" -o -name "*.raw" -o -name "*.vmdk" \) \
-                    -printf '%f\n' 2>/dev/null | sort
-            fi
-        )
+        # Build image-domain mapping and cache disk paths using cached XMLs
+        local -A image_domain_map=()      # Maps full image path -> domain name
+        local -A domain_disk_paths=()     # Maps domain -> disk paths
 
-        if [[ ${#image_files[@]} -eq 0 ]]; then
-            echo "  (No disk images found in $LIBVIRT_DEFAULT_IMAGES_PATH)"
-        else
-            # Build image-domain mapping and cache disk paths using cached XMLs
-            local -A image_domain_map=()
-            local -A domain_disk_paths=()
-            local -A image_shown=()  # Track already displayed images to avoid duplicates
+        for domain in "${all_domains[@]}"; do
+            [[ -z "${domain_xmls[$domain]}" ]] && continue
+            local disk_paths
+            disk_paths=$(xmllint --xpath "//domain/devices/disk[@device='disk']/source/@file" - \
+                <<<"${domain_xmls[$domain]}" 2>/dev/null | grep -o '"/[^"]*"' | tr -d '"' || echo "")
 
-            for domain in "${all_domains[@]}"; do
-                [[ -z "${domain_xmls[$domain]}" ]] && continue
-                local disk_paths
-                disk_paths=$(xmllint --xpath "//domain/devices/disk[@device='disk']/source/@file" - \
-                    <<<"${domain_xmls[$domain]}" 2>/dev/null | grep -o '"/[^"]*"' | tr -d '"' || echo "")
+            # Cache disk paths for later use
+            domain_disk_paths[$domain]="$disk_paths"
 
-                # Cache disk paths for later use
-                domain_disk_paths[$domain]="$disk_paths"
+            while IFS= read -r disk_path; do
+                if [[ -n "$disk_path" ]]; then
+                    # Map full path to domain (handles duplicate basenames across pools)
+                    image_domain_map[$disk_path]="$domain"
+                fi
+            done <<< "$disk_paths"
+        done
 
-                while IFS= read -r disk_path; do
-                    if [[ -n "$disk_path" ]]; then
-                        local disk_basename
-                        disk_basename=$(basename "$disk_path")
-                        # Append domain to image mapping (comma-separated)
-                        local current_domains="${image_domain_map[$disk_basename]:-}"
-                        image_domain_map[$disk_basename]="${current_domains:+${current_domains}, }$domain"
-                    fi
-                done <<< "$disk_paths"
-            done
+        # Scan all storage pools for images and organize by pool
+        local -A pool_associated_images=()
+        local -A pool_orphaned_images=()
 
-            # Categorize images efficiently
-            local -a associated_images=() orphaned_images=()
-            for image_file in "${image_files[@]}"; do
-                if [[ -n "${image_domain_map[$image_file]:-}" ]]; then
-                    associated_images+=("$image_file")
+        for pool in "${!pool_paths[@]}"; do
+            local pool_path="${pool_paths[$pool]}"
+            [[ ! -d "$pool_path" ]] && continue
+
+            local -a pool_images
+            mapfile -t pool_images < <(
+                if [[ -r "$pool_path" ]]; then
+                    find "$pool_path" -maxdepth 1 -type f \
+                        \( -name "*.qcow2" -o -name "*.img" -o -name "*.raw" -o -name "*.vmdk" \) \
+                        -printf '%f\n' 2>/dev/null | sort
                 else
-                    orphaned_images+=("$image_file")
+                    sudo find "$pool_path" -maxdepth 1 -type f \
+                        \( -name "*.qcow2" -o -name "*.img" -o -name "*.raw" -o -name "*.vmdk" \) \
+                        -printf '%f\n' 2>/dev/null | sort
+                fi
+            )
+
+            # Categorize images for this pool
+            local associated="" orphaned=""
+            for image_file in "${pool_images[@]}"; do
+                local full_path="$pool_path/$image_file"
+                if [[ -n "${image_domain_map[$full_path]:-}" ]]; then
+                    associated="${associated:+${associated}$'\n'}$image_file"
+                else
+                    orphaned="${orphaned:+${orphaned}$'\n'}$image_file"
                 fi
             done
 
-            # Display in domain order for associated images (optimized: O(n) instead of O(n²))
-            echo ""
-            echo "  Images associated with defined domains:"
-            if [[ ${#associated_images[@]} -eq 0 ]]; then
-                echo "    (No images associated with defined domains)"
-            else
-                for domain in "${all_domains[@]}"; do
-                    local disk_paths="${domain_disk_paths[$domain]:-}"
-                    [[ -z "$disk_paths" ]] && continue
+            [[ -n "$associated" ]] && pool_associated_images[$pool]="$associated"
+            [[ -n "$orphaned" ]] && pool_orphaned_images[$pool]="$orphaned"
+        done
 
-                    while IFS= read -r disk_path; do
-                        [[ -z "$disk_path" ]] && continue
-                        local disk_basename
-                        disk_basename=$(basename "$disk_path")
-                        # Only show if it exists in image_domain_map and hasn't been shown yet
-                        local has_mapping="${image_domain_map[$disk_basename]:-}"
-                        local already_shown="${image_shown[$disk_basename]:-}"
-                        if [[ -n "$has_mapping" && -z "$already_shown" ]]; then
-                            echo "    - $disk_basename -> ${image_domain_map[$disk_basename]}"
-                            image_shown[$disk_basename]=1
-                        fi
-                    done <<< "$disk_paths"
-                done
+        # Display images by storage pool
+        echo ""
+        echo "  Images associated with defined domains:"
+        local found_any_associated=0
+        for pool in $(printf '%s\n' "${!pool_paths[@]}" | sort); do
+            local pool_path="${pool_paths[$pool]}"
+            local associated_list="${pool_associated_images[$pool]:-}"
+
+            if [[ -n "$associated_list" ]]; then
+                echo ""
+                echo "    Storage pool '$pool' ($pool_path):"
+                local -A image_shown=()
+                while IFS= read -r image_file; do
+                    [[ -z "$image_file" ]] && continue
+                    [[ -n "${image_shown[$image_file]:-}" ]] && continue
+                    local full_path="$pool_path/$image_file"
+                    echo "      - $image_file -> ${image_domain_map[$full_path]}"
+                    image_shown[$image_file]=1
+                done <<< "$associated_list"
+                found_any_associated=1
             fi
+        done
+        [[ $found_any_associated -eq 0 ]] && echo "    (No images associated with defined domains)"
 
-            # Check for domains with missing images using cached disk paths
-            echo ""
-            echo "  Domains with missing images:"
-            local found_missing=0
-            for domain in "${all_domains[@]}"; do
-                local disk_paths="${domain_disk_paths[$domain]:-}"
-                [[ -z "$disk_paths" ]] && continue
+        # Check for domains with missing images using cached disk paths
+        echo ""
+        echo "  Domains with missing images:"
+        local found_missing=0
+        for domain in "${all_domains[@]}"; do
+            local disk_paths="${domain_disk_paths[$domain]:-}"
+            [[ -z "$disk_paths" ]] && continue
 
-                while IFS= read -r disk_path; do
-                    [[ -z "$disk_path" ]] && continue
-                    [[ -f "$disk_path" ]] && continue
+            while IFS= read -r disk_path; do
+                [[ -z "$disk_path" ]] && continue
+                [[ -f "$disk_path" ]] && continue
 
-                    local disk_basename
-                    disk_basename=$(basename "$disk_path")
-                    echo "    - $domain: missing $disk_basename"
-                    found_missing=1
-                done <<< "$disk_paths"
-            done
-            [[ $found_missing -eq 0 ]] && echo "    (All defined domains have their disk images)"
+                local disk_basename
+                local disk_dir
+                disk_basename=$(basename "$disk_path")
+                disk_dir=$(dirname "$disk_path")
+                echo "    - $domain: missing $disk_basename"
+                echo "      (expected at: $disk_dir)"
+                found_missing=1
+            done <<< "$disk_paths"
+        done
+        [[ $found_missing -eq 0 ]] && echo "    (All defined domains have their disk images)"
 
-            echo ""
-            echo "  Orphaned images (not associated with any defined domains):"
-            if [[ ${#orphaned_images[@]} -eq 0 ]]; then
-                echo "    (No orphaned images found)"
-            else
-                printf '    - %s\n' "${orphaned_images[@]}"
+        # Display orphaned images by pool
+        echo ""
+        echo "  Orphaned images (not associated with any defined domains):"
+        local found_any_orphaned=0
+        for pool in $(printf '%s\n' "${!pool_paths[@]}" | sort); do
+            local pool_path="${pool_paths[$pool]}"
+            local orphaned_list="${pool_orphaned_images[$pool]:-}"
+
+            if [[ -n "$orphaned_list" ]]; then
+                echo ""
+                echo "    Storage pool '$pool' ($pool_path):"
+                while IFS= read -r image_file; do
+                    [[ -z "$image_file" ]] && continue
+                    echo "      - $image_file"
+                done <<< "$orphaned_list"
+                found_any_orphaned=1
             fi
-        fi
+        done
+        [[ $found_any_orphaned -eq 0 ]] && echo "    (No orphaned images found)"
     fi
 
     # iGPU VF usage - reuse cached domain_xmls instead of reading files again
@@ -1150,6 +1494,9 @@ function show_system_state() {
 
 parse_arg "$@" || exit 255
 validate_arguments || exit 255
+
+# Set up IMAGE_PATH based on custom or default location
+setup_image_path
 
 # If --sys_state was requested, show state and exit
 if [[ "$SYS_STATE_REQUESTED" -eq 1 ]]; then
