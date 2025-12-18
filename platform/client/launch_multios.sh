@@ -63,6 +63,8 @@ SRIOV_ENABLE="false"
 # Error log file
 ERROR_LOG_FILE="/tmp/launch_multios_errors.log"
 
+LAST_PASSTHROUGH_VM=""
+
 # This variable is used to check if the domain is already defined
 declare -A REDEFINE_DOMAIN=(
   ["ubuntu"]=1
@@ -683,7 +685,12 @@ function launch_domains() {
 # Function to passthrough devices
 function passthrough_devices() {
   local domain=$1
-
+  # Clean up any previously attached devices for this domain to avoid conflicts
+  # Skip cleanup if this is the same domain as the last passthrough operation
+  if [[ "$LAST_PASSTHROUGH_VM" != "$domain" ]]; then
+    "$PASSTHROUGH_SCRIPT" -f "$domain"
+  fi
+  LAST_PASSTHROUGH_VM="$domain"
   # Check if domain has device passthrough
   if [[ "${device_passthrough[$domain]+_}" ]]; then
     local raw_devices="${device_passthrough[$domain]}"
@@ -734,11 +741,8 @@ function passthrough_devices() {
               fi
             fi
             ((i+=1))
-          done
-
-          # Perform device passthrough
-          echo "Performing device passthrough for domain $domain with $interface device $device_name $device_number"
-          "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name" "$device_number"
+          done          
+          "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name" "$device_number" 
           ;;
 
         --usbtree)
@@ -757,7 +761,6 @@ function passthrough_devices() {
           done
 
           # Perform device passthrough
-          echo "Performing device passthrough for domain $domain with $interface device $device_name"
           "$PASSTHROUGH_SCRIPT" -p "$domain" "$interface" "$device_name"
           ;;
 

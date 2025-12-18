@@ -1,5 +1,6 @@
 # Table of Contents
 1. [Intel IoT Platforms Supported](#intel-iot-platforms-supported)
+    1. [Wildcat Lake](#wildcat-lake)
     1. [Panther Lake H](#panther-lake-h)
     1. [Bartlett Lake](#bartlett-lake)
     1. [Twin Lake](#twin-lake)
@@ -11,6 +12,7 @@
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Supported Host and Guest OS Details
 | :-- | :--
+| Wildcat Lake | [refer here](platforms.md#wildcat-lake)
 | Panther Lake H | [refer here](platforms.md#panther-lake-h)
 | Bartlett Lake | [refer here](platforms.md#bartlett-lake)
 | Twin Lake | [refer here](platforms.md#twin-lake)
@@ -20,6 +22,30 @@
 | Raptor Lake PS | [refer here](platforms.md#raptor-lake-p-and-ps)
 | Raptor Lake P | [refer here](platforms.md#raptor-lake-p-and-ps)
 | Alder Lake N | [refer here](platforms.md#amston-lake-and-alder-lake-n)
+
+## Wildcat Lake
+| Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
+|:---|:---|:---|
+| Wildcat Lake SODIMM DDR5 | Wildcat Lake Silicon A0 (ES1) and beyond | NA |
+
+<table>
+    <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
+    <!-- Host Operating System -->
+    <tr>
+      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+    </tr>
+    <!-- Guest Operating Systems -->
+    <tr>
+      <td align="left">Ubuntu 24.04 release</br></td><td>Yes*</td><td>Yes</td>
+    </tr>
+   <tr>
+   <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required: Windows11.0 26100.6584 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">(kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8344</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
+      </td><td>Yes*</td><td>Yes</td>
+    </tr>
+</table>
 
 ## Panther Lake H
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
@@ -38,9 +64,9 @@
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.3037 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2d3f9ba9-5096-4b23-9709-3af7d7a2103f/public/windows11.0-kb5050094-x64_3d5a5f9ef20fc35cc1bd2ccb08921ee8713ce622.msu">(kb5050094)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6840</br>
-Windows Zero-copy driver release: 4.0.0.1918</br>
+Window 11 OS patch required: Windows11.0 26100.6584 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">(kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7016</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -62,18 +88,18 @@ Windows Zero-copy driver release: 4.0.0.1918</br>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2025/01/windows10.0-kb5049981-x64_bda073f7d8e14e65c2632b47278924b8a0f6b374.msu">Windows10.0 19044.5371 (kb5049981)</a></br>
-BTL-S Integrated GPU Intel(R) Graphics driver version: 101.6733</br>
-BTL-S 12P Integrated GPU Intel(R) Graphics driver version:18879</br>
-Windows Zero-copy driver release: 4.0.0.1918</br>
+Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
+BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.3037 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2d3f9ba9-5096-4b23-9709-3af7d7a2103f/public/windows11.0-kb5050094-x64_3d5a5f9ef20fc35cc1bd2ccb08921ee8713ce622.msu">Windows11.0 26100.3037 (kb5050094)</a></br>
-BTL-S Integrated GPU Intel(R) Graphics driver version: 101.6733</br>
-BTL-S 12P Integrated GPU Intel(R) Graphics driver version:18879</br>
-Windows Zero-copy driver release: 4.0.0.1918</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.6584 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
+BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
 </table>
@@ -94,10 +120,17 @@ Windows Zero-copy driver release: 4.0.0.1918</br>
       <td align="left">Ubuntu 24.04 release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=21955    87&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 10 OS patch required: <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 kb5065429</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
+      </td><td>Yes</td><td>Yes</td>
+    </tr>
+    <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.2033 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/72f34af9-6ab3-4bb0-9dfe-103e56a305fb/public/windows11.0-kb5044284-x64_d7eb7ceaa4798b92b988fd7dcc7c6bb39476ccf3.msu">Windows11.0 26100.2033 (kb5044284)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.6584 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -121,16 +154,17 @@ Windows Zero-copy driver release: 4.0.0.1797</br>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2024/05/windows10.0-kb5037768-x64_a627ecbec3d8dad1754d541b7f89d534a6bdec69.msu">Windows10.0 19044.4412 (kb5037768)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6314</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8132</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1a28d3c1-84ce-4108-ba95-3e918453a297/public/windows11.0-kb5040529-x64_fb312553946fb0b8a29324ba9f58c25ff6590979.msu">Windows11.0 26100.1301 (kb5040529)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6314</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.6584 (kb5043080)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8132</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -153,16 +187,16 @@ Windows Zero-copy driver release: 4.0.0.1797</br>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2024/10/windows10.0-kb5044273-x64_71347fa01079c2b6278a0f48282b8ff3ded2f1e0.msu">Windows10.0 19044.5011 (kb5044273)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
-Windows Zero-copy driver release: 4.0.0.1797</a>
+Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</a>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.2033 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/72f34af9-6ab3-4bb0-9dfe-103e56a305fb/public/windows11.0-kb5044284-x64_d7eb7ceaa4798b92b988fd7dcc7c6bb39476ccf3.msu">Windows11.0 26100.2033 (kb5044284)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.6584 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -186,16 +220,17 @@ Windows Zero-copy driver release: 4.0.0.1797</br>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2024/05/windows10.0-kb5037768-x64_a627ecbec3d8dad1754d541b7f89d534a6bdec69.msu">Windows10.0 19044.4412 (kb5037768)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6134</br>
-Windows Zero-copy driver release: 4.0.0.1742</br>
+Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8132</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/1a28d3c1-84ce-4108-ba95-3e918453a297/public/windows11.0-kb5040529-x64_fb312553946fb0b8a29324ba9f58c25ff6590979.msu">Windows11.0 26100.1301 (kb5040529)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6134</br>
-Windows Zero-copy driver release: 4.0.0.1742</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8584 (kb5043080)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8132</br>
+Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -219,15 +254,15 @@ Windows Zero-copy driver release: 4.0.0.1742</br>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required: Windows10.0 19044.5371 <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2025/01/windows10.0-kb5049981-x64_bda073f7d8e14e65c2632b47278924b8a0f6b374.msu">(kb5049981)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Integrated GPU Intel(R) Graphics driver version: 101.6733</br>
+Windows Zero-copy driver release: 4.0.0.1918</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required: Windows11.0 26100.3037 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2d3f9ba9-5096-4b23-9709-3af7d7a2103f/public/windows11.0-kb5050094-x64_3d5a5f9ef20fc35cc1bd2ccb08921ee8713ce622.msu">(kb5050094)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6556</br>
-Windows Zero-copy driver release: 4.0.0.1797</br>
+Integrated GPU Intel(R) Graphics driver version: 101.6733</br>
+Windows Zero-copy driver release: 4.0.0.1918</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>

@@ -36,6 +36,32 @@ XML_DIR="./platform/server/libvirt_xml"
 ERROR_LOG_FILE="/tmp/launch_multios_errors.log"
 
 #---------      Functions    -------------------
+
+function check_virtualization() {
+    local error=0
+
+    # Check VT-x
+    local vtx
+    vtx=$(lscpu | grep Virtualization | awk '{print $2}' || :)
+    if [[ "$vtx" != "VT-x" ]]; then
+        echo "Error: VT-x is not enabled"
+        error=1
+    fi
+
+    # Check VT-d
+    local vtd
+    vtd=$(dmesg | grep -e DMAR -e IOMMU | grep -e "Virtualization Technology for Directed I/O" || :)
+    if [[ -z "$vtd" ]]; then
+        echo "Error: VT-d is not enabled." | tee -a "$ERROR_LOG_FILE"
+        error=1
+    fi
+
+    if [[ "$error" -eq 1 ]]; then
+        echo "Please check the BIOS settings." | tee -a "$ERROR_LOG_FILE"
+        exit 255
+    fi
+}
+
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
     if [[ $# -eq 1 ]]; then
         if [[ -L "$1" ]]; then
@@ -376,6 +402,7 @@ function passthrough_devices() {
 #-------------    main processes    -------------
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 parse_arg "$@" || exit 255
+check_virtualization || exit 255
 
 # Launch domain(s)
 launch_domains "${domains[@]}" || exit 255

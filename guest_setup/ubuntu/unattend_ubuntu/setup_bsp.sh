@@ -48,6 +48,30 @@ PACKAGES_ADD_INSTALL=(
     ""
 )
 
+# Version-specific PPA configuration alternates
+# These will be applied if the detected Ubuntu version differs from the default above
+# Each version can define: ppa_pin, ppa_pin_priority, ppa_urls, gpgs, wget_no_proxy, and apt_conf
+# Format: ["version:index"] = "value"
+# Multiple entries per version are supported by incrementing the index (0, 1, 2, ...)
+declare -A PPA_ALT_URLS=(
+    ["22.04:0"]="https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia kernels"
+)
+declare -A PPA_ALT_GPGS=(
+    ["22.04:0"]="auto"
+)
+declare -A PPA_ALT_WGET_NO_PROXY=(
+    ["22.04:0"]=""
+)
+declare -A PPA_ALT_APT_CONF=(
+    ["22.04:0"]=""
+)
+declare -A PPA_ALT_PIN=(
+    ["22.04"]="release o=intel-iot-linux-overlay"
+)
+declare -A PPA_ALT_PIN_PRIORITY=(
+    ["22.04"]=2000
+)
+
 NO_BSP_INSTALL=0
 KERN_PATH=""
 KERN_INSTALL_FROM_PPA=0
@@ -62,7 +86,20 @@ script=$(realpath "${BASH_SOURCE[0]}")
 #scriptpath=$(dirname "$script")
 LOGTAG=$(basename "$script")
 LOGD="logger -t $LOGTAG"
-LOGE="logger -s -t $LOGTAG"
+
+# Function to log errors and optionally send to host via netcat
+function log_error() {
+    local msg="$*"
+    logger -s -t "$LOGTAG" "$msg"
+
+    # If HOST_SERVER_IP and HOST_SERVER_NC_PORT are set, send error to host
+    if [[ -n "${HOST_SERVER_IP:-}" && -n "${HOST_SERVER_NC_PORT:-}" ]]; then
+        echo "ERROR: $LOGTAG: $msg" | nc -q1 "$HOST_SERVER_IP" "$HOST_SERVER_NC_PORT" 2>/dev/null || true
+    fi
+}
+
+# For backward compatibility, LOGE can be used as a function
+LOGE="log_error"
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -96,13 +133,58 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
         check_non_symlink "$1"
         dpath=$(realpath "$1")
         if [[ $? -ne 0 || ! -d $dpath ]]; then
-            $LOGE "Error: $dpath invalid directory" | tee -a "$LOG_FILE"
+            $LOGE "Error: $dpath invalid directory"
             exit 255
         fi
     else
         $LOGE "Error: Invalid param to ${FUNCNAME[0]}"
         exit 255
     fi
+}
+
+# Detect Ubuntu version and configure PPA settings accordingly
+function setup_ubuntu_ppa_config() {
+    # Get Ubuntu version and codename dynamically from system
+    UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null || echo "24.04")
+    UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "noble")
+
+    # Check if there's a version-specific alternate configuration
+    if [[ -n "${PPA_ALT_PIN[$UBUNTU_VERSION]:-}" ]]; then
+        # Apply PIN alternate
+        PPA_PIN="${PPA_ALT_PIN[$UBUNTU_VERSION]}"
+
+        # Apply PIN priority alternate if defined
+        if [[ -n "${PPA_ALT_PIN_PRIORITY[$UBUNTU_VERSION]:-}" ]]; then
+            PPA_PIN_PRIORITY="${PPA_ALT_PIN_PRIORITY[$UBUNTU_VERSION]}"
+        fi
+
+        # Load multi-value arrays from associative array using version:index pattern
+        local temp_urls=()
+        local temp_gpgs=()
+        local temp_no_proxy=()
+        local temp_apt_conf=()
+        local idx=0
+
+        # Iterate through indexed entries for this version
+        while [[ -n "${PPA_ALT_URLS[$UBUNTU_VERSION:$idx]:-}" ]]; do
+            temp_urls+=("${PPA_ALT_URLS[$UBUNTU_VERSION:$idx]}")
+            temp_gpgs+=("${PPA_ALT_GPGS[$UBUNTU_VERSION:$idx]:-auto}")
+            temp_no_proxy+=("${PPA_ALT_WGET_NO_PROXY[$UBUNTU_VERSION:$idx]:-}")
+            temp_apt_conf+=("${PPA_ALT_APT_CONF[$UBUNTU_VERSION:$idx]:-}")
+            idx=$((idx + 1))
+        done
+
+        # Apply the collected arrays if any entries were found
+        if [[ ${#temp_urls[@]} -gt 0 ]]; then
+            PPA_URLS=("${temp_urls[@]}")
+            PPA_GPGS=("${temp_gpgs[@]}")
+            PPA_WGET_NO_PROXY=("${temp_no_proxy[@]}")
+            PPA_APT_CONF=("${temp_apt_conf[@]}")
+        fi
+
+        $LOGD "Applied version-specific PPA config for Ubuntu $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+    fi
+    # If no alternate exists, global default settings are already configured
 }
 
 function check_url() {
@@ -180,7 +262,10 @@ function install_kernel_from_ppa() {
 
     # Install Intel kernel overlay
     echo "kernel PPA version: $1"
-    sudo apt-get install -y --allow-downgrades linux-headers-"$1" linux-image-"$1" || return 255
+    if ! sudo apt-get install -y --allow-downgrades linux-headers-"$1" linux-image-"$1"; then
+        $LOGE "Error: Failed to install kernel packages linux-headers-$1 and linux-image-$1"
+        return 255
+    fi
 
     # Update boot menu to boot to the new kernel
     local kernel_name
@@ -193,6 +278,11 @@ function install_kernel_from_ppa() {
 
 function setup_overlay_ppa() {
     $LOGD "${FUNCNAME[0]} begin"
+
+    sudo apt-get update -y
+    sudo apt-get upgrade -y
+
+    $LOGD "Setting up Intel BSP PPA"
 
     # Install Intel BSP PPA and required GPG keys
     cat /dev/null > /etc/apt/sources.list.d/ubuntu_bsp.list
@@ -242,10 +332,95 @@ function setup_overlay_ppa() {
         fi
     done
 
+    # Update package cache after adding PPA
     sudo apt-get update -y
-    sudo apt-get upgrade -y --allow-downgrades
 
     $LOGD "${FUNCNAME[0]} end"
+}
+
+function validate_packages_availability() {
+    local package_list="$1"
+    local log_file="$2"
+
+    $LOGD "Validating package availability from repository..."
+    echo "=== Package Availability Validation ===" >> "$log_file"
+
+    # Update apt cache to get latest package information
+    sudo apt-get update 2>&1 | sudo tee -a "$log_file" > /dev/null
+
+    # Get all available packages once (much faster than checking each individually)
+    # Use apt-cache pkgnames which is script-friendly and fast
+    $LOGD "Building package availability cache..."
+    declare -A pkg_cache
+    while IFS= read -r pkg; do
+        pkg_cache["$pkg"]=1
+    done < <(apt-cache pkgnames 2>/dev/null)
+
+    # Validate each package and build filtered list
+    local validated_list=""
+    local missing_packages=""
+    local pkg_name
+    local pkg_version
+
+    for pkg in $package_list; do
+        # Split package name and version if specified (e.g., package=version)
+        if [[ "$pkg" == *"="* ]]; then
+            pkg_name="${pkg%%=*}"
+            pkg_version="${pkg#*=}"
+        else
+            pkg_name="$pkg"
+            pkg_version=""
+        fi
+
+        # Check if package exists using O(1) hash lookup
+        if [[ -z "${pkg_cache[$pkg_name]:-}" ]]; then
+            $LOGD "WARNING: Package $pkg not available in repository, skipping"
+            missing_packages+="$pkg "
+            echo "WARNING: Package $pkg not available in repository, skipping installation" >> "$log_file"
+            continue
+        fi
+
+        # Package name exists, now check version if specified
+        if [[ -z "$pkg_version" ]]; then
+            validated_list+="$pkg "
+            continue
+        fi
+
+        # Version is specified, verify it's available
+        if apt-cache madison "$pkg_name" 2>/dev/null | grep -q "$pkg_version"; then
+            validated_list+="$pkg "
+            continue
+        fi
+
+        # Specified version not available, try without version constraint
+        $LOGD "WARNING: Package $pkg_name version $pkg_version not available, trying without version constraint"
+        echo "WARNING: Package $pkg_name=$pkg_version not available with specified version" >> "$log_file"
+        validated_list+="$pkg_name "
+        echo "  -> Will install $pkg_name with default available version" >> "$log_file"
+    done
+
+    # Log missing packages summary
+    if [[ -n "$missing_packages" ]]; then
+        {
+            echo ""
+            echo "=== Missing Packages Summary ==="
+            echo "The following packages are not available and will be skipped:"
+            for pkg in $missing_packages; do
+                echo "  - $pkg"
+            done
+            echo ""
+        } >> "$log_file"
+        $LOGD "WARNING: Some packages are not available in repository. See log for details: $log_file"
+    fi
+
+    {
+        echo "=== Validated Packages to Install ==="
+        echo "$validated_list"
+        echo ""
+    } >> "$log_file"
+
+    # Return validated package list
+    echo "$validated_list"
 }
 
 function install_userspace_pkgs() {
@@ -264,11 +439,21 @@ function install_userspace_pkgs() {
     # shellcheck source-path=SCRIPTDIR
     source "$script_dir/bsp_packages.sh"
 
+    # Select the appropriate package list based on detected Ubuntu version
+    $LOGD "Detected Ubuntu version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+
+    # Look up the package variable name for this version
+    local package_var_name="${BSP_PACKAGE_VERSION_MAP[$UBUNTU_VERSION]:-$BSP_PACKAGE_DEFAULT}"
+
+    # Use indirect variable expansion to get the package list
+    local selected_packages="${!package_var_name}"
+    $LOGD "Using package list: $package_var_name"
+
     # Process comma-separated string directly into space-separated string, removing empty entries and whitespace
     local package_list=""
     local old_ifs="$IFS"
     IFS=','
-    for pkg in $bsp_packages; do
+    for pkg in $selected_packages; do
         # Trim whitespace, newlines, and carriage returns, skip empty entries
         pkg=$(echo "$pkg" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         if [[ -n "$pkg" ]]; then
@@ -290,15 +475,48 @@ function install_userspace_pkgs() {
     # install all bsp overlay packages in a single command
     if [[ -n "$package_list" ]]; then
         echo "Installing BSP overlay packages..."
-        # shellcheck disable=SC2086
-        sudo apt-get install -y --allow-downgrades $package_list
+        local log_file
+        log_file="/var/log/bsp_install_$(date +%Y%m%d_%H%M%S).log"
+        $LOGD "Logging package installation to: $log_file"
+        {
+            echo "=== BSP Package Installation Log ==="
+            echo "Date: $(date)"
+            echo "Initial packages requested:"
+            echo "$package_list"
+            echo ""
+        } > "$log_file"
+
+        # Validate package availability and get filtered list
+        package_list=$(validate_packages_availability "$package_list" "$log_file")
+
+        # Install validated packages
+        if [[ -n "$package_list" ]]; then
+            # shellcheck disable=SC2086
+            if sudo DEBIAN_FRONTEND=noninteractive apt-get install -y --allow-downgrades $package_list 2>&1 | tee -a "$log_file"; then
+                $LOGD "BSP overlay packages installed successfully"
+                echo "" >> "$log_file"
+                echo "=== Installation completed successfully ===" >> "$log_file"
+            else
+                local exit_code=$?
+                $LOGE "Error: Failed to install BSP overlay packages. Exit code: $exit_code. Check log: $log_file"
+                echo "" >> "$log_file"
+                echo "=== Installation FAILED with exit code: $exit_code ===" >> "$log_file"
+                return 255
+            fi
+        else
+            $LOGD "WARNING: No valid packages to install after validation"
+            echo "WARNING: No valid packages to install after validation" >> "$log_file"
+        fi
     fi
 
     # other non overlay packages
     for package in "${PACKAGES_ADD_INSTALL[@]}"; do
         if [[ -n ${package+x} && -n $package ]]; then
             echo "Installing package: $package"
-            sudo apt-get install -y --allow-downgrades "$package"
+            if ! sudo apt-get install -y --allow-downgrades "$package" 2>&1 | tee -a "$log_file"; then
+                $LOGE "Error: Failed to install additional package: $package"
+                return 255
+            fi
         fi
     done
 
@@ -571,6 +789,9 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 parse_arg "$@" || exit 255
 
 if [[ "$NO_BSP_INSTALL" -ne "1" ]]; then
+    # Detect Ubuntu version and configure PPA settings
+    setup_ubuntu_ppa_config
+
     # Install PPA
     setup_overlay_ppa || exit 255
 

@@ -61,6 +61,38 @@ function check_os() {
     fi
 }
 
+function modify_xml_for_ubuntu22() {
+    local file=$1
+
+    # 1. Add USB tablet input device if not present
+    if ! grep -q '<input type="tablet" bus="usb"/>' "$file"; then
+        # Add tablet input after the console line
+        sed -i '/<console type="pty"\/>/a\    <input type="tablet" bus="usb"/>' "$file"
+    fi
+
+    # 2. Remove render_sync property if present (not supported in Ubuntu 22)
+    # Handle both old format (qemu:commandline) and new format (qemu:override)
+    if grep -q 'device.video0.render_sync=true' "$file"; then
+        # Old format: remove the qemu:arg line
+        xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=true"]' "$file"
+    fi
+    # Also try to remove from new format if present
+    if grep -q 'property name="render_sync"' "$file"; then
+        xmlstarlet ed -L -d '/domain/qemu:override/qemu:device[@alias="video0"]/qemu:frontend/qemu:property[@name="render_sync"]' "$file"
+    fi
+
+    # 3. Remove hw-cursor from display options if present
+    if grep -q 'gtk,gl=on,hw-cursor=true' "$file"; then
+        sed -i 's/gtk,gl=on,hw-cursor=true/gtk,gl=on/g' "$file"
+    fi
+
+    # 4. Update metadata to reflect Ubuntu 22.04 (if metadata exists)
+    if xmlstarlet sel -t -v '/domain/metadata/libosinfo:libosinfo/libosinfo:os/@id' "$file" &>/dev/null; then
+        xmlstarlet ed -L -u '/domain/metadata/libosinfo:libosinfo/libosinfo:os/@id' \
+            -v 'http://ubuntu.com/ubuntu/22.04' "$file"
+    fi
+}
+
 function check_libvirt_version() {
     if [[ -z "${1+x}" || -z "$1" ]]; then
         echo "ERROR: invalid libvirt version input to check for"
@@ -148,7 +180,9 @@ function setup_xml() {
         for file in "${xmlfiles[@]}"; do
             check_file_valid_nonzero "$file"
             # retrieve the address window
-            aw=$(($((($(((0x$(cat /sys/devices/virtual/iommu/dmar0/intel-iommu/cap)) >> 16 ))) & 0x3F )) + 1))
+            # aw=$(($((($(((0x$(cat /sys/devices/virtual/iommu/dmar0/intel-iommu/cap)) >> 16 ))) & 0x3F )) + 1))
+            # Tentative workaround to hardcode aw to 39
+            aw=39
             if grep -q "<cpu mode=\"host-passthrough\"/>" "$file"; then
                 # add maxphysaddr element for fresh setup
                 xmlstarlet ed -L -s '/domain/cpu' -t 'elem' -n 'maxphysaddr' \
@@ -232,6 +266,14 @@ function setup_xml() {
             fi
         done
     fi 
+
+    # Apply Ubuntu 22 specific modifications at the end (after all other modifications)
+    if [[ "$(lsb_release -rs 2>/dev/null || echo '24.04')" == "22.04" ]]; then
+        for file in "${xmlfiles[@]}"; do
+            check_file_valid_nonzero "$file"
+            modify_xml_for_ubuntu22 "$file"
+        done
+    fi
 
 }
 
