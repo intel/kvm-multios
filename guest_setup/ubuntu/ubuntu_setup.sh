@@ -429,11 +429,17 @@ function install_ubuntu() {
   mkdir -p "$dest_tmp_path"
   TMP_FILES+=("$dest_tmp_path")
 
+  # Check if ISO exists in unattend_ubuntu, verify checksum, and copy to libvirt images path
+  # If checksum fails, delete the ISO so it will be downloaded fresh
   if [[ -f "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" ]]; then
     check_file_valid_nonzero "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"
-    verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" || return 255
+    if ! verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"; then
+      echo "Checksum verification failed for provided ISO, removing to trigger fresh download"
+      sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+    fi
   fi
 
+  # Download ISO if not present in libvirt images path
   if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
     download_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" || return 255
   fi

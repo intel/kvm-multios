@@ -79,12 +79,21 @@ function check_virtualization() {
         error=1
     fi
 
-    # Check VT-d
+    # Check VT-d hardware capability
+    # Check for DMAR ACPI table which indicates VT-d hardware support
     local vtd
-    vtd=$(journalctl -k -b | grep -e DMAR -e IOMMU | \
-          grep -e "Virtualization Technology for Directed I/O" || :;)
+    if [[ -d /sys/firmware/acpi/tables ]]; then
+        vtd=$(ls /sys/firmware/acpi/tables/DMAR 2>/dev/null || :;)
+    fi
+
+    # Fallback: check dmesg for DMAR table detection (works even if IOMMU not enabled)
     if [[ -z "$vtd" ]]; then
-        echo "Error: VT-d is not enabled"
+        vtd=$(dmesg | grep -i "DMAR: Host address width" || :;)
+    fi
+
+    if [[ -z "$vtd" ]]; then
+        echo "Error: VT-d hardware capability is not available"
+        echo "Please enable VT-d (Intel Virtualization Technology for Directed I/O) in BIOS settings"
         error=1
     fi
 
