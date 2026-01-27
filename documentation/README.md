@@ -235,6 +235,129 @@ For example, the below shows 2 vCPU allocation for windows 10 guest VM.
 
 Reference: [Libvirt Domain XML format: CPU allocation](https://libvirt.org/formatdomain.html#cpu-allocation)
 
+## VM CPU Affinity (Pinning)
+CPU affinity enables the pinning (binding) of virtual CPUs (vCPUs) and emulator threads to specific host CPU cores. This configuration is beneficial for real-time workloads, performance isolation, and reducing CPU migration overhead.
+
+### When to Use CPU Affinity
+- **Real-time applications**: Dedicate specific cores for deterministic performance
+- **Performance isolation**: Prevent VMs from interfering with each other or critical host processes
+- **NUMA optimization**: Pin vCPUs to cores on the same NUMA node as assigned memory
+- **Latency-sensitive workloads**: Reduce cache misses and context switching
+
+### Understanding Host CPU Topology
+Prior to configuring CPU affinity, the host's CPU topology should be identified:
+
+```bash
+# View CPU topology summary
+lscpu
+
+# View detailed topology (requires hwloc package)
+lstopo
+
+# Check NUMA nodes
+numactl --hardware
+```
+
+Key information to note:
+- Total number of CPUs (including hyperthreads)
+- CPU core and thread layout
+- NUMA node assignments
+
+### Configuring CPU Affinity in XML
+CPU affinity is configured in the `<cputune>` section of the domain XML file. The `ubuntu_rt_headless.xml` provides a reference example.
+
+#### Basic Configuration Example
+
+```xml
+<vcpu placement='static'>2</vcpu>
+<cputune>
+  <vcpupin vcpu='0' cpuset='2'/>
+  <vcpupin vcpu='1' cpuset='3'/>
+  <emulatorpin cpuset='0'/>
+</cputune>
+```
+
+In this example:
+- vCPU 0 is pinned to host CPU core 2
+- vCPU 1 is pinned to host CPU core 3
+- QEMU emulator threads are pinned to host CPU core 0
+
+#### Configuration Elements
+- **`<vcpupin>`**: Pins a specific vCPU to one or more host CPUs
+  - `vcpu` attribute: Virtual CPU ID (0-indexed)
+  - `cpuset` attribute: Host CPU core(s) to pin to (can be a range like '0-3' or list like '0,2,4')
+- **`<emulatorpin>`**: Pins QEMU emulator threads to specific host CPUs
+- **`<iothreadpin>`**: Pins I/O threads to specific host CPUs (for advanced configurations)
+
+#### Multi-Core Pinning Example
+```xml
+<vcpu placement='static'>4</vcpu>
+<cputune>
+  <vcpupin vcpu='0' cpuset='2'/>
+  <vcpupin vcpu='1' cpuset='3'/>
+  <vcpupin vcpu='2' cpuset='4'/>
+  <vcpupin vcpu='3' cpuset='5-6'/>
+  <emulatorpin cpuset='0-1'/>
+</cputune>
+```
+
+### Best Practices
+1. **Avoid CPU 0**: Reserve CPU 0 for host OS and emulator threads to avoid interference with system processes
+2. **Isolate cores**: The host kernel boot parameter `isolcpus` (e.g., `isolcpus=2-6`) should be set in the bootloader configuration (such as GRUB) to prevent the Linux scheduler from running normal host processes on the specified CPUs. For best results, the CPUs listed in `isolcpus` should match those dedicated to VM vCPUs via `<cputune>` in the XML. This ensures those CPUs are reserved for the VM or other explicitly pinned workloads, maximizing isolation and performance.
+3. **Consider hyperthreading**: Be aware of sibling threads; pinning to both threads of the same core may reduce performance
+4. **NUMA awareness**: Pin vCPUs to cores on the same NUMA node as the VM's memory allocation
+5. **Don't overcommit**: Ensure total pinned vCPUs don't exceed available host CPUs
+
+### Testing CPU Affinity Dynamically
+Prior to making permanent changes to the XML, CPU affinity can be tested dynamically:
+
+```bash
+# View current CPU affinity for a running VM
+virsh vcpuinfo <domain>
+
+# Dynamically pin vCPU 0 to host CPU 2
+virsh vcpupin <domain> 0 2
+
+# Dynamically pin vCPU 1 to host CPU 3
+virsh vcpupin <domain> 1 3
+
+# Pin vCPU 2 to host CPU 4
+virsh vcpupin <domain> 2 4
+
+# Pin vCPU 3 to host CPUs 5-6
+virsh vcpupin <domain> 3 5-6
+
+# View emulator thread affinity
+virsh emulatorpin <domain>
+
+# Pin emulator threads to host CPUs 0-1
+virsh emulatorpin <domain> 0-1
+```
+
+Note: Dynamic changes are lost when the VM is stopped. To make them permanent, update the XML configuration.
+
+### Verifying CPU Affinity
+
+
+To verify vCPU affinity:
+
+Within the guest VM:
+```bash
+# View vCPU affinity for a guest process
+taskset -cp <pid>  # Replace <pid> with the process ID inside the guest
+```
+
+From the host:
+```bash
+# Find the QEMU process ID for the VM named <domain>
+ps -C qemu-system-x86_64 -o pid,cmd | grep <domain> | awk '{print $1}'
+
+# Check CPU affinity of the QEMU process
+taskset -cp <pid>  # Replace <pid> with the QEMU process ID found above
+```
+
+Reference: [Libvirt Domain XML format: CPU Tuning](https://libvirt.org/formatdomain.html#cpu-tuning)
+
 ## VM Memory Allocation
 The default VM memory size could be changed permanently by modifying VM definition xml file to take effect on next launch of VM.
 
