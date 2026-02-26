@@ -323,10 +323,8 @@ function validate_custom_image_path() {
 
 function setup_image_path() {
     if [[ -n "$CUSTOM_IMAGE_PATH" ]]; then
-        # Validate custom path and get resolved absolute path
-        local resolved_path
-        resolved_path=$(validate_custom_image_path "$CUSTOM_IMAGE_PATH") || exit 255
-        IMAGE_PATH="$resolved_path"
+        # CUSTOM_IMAGE_PATH has already been validated and resolved in validate_command
+        IMAGE_PATH="$CUSTOM_IMAGE_PATH"
         echo "Using custom image path: $IMAGE_PATH"
 
         # Generate pool name from path (replace / with _ and remove leading underscores)
@@ -374,9 +372,12 @@ function remove_passthrough_devices() {
 function clone_vm() {
     local clone_option=()
     local clone_xml=""
-    local dest_image="$IMAGE_PATH/${NEW_DOMAIN_NAME}.qcow2"
 
     # Phase 1: Handle disk image preparation
+    # Set up IMAGE_PATH and storage pool before checking destination
+    setup_image_path
+    local dest_image="$IMAGE_PATH/${NEW_DOMAIN_NAME}.qcow2"
+
     # Check if destination image exists and handle according to flags
     if [[ -f "$dest_image" ]]; then
         if [[ "$FORCECLEAN" == "1" ]]; then
@@ -776,6 +777,63 @@ function parse_arg() {
     done
 }
 
+# Function to validate argument combinations
+# Checks for mutually exclusive and required argument combinations
+function validate_arg_combinations() {
+    # Check 1: Source mode - mutually exclusive -s or -x, one required
+    if [[ -n "${SOURCE_DOMAIN_NAME:-}" && -n "${SOURCE_XML:-}" ]]; then
+        echo "Error: use either original domain (-s) or xml (-x) option but not both"
+        return 255
+    fi
+    if [[ -z "${SOURCE_DOMAIN_NAME:-}" && -z "${SOURCE_XML:-}" ]]; then
+        echo "Error: either original domain (-s) or xml (-x) option is required"
+        return 255
+    fi
+
+    # Check 2: Import data combinations
+    if [[ -n "${IMPORT_DATA:-}" ]]; then
+        # --import_data requires -x
+        if [[ -z "${SOURCE_XML:-}" ]]; then
+            echo "Error: when using --import_data, -x (source XML) is required to specify the domain configuration"
+            return 255
+        fi
+        # --import_data must be used with -x (not -s)
+        if [[ -n "${SOURCE_DOMAIN_NAME:-}" ]]; then
+            echo "Error: --import_data must be used with -x, not with -s"
+            return 255
+        fi
+        # --import_data is mutually exclusive with --preserve_data
+        if [[ "$PRESERVE_DATA" == "1" ]]; then
+            echo "Error: --preserve_data cannot be used with --import_data"
+            return 255
+        fi
+    fi
+
+    # Check 3: Force/preserve flag combinations
+    if [[ "$FORCECLEAN" == "1" && "$FORCECLEAN_DOMAIN" == "1" ]]; then
+        echo "Error: --forceclean cannot be used together with --forceclean_domain"
+        return 255
+    fi
+
+    if [[ "$FORCECLEAN" == "1" && "$PRESERVE_DATA" == "1" ]]; then
+        echo "Error: --forceclean cannot be used together with --preserve_data"
+        return 255
+    fi
+
+    # Check 4: VF option mutual exclusivity
+    local vf_count=0
+    [[ $IGPU_VF_SPECIFIED -eq 1 ]] && ((vf_count++))
+    [[ $IGPU_VF_FORCE_SPECIFIED -eq 1 ]] && ((vf_count++))
+    [[ $IGPU_VF_AUTO_SPECIFIED -eq 1 ]] && ((vf_count++))
+
+    if [[ $vf_count -gt 1 ]]; then
+        echo "Error: Only one VF option can be specified (--igpu_vf, --igpu_vf_force, or --igpu_vf_auto)"
+        return 255
+    fi
+
+    return 0
+}
+
 function validate_source_domain() {
     local domain_name="$1"
 
@@ -789,6 +847,38 @@ function validate_source_domain() {
             echo "Please shut it down before cloning."
             return 255
         fi
+
+        # Check if domain's disk images exist
+        # Skip when: importing data OR preserving existing data (not cloning from domain's disk)
+        # Only check when actually cloning from the domain's disk
+        if [[ -z "${IMPORT_DATA:-}" && "$PRESERVE_DATA" != "1" ]]; then
+            local domain_xml
+            domain_xml=$(virsh dumpxml "$domain_name")
+            local disk_sources
+            disk_sources=$(xmllint --xpath "//domain/devices/disk[@device='disk']/source/@file" - \
+                <<<"$domain_xml" 2>/dev/null | grep -o '"/[^"]*"' | tr -d '"' || true)
+
+            if [[ -n "$disk_sources" ]]; then
+                local missing_disks=()
+                while IFS= read -r disk_path; do
+                    if [[ -n "$disk_path" && ! -f "$disk_path" ]]; then
+                        missing_disks+=("$disk_path")
+                    fi
+                done <<< "$disk_sources"
+
+                if [[ ${#missing_disks[@]} -gt 0 ]]; then
+                    echo "Error: Source domain '$domain_name' has missing disk image(s):"
+                    for disk in "${missing_disks[@]}"; do
+                        echo "  - $disk"
+                    done
+                    echo ""
+                    echo "The source domain cannot be cloned because its disk images are missing."
+                    echo "Please restore the disk images or use a different source domain."
+                    return 255
+                fi
+            fi
+        fi
+
         return 0
     fi
 
@@ -834,27 +924,34 @@ function validate_source_xml() {
         fi
 
         # Check if referenced disk images exist
-        local disk_sources
-        disk_sources=$(xmllint --xpath "//domain/devices/disk[@device='disk']/source/@file" "$xmlfile" 2>/dev/null | \
-                      grep -o '"\([^"\]*\)"' | sed 's|"||g' || true)
+        # Skip when: importing data OR preserving existing data (not cloning from XML's disk)
+        # Only check when actually cloning from the XML's referenced disk
+        if [[ -z "${IMPORT_DATA:-}" && "$PRESERVE_DATA" != "1" ]]; then
+            local disk_sources
+            disk_sources=$(xmllint --xpath "//domain/devices/disk[@device='disk']/source/@file" "$xmlfile" 2>/dev/null | \
+                          grep -o '"\([^"\]*\)"' | sed 's|"||g' || true)
 
-        if [[ -n "$disk_sources" ]]; then
-            local missing_disks=()
-            while IFS= read -r disk_path; do
-                if [[ -n "$disk_path" && ! -f "$disk_path" ]]; then
-                    missing_disks+=("$disk_path")
+            if [[ -n "$disk_sources" ]]; then
+                local missing_disks=()
+                while IFS= read -r disk_path; do
+                    if [[ -n "$disk_path" && ! -f "$disk_path" ]]; then
+                        missing_disks+=("$disk_path")
+                    fi
+                done <<< "$disk_sources"
+
+                if [[ ${#missing_disks[@]} -gt 0 ]]; then
+                    echo "Error: Source disk image(s) referenced in XML file '$xml_file' do not exist:"
+                    for disk in "${missing_disks[@]}"; do
+                        echo "  - $disk"
+                    done
+                    echo ""
+                    echo "To clone from XML, the source disk images referenced in the XML must exist."
+                    echo "Solutions:"
+                    echo "  - Use --import_data <qcow2_file> to import an existing disk image"
+                    echo "  - Use -s <domain> to clone from an existing domain instead of XML"
+                    echo "  - Create the source disk using the guest setup scripts first"
+                    return 255
                 fi
-            done <<< "$disk_sources"
-
-            if [[ ${#missing_disks[@]} -gt 0 ]]; then
-                echo "Error: Referenced disk image(s) do not exist:"
-                for disk in "${missing_disks[@]}"; do
-                    echo "  - $disk"
-                done
-                echo "When cloning from XML, the referenced disk images must exist."
-                echo "Either create the domain with the guest setup scripts or clone from an"
-                echo "existing domain instead using -s option."
-                return 255
             fi
         fi
 
@@ -937,17 +1034,6 @@ function validate_import_qcow2() {
 function validate_new_domain() {
     local domain="$NEW_DOMAIN_NAME"
 
-    # Check for invalid combinations first
-    if [[ "$FORCECLEAN" == "1" && "$FORCECLEAN_DOMAIN" == "1" ]]; then
-        echo "Error: --forceclean cannot be used together with --forceclean_domain"
-        return 255
-    fi
-
-    if [[ "$FORCECLEAN" == "1" && "$PRESERVE_DATA" == "1" ]]; then
-        echo "Error: --forceclean cannot be used together with --preserve_data"
-        return 255
-    fi
-
     # Check for existing domain and image
     local status
     status=$(virsh list --all | grep " $domain " || true)
@@ -957,7 +1043,8 @@ function validate_new_domain() {
     fi
 
     local image_exists=0
-    if [[ -f "$IMAGE_PATH/$NEW_DOMAIN_NAME.qcow2" ]]; then
+    local check_path="${CUSTOM_IMAGE_PATH:-$LIBVIRT_DEFAULT_IMAGES_PATH}"
+    if [[ -f "$check_path/$NEW_DOMAIN_NAME.qcow2" ]]; then
         image_exists=1
     fi
 
@@ -971,8 +1058,9 @@ function validate_new_domain() {
     fi
 
     # Warn if --forceclean_domain will create orphaned image
-    if [[ "$FORCECLEAN_DOMAIN" == "1" && $domain_exists -eq 1 && $image_exists -eq 1 ]]; then
-        echo "Warning: Using --forceclean_domain will remove domain '$domain' but leave image '$NEW_DOMAIN_NAME.qcow2' (creating an orphaned image)"
+    if [[ "$FORCECLEAN_DOMAIN" == "1" && $domain_exists -eq 1 && $image_exists -eq 1 && "$PRESERVE_DATA" != "1" && -z "${IMPORT_DATA:-}" ]]; then
+        echo "Warning: Using --forceclean_domain will remove domain '$domain' but leave image '$NEW_DOMAIN_NAME.qcow2'"
+        echo "The image will be orphaned. Use --preserve_data to reuse it or --forceclean to remove both"
     fi
 
     # Check required options when conflicts exist
@@ -988,6 +1076,13 @@ function validate_new_domain() {
             echo "Error: $NEW_DOMAIN_NAME.qcow2 image already exists! Use --forceclean or --preserve_data"
             return 255
         fi
+    fi
+
+    # When --preserve_data is specified, the image must exist
+    if [[ "$PRESERVE_DATA" == "1" && $image_exists -eq 0 ]]; then
+        echo "Error: --preserve_data specified but image does not exist at: $check_path/$NEW_DOMAIN_NAME.qcow2"
+        echo "Either create the image first or remove --preserve_data to create a new one"
+        return 255
     fi
 }
 
@@ -1007,19 +1102,10 @@ function cleanup_existing_domain() {
 
 # Function to validate iGPU VF arguments
 function validate_igpu_vf() {
-    # Check for mutual exclusivity of VF options
-    local vf_count=0
-    [[ $IGPU_VF_SPECIFIED -eq 1 ]] && ((vf_count++))
-    [[ $IGPU_VF_FORCE_SPECIFIED -eq 1 ]] && ((vf_count++))
-    [[ $IGPU_VF_AUTO_SPECIFIED -eq 1 ]] && ((vf_count++))
-
-    if [[ $vf_count -gt 1 ]]; then
-        echo "Error: Only one VF option can be specified (--igpu_vf, --igpu_vf_force, or --igpu_vf_auto)"
-        return 255
-    fi
-
     # Early exit if no VF options specified
-    if [[ $vf_count -eq 0 ]]; then
+    if [[ $IGPU_VF_SPECIFIED -eq 0 \
+          && $IGPU_VF_FORCE_SPECIFIED -eq 0 \
+          && $IGPU_VF_AUTO_SPECIFIED -eq 0 ]]; then
         return 0
     fi
 
@@ -1046,7 +1132,7 @@ function validate_igpu_vf() {
     fi
 }
 
-function validate_arguments() {
+function validate_command() {
     # Phase 1: Check the validity of -p argument (required for all operations)
     if [[ -z "${PLATFORM_ARG:-}" ]]; then
         echo "Error: -p platform parameter is required"
@@ -1059,18 +1145,13 @@ function validate_arguments() {
         return 0
     fi
 
-    # Phase 2: Check the mode of cloning (mutually exclusive -s or -x)
-    if [[ -n "${SOURCE_DOMAIN_NAME:-}" && -n "${SOURCE_XML:-}" ]]; then
-        echo "Error: use either original domain (-s) or xml (-x) option but not both"
-        exit 255
-    fi
-    if [[ -z "${SOURCE_DOMAIN_NAME:-}" && -z "${SOURCE_XML:-}" ]]; then
-        echo "Error: either original domain (-s) or xml (-x) option is required"
-        exit 255
-    fi
+    # Phase 2: Validate argument combinations
+    validate_arg_combinations || exit 255
 
-    # Phase 3: Check the validity of the source arguments and --import_data
-    # Validate source domain or XML first
+    # Phase 3: Source validation and image-related arguments
+    # - Validate source domain/XML (where to clone from)
+    # - Validate --import_data (source qcow2 file to import)
+    # - Validate --image_path (custom destination path for cloned image)
     if [[ -n "${SOURCE_DOMAIN_NAME:-}" ]]; then
         validate_source_domain "$SOURCE_DOMAIN_NAME" || exit 255
     fi
@@ -1078,25 +1159,16 @@ function validate_arguments() {
         validate_source_xml "$SOURCE_XML" || exit 255
     fi
 
-    # Validate --import_data flag combinations and qcow2 file
+    # Validate the qcow2 file if --import_data is specified
     if [[ -n "${IMPORT_DATA:-}" ]]; then
-        # --import_data requires -x
-        if [[ -z "${SOURCE_XML:-}" ]]; then
-            echo "Error: when using --import_data, -x (source XML) is required to specify the domain configuration"
-            exit 255
-        fi
-        # --import_data must be used with -x (not -s)
-        if [[ -n "${SOURCE_DOMAIN_NAME:-}" ]]; then
-            echo "Error: --import_data must be used with -x, not with -s"
-            exit 255
-        fi
-        # --import_data is mutually exclusive with --preserve_data
-        if [[ "$PRESERVE_DATA" == "1" ]]; then
-            echo "Error: --preserve_data cannot be used with --import_data"
-            exit 255
-        fi
-        # Validate the qcow2 file
         validate_import_qcow2 "$IMPORT_DATA" || exit 255
+    fi
+
+    # Validate and resolve custom image path if specified
+    if [[ -n "${CUSTOM_IMAGE_PATH:-}" ]]; then
+        local resolved_path
+        resolved_path=$(validate_custom_image_path "$CUSTOM_IMAGE_PATH") || exit 255
+        CUSTOM_IMAGE_PATH="$resolved_path"
     fi
 
     # Phase 4: Check the validity of the -n new domain argument and related options
@@ -1493,10 +1565,7 @@ function show_system_state() {
 #trap 'error ${LINENO} "$BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
-validate_arguments || exit 255
-
-# Set up IMAGE_PATH based on custom or default location
-setup_image_path
+validate_command || exit 255
 
 # If --sys_state was requested, show state and exit
 if [[ "$SYS_STATE_REQUESTED" -eq 1 ]]; then

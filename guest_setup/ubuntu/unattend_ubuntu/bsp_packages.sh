@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2025 Intel Corporation.
+# Copyright (c) 2025-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -202,6 +202,7 @@ ocl-icd-libopencl1,
 curl,
 openssh-server,
 net-tools,
+xdp-tools,
 libdrm-amdgpu1,
 libdrm-common,
 libdrm-dev,
@@ -301,7 +302,9 @@ util-linux-extra,
 dbus-x11,
 sg3-utils,
 rpm,
-xdp-tools,
+mutter-common-bin,
+libmutter-14-0,
+gir1.2-mutter-14,
 libigdgmm-dev,
 libigdgmm12,
 libmfx-gen1.2,

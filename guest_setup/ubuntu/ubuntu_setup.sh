@@ -46,12 +46,16 @@ FORCE_KERN_APT_VER=""
 FORCE_LINUX_FW_APT_VER=""
 FORCE_UBUNTU_VER=""
 SETUP_DEBUG=0
+FORCE_SW_CURSOR=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
 FILE_SERVER_IP="192.168.122.1"
 FILE_SERVER_PORT=8001
 HOST_NC_DAEMON_PID=
+
+# Global variables to store validated versions
+VALIDATED_KERNEL_VER=""
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -293,7 +297,7 @@ function download_ubuntu_iso() {
     echo "$count: Download Ubuntu $ubuntu_ver iso to $dest_tmp_path"
     wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_URLS[$ubuntu_ver]}" \
     || wget -O "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}" "${UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS[$ubuntu_ver]}$iso_fname" || return 255
-    if verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}"; then
+    if verify_and_copy_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$dest_tmp_path/${UBUNTU_INSTALLER_ISO}"; then
       break
     else
       return 255
@@ -306,7 +310,7 @@ function download_ubuntu_iso() {
   return 0
 }
 
-function verify_ubuntu_iso() {
+function verify_and_copy_ubuntu_iso() {
   local maxcount=10
   local count=0
 
@@ -360,6 +364,129 @@ function verify_ubuntu_iso() {
   fi
 }
 
+# Check if a package is available via apt and matches expected name exactly
+check_package_available() {
+  local pkg_name=$1
+  local pkg_query=$2
+  
+  # Extract package name (without version) for querying
+  local query_pkg_name="${pkg_query%%=*}"
+  
+  # Use apt-cache madison to check if package is available from repositories
+  # (this excludes locally installed packages that aren't in repos)
+  local madison_output
+  madison_output=$(apt-cache madison "$query_pkg_name" 2>/dev/null)
+  
+  # Check if any versions are available from repositories
+  if [[ -n "$madison_output" ]]; then
+    # Verify package name matches exactly
+    local found_pkg
+    found_pkg=$(echo "$madison_output" | head -1 | awk '{print $1}')
+    if [[ "$found_pkg" != "$pkg_name" ]]; then
+      return 1
+    fi
+    
+    # If version specified, verify that exact version exists
+    if [[ "$pkg_query" == *"="* ]]; then
+      local requested_version="${pkg_query#*=}"
+      if ! echo "$madison_output" | awk '{print $3}' | grep -q "^${requested_version}$"; then
+        return 1
+      fi
+    fi
+    
+    return 0
+  fi
+  return 1
+}
+
+function validate_kernel_ppa_availability() {
+  local kernel_ver=$1
+  local is_forced=${2:-0}
+  
+  # Extract base version and package version
+  local kern_base_ver
+  local kern_pkg_ver
+  if [[ "$kernel_ver" =~ ^([^=]+)=(.+)$ ]]; then
+    kern_base_ver="${BASH_REMATCH[1]}"
+    kern_pkg_ver="${BASH_REMATCH[2]}"
+  else
+    kern_base_ver="$kernel_ver"
+    kern_pkg_ver=""
+  fi
+
+  # Build package queries based on whether version is specified
+  local headers_query="linux-headers-${kern_base_ver}"
+  local image_query="linux-image-${kern_base_ver}"
+  if [[ -n "$kern_pkg_ver" ]]; then
+    headers_query="${headers_query}=${kern_pkg_ver}"
+    image_query="${image_query}=${kern_pkg_ver}"
+  fi
+
+  # Check if both packages are available
+  local headers_available=0
+  local image_available=0
+  
+  if check_package_available "linux-headers-${kern_base_ver}" "$headers_query"; then
+    headers_available=1
+  fi
+  
+  if check_package_available "linux-image-${kern_base_ver}" "$image_query"; then
+    image_available=1
+  fi
+
+  # Version not available from repository
+  if [[ $headers_available -eq 0 || $image_available -eq 0 ]]; then
+    if [[ $is_forced -eq 1 ]]; then
+      # For manual override, fail with error
+      echo "Error: Forced kernel version '$kernel_ver' is not available in the Intel PPA" >&2
+      if [[ $headers_available -eq 0 ]]; then
+        echo "  - linux-headers-${kernel_ver} not available" >&2
+      fi
+      if [[ $image_available -eq 0 ]]; then
+        echo "  - linux-image-${kernel_ver} not available" >&2
+      fi
+      echo "Please check available versions or remove --force-kern-apt-ver to use auto-detection" >&2
+      return 255
+    else
+      # For host auto-detection, fall back to latest available version
+      local latest_kern_ver
+      latest_kern_ver=$(apt-cache policy "linux-headers-${kern_base_ver}" 2>/dev/null \
+          | awk '/Candidate:/ {print $2}')
+
+      if [[ -z "$latest_kern_ver" ]]; then
+        echo "Error: Unable to determine latest kernel version from PPA" >&2
+        return 255
+      fi
+
+      local warning_msg
+      warning_msg=$(cat <<EOF
+==========================================
+WARNING: Host kernel version unavailable
+- Host version: $kernel_ver
+- Available version in Intel PPA: ${kern_base_ver}=${latest_kern_ver}
+
+Guest will install the available version.
+This may cause host/guest kernel mismatch.
+To sync, update host kernel after installation:
+- sudo apt update && sudo apt upgrade linux-headers-${kern_base_ver} linux-image-${kern_base_ver}
+==========================================
+EOF
+)
+
+      echo "$warning_msg" >&2
+      sudo bash -c "echo '$warning_msg' >> '${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log'"
+
+      # Return latest version
+      echo "${kern_base_ver}=${latest_kern_ver}"
+      return 0
+    fi
+  fi
+
+  # Version is available, return it
+  echo "$kernel_ver"
+  return 0
+}
+
 function is_npu_supported() {
   local host_kern
   local allowed_kern
@@ -376,6 +503,50 @@ function is_npu_supported() {
       return 1
     fi
   done
+
+  return 0
+}
+
+function validate_package_availability() {
+  # Validate kernel availability before starting installation
+  # This runs early to fail fast before cleaning any existing images
+  # Sets global variable: VALIDATED_KERNEL_VER
+  
+  # Update package cache to ensure we have latest package information
+  echo "Updating package cache..."
+  sudo apt-get update > /dev/null 2>&1 || true
+  
+  # Check if we're installing from local .deb files or PPA
+  is_host_kernel_local_install
+  
+  # Validate kernel availability if installing from PPA
+  if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
+    local kernel_ver
+    local is_forced=0
+    
+    # Determine which version to check
+    if [[ -n $FORCE_KERN_APT_VER ]]; then
+      kernel_ver=$FORCE_KERN_APT_VER
+      is_forced=1
+    else
+      kernel_ver=$(uname -r)
+      local kernel_pkg_ver
+      kernel_pkg_ver=$(dpkg -l "linux-headers-$kernel_ver" 2>/dev/null | awk '/^ii/ {print $3}')
+      if [[ -z "$kernel_pkg_ver" ]]; then
+        echo "Error: linux-headers package not found on host"
+        return 255
+      fi
+      kernel_ver="${kernel_ver}=${kernel_pkg_ver}"
+    fi
+
+    # Validate and get final version
+    VALIDATED_KERNEL_VER=$(validate_kernel_ppa_availability "$kernel_ver" "$is_forced") || return 255
+
+    if [[ -z "$VALIDATED_KERNEL_VER" ]]; then
+      echo "Error: kernel version validation returned empty result"
+      return 255
+    fi
+  fi
 
   return 0
 }
@@ -407,9 +578,7 @@ function install_ubuntu() {
     return 255
   fi
 
-  # Check Intel overlay kernel is installed locally
-  is_host_kernel_local_install
-
+  # KERN_INSTALL_FROM_LOCAL is already set by validate_package_availability()
   if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
     REQUIRED_DEB_FILES=()
   fi
@@ -430,16 +599,24 @@ function install_ubuntu() {
   TMP_FILES+=("$dest_tmp_path")
 
   # Check if ISO exists in unattend_ubuntu, verify checksum, and copy to libvirt images path
-  # If checksum fails, delete the ISO so it will be downloaded fresh
+  # Otherwise verify any existing ISO in libvirt path
   if [[ -f "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}" ]]; then
     check_file_valid_nonzero "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"
-    if ! verify_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"; then
-      echo "Checksum verification failed for provided ISO, removing to trigger fresh download"
+    if ! verify_and_copy_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "$scriptpath/unattend_ubuntu/${UBUNTU_INSTALLER_ISO}"; then
+      echo "Checksum verification failed for provided ISO in unattend_ubuntu"
       sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+    fi
+  else
+    # No ISO in unattend_ubuntu, check existing ISO in libvirt path
+    if [[ -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
+      if ! verify_and_copy_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"; then
+        echo "Checksum verification failed for existing ISO in libvirt path"
+        sudo rm -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}"
+      fi
     fi
   fi
 
-  # Download ISO if not present in libvirt images path
+  # Download if not present after verification checks
   if [[ ! -f "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO}" ]]; then
     download_ubuntu_iso "$ubuntu_ver" "$dest_tmp_path" || return 255
   fi
@@ -476,28 +653,78 @@ function install_ubuntu() {
 
   # update for kernel overlay install via PPA vs local deb
   if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
-    local kernel_ver
-    kernel_ver=$(uname -r)
-    if [[ -n $FORCE_KERN_APT_VER ]]; then
-      kernel_ver=$FORCE_KERN_APT_VER
-    else
-      kernel_ver="${kernel_ver}=$(dpkg -l "linux-headers-$(uname -r)" 2>/dev/null | awk '/^ii/ {print $3}')"
-    fi
-    sed -i "s|\$KERN_INSTALL_OPTION|-kp \'$kernel_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+    # Use the validated kernel version from early validation
+    sed -i "s|\$KERN_INSTALL_OPTION|-kp \'$VALIDATED_KERNEL_VER\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   else
     sed -i "/wget --no-proxy -O \/target\/tmp\/setup_bsp.sh \$FILE_SERVER_URL\/setup_bsp.sh/i \    - wget --no-proxy -O \/target\/linux-headers.deb \$FILE_SERVER_URL\/linux-headers.deb\n    - wget --no-proxy -O \/target\/linux-image.deb \$FILE_SERVER_URL\/linux-image.deb" "$scriptpath/auto-install-ubuntu-parsed.yaml"
     sed -i "s|\$KERN_INSTALL_OPTION|-k \'\/\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   fi
 
   # update for linux-firmware overlay package install via PPA version
+  local linux_fw_ver
+  local fw_ver_source="host"
+
+  # Refresh APT cache to get latest package information from repositories
+  sudo apt-get update > /dev/null 2>&1 || true
+
+  # Determine which version to use
   if [[ -n "$FORCE_LINUX_FW_APT_VER" ]]; then
-    # use forced version
-    local linux_fw_ver="$FORCE_LINUX_FW_APT_VER"
+    linux_fw_ver="$FORCE_LINUX_FW_APT_VER"
+    fw_ver_source="forced"
   else
-    # use version detected from host
-    local linux_fw_ver
     linux_fw_ver="$(dpkg -l "linux-firmware" 2>/dev/null | awk '/^ii/ {print $3}')"
+    if [[ -z "$linux_fw_ver" ]]; then
+      echo "Error: linux-firmware package not found on host"
+      return 255
+    fi
   fi
+
+  # Validate version is available from repository using --print-uris (returns http URIs if downloadable)
+  if ! sudo apt-get install --print-uris -qq linux-firmware="$linux_fw_ver" 2>/dev/null | grep -q "^'http"; then
+    # Version not available from repository
+    if [[ "$fw_ver_source" == "forced" ]]; then
+      # For manual override, fail with error - user explicitly requested this version
+      echo "Error: Forced linux-firmware version '$linux_fw_ver' is not available in the Intel PPA"
+      echo "Please check available versions or remove --force-linux-fw-apt-ver to use auto-detection"
+      return 255
+    else
+      # For host auto-detection, fall back to latest available version
+      local latest_fw_ver
+      latest_fw_ver=$(apt-cache policy linux-firmware 2>/dev/null | awk '/Candidate:/ {print $2}')
+
+      if [[ -z "$latest_fw_ver" ]]; then
+        echo "Error: Unable to determine latest linux-firmware version from PPA"
+        return 255
+      fi
+
+      local warning_msg
+      warning_msg=$(cat <<EOF
+==========================================
+WARNING: Host linux-firmware version unavailable
+- Host version: $linux_fw_ver
+- Available version in Intel PPA: $latest_fw_ver
+
+Guest will install the available version.
+This may cause host/guest firmware mismatch.
+To sync, update host firmware after installation:
+- sudo apt update && sudo apt upgrade linux-firmware
+==========================================
+EOF
+)
+
+      echo "$warning_msg"
+      sudo bash -c "echo '$warning_msg' >> '${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log'"
+
+      # Use latest version for guest
+      linux_fw_ver="$latest_fw_ver"
+    fi
+  fi
+
+  if [[ -z "$linux_fw_ver" ]]; then
+    echo "Error: linux_fw_ver is empty after version check"
+    return 255
+  fi
+
   sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$linux_fw_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   if [[ $SETUP_DEBUG -ne 1 ]]; then
@@ -527,6 +754,12 @@ function install_ubuntu() {
     fi
   fi
   sed -i "s|\$OPENVINO_INSTALL_OPTIONS|$openvino_install_opt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
+
+  local force_sw_cursor_opt=""
+  if [[ $FORCE_SW_CURSOR -eq 1 ]]; then
+    force_sw_cursor_opt="--force-sw-cursor"
+  fi
+  sed -i "s|\$FORCE_SW_CURSOR_OPTION|$force_sw_cursor_opt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   sed -i "s|\$UBUNTU_SNAP_GNOME_VERSION|${UBUNTU_SNAP_GNOME_VERSIONS[$ubuntu_ver]}|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   sed -i "s|\$UBUNTU_VERSION|$ubuntu_ver|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
@@ -608,7 +841,7 @@ function install_ubuntu() {
 }
 
 function show_help() {
-    printf "%s [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--force-sw-cursor] [--debug]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Ubuntu vm required image to dest %s/ubuntu.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Or create Ubuntu RT vm required image to dest %s/ubuntu_rt.qcow2\n" "${LIBVIRT_DEFAULT_IMAGES_PATH}"
     printf "Place Intel bsp kernel debs (linux-headers.deb,linux-image.deb,linux-headers-rt.deb,linux-image-rt.deb) in guest_setup/<host_os>/unattend_ubuntu folder prior to running if platform BSP guide requires linux kernel installation from debian files.\n"
@@ -623,6 +856,7 @@ function show_help() {
     printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
     printf "\t--force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware pkg from PPA with given version\n"
     printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"24.04\" Default: same as host.\n"
+    printf "\t--force-sw-cursor           force enable SW cursor\n"
     printf "\t--debug                     For debugging only. Does not remove temporary files.\n"
 }
 
@@ -643,6 +877,12 @@ function parse_arg() {
                 ;;
 
             --disk-size)
+                if [[ -z ${2+x} || -z $2 ]]; then
+                    echo "Error: --disk-size requires a value"
+                    echo ""
+                    show_help
+                    return 255
+                fi
                 SETUP_DISK_SIZE="$2"
                 shift
                 ;;
@@ -659,11 +899,23 @@ function parse_arg() {
                 ;;
 
             --force-kern-apt-ver)
+                if [[ -z ${2+x} || -z $2 ]]; then
+                    echo "Error: --force-kern-apt-ver requires a kernel version value"
+                    echo ""
+                    show_help
+                    return 255
+                fi
                 FORCE_KERN_APT_VER="$2"
                 shift
                 ;;
 
             --force-linux-fw-apt-ver)
+                if [[ -z ${2+x} || -z $2 ]]; then
+                    echo "Error: --force-linux-fw-apt-ver requires a version value"
+                    echo ""
+                    show_help
+                    return 255
+                fi
                 FORCE_LINUX_FW_APT_VER="$2"
                 shift
                 ;;
@@ -671,6 +923,7 @@ function parse_arg() {
             --force-ubuntu-ver)
                 if [[ -z ${2+x} || -z $2 ]]; then
                   echo "Error: missing/null param for --force-ubuntu-ver"
+                  echo ""
                   show_help
                   return 255
                 else
@@ -685,11 +938,16 @@ function parse_arg() {
                     FORCE_UBUNTU_VER="$2"
                   else
                     echo "Error: $2 unsupported. Supported versions: ${!UBUNTU_INSTALLER_ISO_URLS[*]}"
+                    echo ""
                     show_help
                     return 255
                   fi
                 fi
                 shift
+                ;;
+
+            --force-sw-cursor)
+                FORCE_SW_CURSOR=1
                 ;;
 
             --debug)
@@ -698,6 +956,7 @@ function parse_arg() {
 
             -?*)
                 echo "Error: Invalid option $1"
+                echo ""
                 show_help
                 return 255
                 ;;
@@ -754,6 +1013,8 @@ function cleanup () {
 trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
+
+validate_package_availability || exit 255
 
 if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
     echo "Invalid input disk size"

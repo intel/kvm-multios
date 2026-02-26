@@ -167,7 +167,7 @@ autoinstall:
       curtin in-target -- bash -c "
         export HOST_SERVER_IP=$HOST_SERVER_IP
         export HOST_SERVER_NC_PORT=$HOST_SERVER_NC_PORT
-        bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT $DRM_DRV_OPTION
+        bash /tmp/setup_bsp.sh $KERN_INSTALL_OPTION $LINUX_FW_INSTALL_OPTION $RT_SUPPORT $DRM_DRV_OPTION $FORCE_SW_CURSOR_OPTION
       "
     - wget --no-proxy -O /target/usr/local/bin/setup_swap.sh $FILE_SERVER_URL/setup_swap.sh
     - curtin in-target -- chmod +x /usr/local/bin/setup_swap.sh
