@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -40,10 +40,12 @@ function show_help() {
 }
 
 function parse_connectors() {
+	[[ -z "$GUEST_CONNECTORS" ]] && return 0
     local -a connector_arr
     mapfile -t -d ',' connector_arr <<< "$GUEST_CONNECTORS"
     display_num=0
     for connector in "${connector_arr[@]}"; do
+	    [[ -z "$connector" ]] && continue
         GUEST_DISP_TYPE+=",connectors.${display_num}=${connector}"  
         ((display_num+=1))
         # Check if display number within limit
@@ -52,6 +54,7 @@ function parse_connectors() {
             return 255
         fi
     done
+    return 0
 }
 
 function parse_arg() {

@@ -228,11 +228,14 @@ Host platform DUT setup:
 
     # For exmaple, assumming RT host installed PPA kernel version 6.5rt-intel=231018t123235z-r1 with corresponding non-RT PPA kernel version 6.5-intel=231018t123235z-r1, then command to use would be:
     ./guest_setup/ubuntu/ubuntu_setup.sh --force --viewer --force-kern-apt-ver 6.5-intel=231018t123235z-r1
+
+    # To install Ubuntu VM with software cursor enabled (for atom platforms like ADL-N, ASL and TWL that require SW cursor)
+    ./guest_setup/<host_os>/ubuntu_setup.sh --force --viewer --force-sw-cursor
     ```
 
     Command Reference:
     ```
-    Ubuntu_setup.sh [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--debug]
+    Ubuntu_setup.sh [-h] [--force] [--viewer] [--disk-size] [--rt] [--force-kern-from-deb] [--force-kern-apt-ver] [--force-linux-fw-apt-ver] [--force-ubuntu-ver] [--force-sw-cursor] [--debug]
     Create Ubuntu vm required image to dest /var/lib/libvirt/images/ubuntu.qcow2
     Or create Ubuntu RT vm required image to dest /var/lib/libvirt/images/ubuntu_rt.qcow2
 
@@ -248,7 +251,41 @@ Host platform DUT setup:
         --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version
         --force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware from PPA with given version
         --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "24.04" Default: same as host.
+        --force-sw-cursor           force enable software cursor in guest VM
         --debug                     For debugging only. Does not remove temporary files.
+    ```
+
+    **Note on Software Cursor:**
+    - On atom platforms, hardware cursor can cause display artifacts or cursor rendering issues with SR-IOV and SPICE display. So, it is recommended to run Ubuntu guest setup with `--force-sw-cursor` option. Once set, this will apply to all display types for the VM.
+    - The `--force-sw-cursor` option can be used to manually enable software cursor on non-atom platforms if needed.
+    - Software cursor is managed via `/etc/X11/xorg.conf.d/20-modesetting.conf` in the guest VM with the `SWcursor` option.
+    - A systemd service (`setup_sw_cursor.service`) runs at boot to configure cursor mode based on platform detection.
+    - Please update the "hw-cursor=true" to "hw-cursor=false" in the related domain xml file, eg. for ubuntu vm with sriov:
+        /platform/client/libvirt_xml/ubuntu_sriov.xml
+    
+    **To disable software cursor in an existing Ubuntu VM:**
+    
+    If you need to disable software cursor, follow these steps inside the guest VM:
+    
+    1. Edit the xorg configuration file to disable software cursor:
+        ```bash
+        sudo sed -i 's/Option "SWcursor" "true"/Option "SWcursor" "false"/g' /etc/X11/xorg.conf.d/20-modesetting.conf
+        ```
+    
+    2. (Optional) Disable the automatic cursor detection service to prevent it from re-enabling SW cursor on boot:
+        ```bash
+        sudo systemctl disable setup_sw_cursor.service
+        sudo systemctl stop setup_sw_cursor.service
+        ```
+    
+    3. Update the `hw-cursor=false` to `hw-cursor=true` in the related domain XML file. For example, for Ubuntu VM with SR-IOV: `/platform/client/libvirt_xml/ubuntu_sriov.xml`
+    
+    4. Reboot the VM for changes to take effect:
+        ```bash
+        sudo reboot
+        ```
+    
+    To re-enable software cursor later, reverse the process by changing "false" to "true" in step i and "true" to "false" in step iii, and using `systemctl enable` and `systemctl start` in step ii.
     ```
 
 1. Boot to newly installed Ubuntu VM as per [Launching Ubuntu/Ubuntu RT VM](#launching-ubuntuubuntu-rt-vm).

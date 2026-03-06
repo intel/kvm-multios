@@ -25,6 +25,8 @@ SETUP_DEBUG=0
 
 VIEWER_DAEMON_PID=
 GUEST_DISK_SIZE="${SETUP_DISK_SIZE}G"
+ROOT_PW=""
+USER_PW=""
 
 #---------      Functions    -------------------
 #---------      Functions    -------------------
@@ -73,14 +75,20 @@ function update_kickstart_file() {
     # Change behaviour after installation to shutdown
     sed -i "/reboot/cshutdown" "$CONFIG_FILE"
 
-    # Change root and user password
-    NEW_ROOT_PWD="rootpw --plaintext user1234"
-    NEW_USR_PWD='user --name=user --password=user1234 --gecos="user"'
-
-    sed -i "/rootpw --plaintext/c$NEW_ROOT_PWD" "$CONFIG_FILE"
-    sed -i "/user --name=user --password/c$NEW_USR_PWD" "$CONFIG_FILE"
-
-    # Change default login to be user
+  # Change root and user password 
+  local root_pw="$ROOT_PW"
+  local user_pw="$USER_PW"
+  if [[ -z "$root_pw" ]]; then
+    read -r -s -p "Enter ROOT password: " root_pw; echo
+  fi
+  if [[ -z "$user_pw" ]]; then
+    read -r -s -p "Enter USER password: " user_pw; echo
+  fi
+  NEW_ROOT_PWD="rootpw --plaintext ${root_pw}"
+  NEW_USR_PWD=$(printf 'user --name=user --password=%s --gecos="user"' "${user_pw}")
+  sed -i "/^rootpw /c$NEW_ROOT_PWD" "$CONFIG_FILE"
+  sed -i "/^user --name=user /c$NEW_USR_PWD" "$CONFIG_FILE"
+  # Change default login to be user
     sed -i "s/AutomaticLogin=root/AutomaticLogin=user/" "$CONFIG_FILE"
 
     # Change network default no active

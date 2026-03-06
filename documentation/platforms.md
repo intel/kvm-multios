@@ -2,7 +2,8 @@
 1. [Intel IoT Platforms Supported](#intel-iot-platforms-supported)
     1. [Wildcat Lake](#wildcat-lake)
     1. [Panther Lake H](#panther-lake-h)
-    1. [Bartlett Lake](#bartlett-lake)
+    1. [Bartlett Lake S 12P](#bartlett-lake-s-12p)
+    1. [Bartlett Lake S](#bartlett-lake-s)
     1. [Twin Lake](#twin-lake)
     1. [Arrow Lake](#arrow-lake)
     1. [Amston Lake and Alder Lake N](#amston-lake-and-alder-lake-n)
@@ -14,7 +15,8 @@
 | :-- | :--
 | Wildcat Lake | [refer here](platforms.md#wildcat-lake)
 | Panther Lake H | [refer here](platforms.md#panther-lake-h)
-| Bartlett Lake | [refer here](platforms.md#bartlett-lake)
+| Bartlett Lake S 12P | [refer here](platforms.md#bartlett-lake-s-12p)
+| Bartlett Lake S | [refer here](platforms.md#bartlett-lake-s)
 | Twin Lake | [refer here](platforms.md#twin-lake)
 | Arrow Lake | [refer here](platforms.md#arrow-lake)
 | Amston Lake | [refer here](platforms.md#amston-lake-and-alder-lake-n)
@@ -50,7 +52,7 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
 ## Panther Lake H
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
-| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon A0 and beyond | NA |
+| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon B0 and beyond | NA |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
@@ -64,17 +66,48 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.6584 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">(kb5065426)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.7016</br>
-Windows Zero-copy driver release: 4.0.0.2164</br>
+Window 11 OS patch required: Windows11.0 26100.7462 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/9d6e2b81-b755-4e68-af73-9f4ee41cd758/public/windows11.0-kb5072033-x64_a62291f0bad9123842bf15dcdd75d807d2a2c76a.msu">(kb5072033)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8361</br>
+Windows Zero-copy driver release: 5.0.0.2223</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
 
-## Bartlett Lake
+## Bartlett Lake S 12P
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
-| Bartlett Lake  S SODIMM DDR5 RVP</br>Bartlett Lake S UDIMM DDR5 RVP | Bartlett Lake S Hybrid (8161/881/601) Silicon QS and beyond <br> Bartlett Lake S12P A0 and beyond | Bartlett Lake - S PCH QS and beyond <br> Bartlett Lake S12P ES, QS and beyond |
+| Bartlett Lake S UDIMM DDR5 RVP | Bartlett Lake S12P ES, QS and beyond |Bartlett Lake S12P ES, QS and beyond |
+
+<table>
+<tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
+    <!-- Host Operating System -->
+    <tr>
+      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+    </tr>
+    <!-- Guest Operating Systems -->
+    <tr>
+      <td align="left">Ubuntu 24.04 release</br></td><td>NA</td><td>Yes</td>
+    </tr>
+    <tr>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/10/windows10.0-kb5066791-x64_3210d264091be5effb3253d05397c4daefba44c8.msu">Windows10.0 19044.6456 (kb5066791)</a></br>
+BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7082</br>
+Windows Zero-copy driver release: 4.0.0.2223</br>
+      </td><td>NA</td><td>Yes</td>
+    </tr>
+    <tr>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.7171 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/5315757b-0dc6-4282-a148-c7bf0b6b0e90/public/windows11.0-kb5068861-x64_acc4fe9c928835c0d44cdc0419d1867dbd2b62b2.msu">Windows11.0 26100.7171 (kb5068861)</a></br>
+BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7082</br>
+Windows Zero-copy driver release: 4.0.0.2223</br>
+      </td><td>NA</td><td>Yes</td>
+    </tr>
+</table>
+
+## Bartlett Lake S
+| Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
+|:---|:---|:---|
+| Bartlett Lake  S SODIMM DDR5 RVP | Bartlett Lake S Hybrid (8161/881/601) Silicon QS and beyond | Bartlett Lake  S PCH QS and beyond |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
@@ -90,7 +123,6 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
 BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
-BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7077</br>
 Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
@@ -98,7 +130,6 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.6584 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
 BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7077</br>
-BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7077</br>
 Windows Zero-copy driver release: 4.0.0.2164</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
