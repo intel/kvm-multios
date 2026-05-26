@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -56,6 +56,26 @@ HOST_NC_DAEMON_PID=
 
 # Global variables to store validated versions
 VALIDATED_KERNEL_VER=""
+VALIDATED_LINUX_FW_VER=""
+
+# Global variables for guest PPA configuration
+# These are populated by load_guest_ppa_configuration() to match what guest setup will use
+# Sourced from either installer.sh OR setup_bsp.sh defaults
+declare -a PPA_URLS=()
+declare -a PPA_GPGS=()
+PPA_PIN=""
+PPA_PIN_PRIORITY=""
+PPA_CONFIG_SOURCE="setup_bsp.sh"  # Tracks whether PPA config came from installer.sh or setup_bsp.sh
+
+# Version-specific PPA alternates from setup_bsp.sh (used as fallback)
+declare -A PPA_ALT_URLS=()
+declare -A PPA_ALT_GPGS=()
+declare -A PPA_ALT_PIN=()
+declare -A PPA_ALT_PIN_PRIORITY=()
+
+# Cache for Packages.gz content keyed by URL, populated on first access
+# Avoids re-downloading the same file for each check_package_in_guest_ppa() call
+declare -A _PPA_PACKAGES_CACHE=()
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -364,45 +384,88 @@ function verify_and_copy_ubuntu_iso() {
   fi
 }
 
-# Check if a package is available via apt and matches expected name exactly
-check_package_available() {
+# Check if a package is available in guest PPAs
+# Validates against PPAs from either installer.sh OR setup_bsp.sh (whichever is loaded)
+check_package_in_guest_ppa() {
   local pkg_name=$1
-  local pkg_query=$2
-  
-  # Extract package name (without version) for querying
-  local query_pkg_name="${pkg_query%%=*}"
-  
-  # Use apt-cache madison to check if package is available from repositories
-  # (this excludes locally installed packages that aren't in repos)
-  local madison_output
-  madison_output=$(apt-cache madison "$query_pkg_name" 2>/dev/null)
-  
-  # Check if any versions are available from repositories
-  if [[ -n "$madison_output" ]]; then
-    # Verify package name matches exactly
-    local found_pkg
-    found_pkg=$(echo "$madison_output" | head -1 | awk '{print $1}')
-    if [[ "$found_pkg" != "$pkg_name" ]]; then
-      return 1
-    fi
-    
-    # If version specified, verify that exact version exists
-    if [[ "$pkg_query" == *"="* ]]; then
-      local requested_version="${pkg_query#*=}"
-      if ! echo "$madison_output" | awk '{print $3}' | grep -q "^${requested_version}$"; then
-        return 1
-      fi
-    fi
-    
-    return 0
+  local pkg_query=$2  # e.g., "linux-headers-6.12=1.2.3" or just "linux-headers-6.12"
+
+  # Extract version if present in query
+  local search_version=""
+  if [[ "$pkg_query" =~ = ]]; then
+    search_version="${pkg_query#*=}"
   fi
+
+  # Get system architecture
+  local arch
+  arch=$(dpkg --print-architecture 2>/dev/null) || arch="amd64"
+
+  # Check if PPA_URLS is available
+  if [[ ${#PPA_URLS[@]} -eq 0 ]]; then
+    echo "Warning: No guest PPAs available for HTTP validation" >&2
+    return 1
+  fi
+
+  # Try each guest PPA (from installer.sh or setup_bsp.sh)
+  for i in "${!PPA_URLS[@]}"; do
+    local ppa_url="${PPA_URLS[$i]}"
+
+    # Parse PPA URL format: "https://example.com/path/ release component1 component2 ..."
+    local ppa_base
+    ppa_base=$(echo "$ppa_url" | awk '{print $1}')
+    # Remove trailing slash if present
+    ppa_base="${ppa_base%/}"
+    local ppa_release
+    ppa_release=$(echo "$ppa_url" | awk '{print $2}')
+
+    # Get all components (everything after release)
+    local ppa_components
+    ppa_components=$(echo "$ppa_url" | awk '{for(i=3;i<=NF;i++) printf "%s ", $i}')
+
+    # Try each component
+    for component in $ppa_components; do
+      # Construct Packages.gz URL
+      local packages_url="${ppa_base}/dists/${ppa_release}/${component}/binary-${arch}/Packages.gz"
+
+      # Use cached content if available, otherwise download and cache
+      local packages_content
+      if [[ -z "${_PPA_PACKAGES_CACHE[$packages_url]:-}" ]]; then
+        local downloaded
+        downloaded=$(curl -sSL --connect-timeout 10 --max-time 30 \
+          --retry 2 "$packages_url" 2>/dev/null | gunzip 2>/dev/null) || continue
+        _PPA_PACKAGES_CACHE[$packages_url]="$downloaded"
+      fi
+      packages_content="${_PPA_PACKAGES_CACHE[$packages_url]}"
+
+      # Search for exact package name using here-string
+      grep -q "^Package: ${pkg_name}$" <<< "$packages_content" || continue
+
+      # Package found - check version if specified
+      if [[ -z "$search_version" ]]; then
+        # No version requirement - package exists
+        return 0
+      fi
+
+      # Extract and verify version for this package
+      local found_version
+      found_version=$(awk -v pkg="$pkg_name" -v ver="$search_version" '
+        /^Package:/ { if ($2 == pkg) in_pkg=1; else in_pkg=0 }
+        in_pkg && /^Version:/ { if ($2 == ver) { print "match"; exit } }
+      ' <<< "$packages_content")
+
+      if [[ "$found_version" == "match" ]]; then
+        return 0
+      fi
+    done
+  done
+
   return 1
 }
 
 function validate_kernel_ppa_availability() {
   local kernel_ver=$1
   local is_forced=${2:-0}
-  
+
   # Extract base version and package version
   local kern_base_ver
   local kern_pkg_ver
@@ -422,63 +485,70 @@ function validate_kernel_ppa_availability() {
     image_query="${image_query}=${kern_pkg_ver}"
   fi
 
-  # Check if both packages are available
+  # Check if both packages are available in guest PPAs
   local headers_available=0
   local image_available=0
-  
-  if check_package_available "linux-headers-${kern_base_ver}" "$headers_query"; then
+
+  # PPA_URLS must be populated by load_guest_ppa_configuration()
+  if [[ ${#PPA_URLS[@]} -eq 0 ]]; then
+    echo "ERROR: PPA configuration not loaded. Call load_guest_ppa_configuration() first." >&2
+    return 255
+  fi
+
+  echo "  Validating: linux-{headers,image}-$kernel_ver..." >&2
+  if check_package_in_guest_ppa "linux-headers-${kern_base_ver}" "$headers_query"; then
     headers_available=1
   fi
-  
-  if check_package_available "linux-image-${kern_base_ver}" "$image_query"; then
+
+  if check_package_in_guest_ppa "linux-image-${kern_base_ver}" "$image_query"; then
     image_available=1
   fi
 
-  # Version not available from repository
+  # Version not available from guest PPAs
   if [[ $headers_available -eq 0 || $image_available -eq 0 ]]; then
+    local missing_packages=""
+    if [[ $headers_available -eq 0 ]]; then
+      missing_packages+="    - linux-headers-${kernel_ver}
+"
+    fi
+    if [[ $image_available -eq 0 ]]; then
+      missing_packages+="    - linux-image-${kernel_ver}
+"
+    fi
+
     if [[ $is_forced -eq 1 ]]; then
       # For manual override, fail with error
-      echo "Error: Forced kernel version '$kernel_ver' is not available in the Intel PPA" >&2
-      if [[ $headers_available -eq 0 ]]; then
-        echo "  - linux-headers-${kernel_ver} not available" >&2
-      fi
-      if [[ $image_available -eq 0 ]]; then
-        echo "  - linux-image-${kernel_ver} not available" >&2
-      fi
-      echo "Please check available versions or remove --force-kern-apt-ver to use auto-detection" >&2
+      echo "  Error: Forced kernel version '$kernel_ver' is not available in guest PPAs" >&2
+      echo "  Missing packages:" >&2
+      # shellcheck disable=SC2001  # sed is appropriate for adding prefix to each line
+      echo "$missing_packages" | sed 's/^/  /' >&2
+      echo "  Please check available versions or remove --force-kern-apt-ver to use auto-detection" >&2
       return 255
     else
-      # For host auto-detection, fall back to latest available version
-      local latest_kern_ver
-      latest_kern_ver=$(apt-cache policy "linux-headers-${kern_base_ver}" 2>/dev/null \
-          | awk '/Candidate:/ {print $2}')
-
-      if [[ -z "$latest_kern_ver" ]]; then
-        echo "Error: Unable to determine latest kernel version from PPA" >&2
-        return 255
-      fi
-
-      local warning_msg
-      warning_msg=$(cat <<EOF
+      # For host auto-detection, always fail - guest cannot use host-only packages
+      local error_msg
+      error_msg=$(cat <<EOF
 ==========================================
-WARNING: Host kernel version unavailable
-- Host version: $kernel_ver
-- Available version in Intel PPA: ${kern_base_ver}=${latest_kern_ver}
+ERROR: Host Kernel Not Available in Guest PPAs
+==========================================
+Host kernel version: $kernel_ver
 
-Guest will install the available version.
-This may cause host/guest kernel mismatch.
-To sync, update host kernel after installation:
-- sudo apt update && sudo apt upgrade linux-headers-${kern_base_ver} linux-image-${kern_base_ver}
+Missing packages:
+${missing_packages}
+The host kernel is not available in the PPAs that guest setup will use.
+Guest installation cannot proceed with packages that aren't in guest repositories.
+
+Options to resolve:
+1. Use --force-kern-from-deb to install from local .deb files
+   (Place linux-headers.deb and linux-image.deb in guest_setup/ubuntu/unattend_ubuntu/)
+2. Use --force-kern-apt-ver to specify a kernel version available in guest PPAs
 ==========================================
 EOF
 )
-
-      echo "$warning_msg" >&2
-      sudo bash -c "echo '$warning_msg' >> '${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log'"
-
-      # Return latest version
-      echo "${kern_base_ver}=${latest_kern_ver}"
-      return 0
+      # shellcheck disable=SC2001  # sed is appropriate for adding prefix to each line
+      echo "$error_msg" | sed 's/^/  /' >&2
+      echo "" >&2
+      return 255
     fi
   fi
 
@@ -507,47 +577,528 @@ function is_npu_supported() {
   return 0
 }
 
-function validate_package_availability() {
-  # Validate kernel availability before starting installation
+function check_ppa_consistency() {
+  # Compare guest PPA settings with host's current PPA configuration
+  # Shows warning if they differ, but does not fail (allows intentional differences)
+  # Uses PPA_CONFIG_SOURCE to identify the source (installer.sh or setup_bsp.sh)
+  # Returns: 0 (always succeeds, only warns on mismatch)
+
+  echo "  Checking PPA configuration consistency with host..."
+  local host_ppa_sources
+  host_ppa_sources=$(grep -h "^deb" /etc/apt/sources.list.d/*.list 2>/dev/null || true)
+
+  if [[ -z "$host_ppa_sources" ]]; then
+    echo "  Info: No PPA sources found on host for comparison"
+    return 0
+  fi
+
+  local ppa_mismatch=0
+  local guest_ppa_urls=""
+
+  # Collect guest PPA URLs from current configuration
+  for i in "${!PPA_URLS[@]}"; do
+    local ppa_url="${PPA_URLS[$i]}"
+    guest_ppa_urls+="    ${ppa_url}"$'\n'
+  done
+
+  # Check if guest PPAs match host configuration
+  for i in "${!PPA_URLS[@]}"; do
+    local ppa_url="${PPA_URLS[$i]}"
+    local ppa_base
+    ppa_base=$(echo "$ppa_url" | awk '{print $1}')
+
+    # Extract key URL components for comparison (domain and major path)
+    local ppa_key
+    ppa_key=$(echo "$ppa_base" | sed -E 's|https?://||' | cut -d'/' -f1-3)
+
+    # Check if this PPA base appears in host sources
+    if ! echo "$host_ppa_sources" | grep -q "$ppa_key"; then
+      ppa_mismatch=1
+    fi
+  done
+
+  if [[ $ppa_mismatch -eq 1 ]]; then
+    local warning_msg
+    # Format host PPAs with indentation
+    local formatted_host_ppas
+    # shellcheck disable=SC2001  # sed is appropriate for multi-line indentation
+    formatted_host_ppas=$(echo "$host_ppa_sources" | sed 's/^/    /')
+    # Guest PPAs already have indentation from collection
+
+    warning_msg=$(cat <<EOF
+==========================================
+WARNING: Guest/Host PPA Configuration Mismatch
+==========================================
+The guest PPA configuration differs from the host's current configuration.
+
+Host PPAs (from /etc/apt/sources.list.d/):
+$formatted_host_ppas
+
+Guest PPAs (from $PPA_CONFIG_SOURCE):
+$guest_ppa_urls
+Note: This may cause the guest to use different package versions than the host.
+If this is unintentional, update the guest's $PPA_CONFIG_SOURCE to match the host configuration.
+==========================================
+EOF
+)
+    # shellcheck disable=SC2001  # sed is appropriate for multi-line indentation
+    echo "$warning_msg" | sed 's/^/  /' >&2
+    echo "" >&2
+    # Write to log file using here-string to handle multi-line content properly
+    local install_log="${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log"
+    sudo tee -a "$install_log" > /dev/null <<< "$warning_msg" 2>/dev/null || true
+  else
+    echo "  Guest PPA configuration matches host"
+  fi
+
+  return 0
+}
+
+function load_guest_ppa_configuration() {
+  # Load baseline PPA configuration from setup_bsp.sh
+  # This configuration mirrors what setup_bsp.sh will use in the guest
+  #
+  # This always loads the default/fallback configuration, which can later
+  # be overridden by apply_installer_overrides() if installer.sh exists.
+  #
+  # Must be called before any package validation to ensure PPA_URLS arrays
+  # have a valid baseline configuration.
+
+  local script
+  script=$(realpath "${BASH_SOURCE[0]}")
+  local scriptpath
+  scriptpath=$(dirname "$script")
+  local setup_bsp_path="$scriptpath/unattend_ubuntu/setup_bsp.sh"
+
+  # Get Ubuntu version for PPA alternate selection
+  local ubuntu_ver
+  if [[ -z "${FORCE_UBUNTU_VER+x}" || -z "${FORCE_UBUNTU_VER}" ]]; then
+    ubuntu_ver=$(lsb_release -rs 2>/dev/null || echo "24.04")
+  else
+    ubuntu_ver=$FORCE_UBUNTU_VER
+  fi
+
+  # Verify setup_bsp.sh exists
+  if [[ ! -f "$setup_bsp_path" ]]; then
+    echo "Error: setup_bsp.sh not found at $setup_bsp_path" >&2
+    return 255
+  fi
+
+  echo "  Loading baseline PPA configuration from setup_bsp.sh"
+
+  # Extract default PPA configuration from setup_bsp.sh
+  # Read the default values (lines between PPA_URLS=( and first closing ))
+  local in_ppa_urls=0
+  local ppa_url_line=""
+  while IFS= read -r line; do
+    if [[ "$line" =~ ^PPA_URLS=\( ]]; then
+      in_ppa_urls=1
+      continue
+    fi
+    if [[ $in_ppa_urls -eq 1 ]]; then
+      if [[ "$line" =~ ^\) ]]; then
+        break
+      fi
+      # Extract quoted string
+      if [[ "$line" =~ \"([^\"]+)\" ]]; then
+        ppa_url_line="${BASH_REMATCH[1]}"
+      fi
+    fi
+  done < "$setup_bsp_path"
+
+  if [[ -z "$ppa_url_line" ]]; then
+    echo "Error: Failed to extract default PPA_URLS from setup_bsp.sh" >&2
+    return 255
+  fi
+
+  # Extract other default values using grep
+  local default_pin
+  default_pin=$(grep -oP '^PPA_PIN="\K[^"]+' "$setup_bsp_path" | head -1)
+  local default_priority
+  default_priority=$(grep -oP '^PPA_PIN_PRIORITY=\K[0-9]+' "$setup_bsp_path" | head -1)
+
+  # Set defaults
+  PPA_URLS=("$ppa_url_line")
+  PPA_GPGS=("auto")
+  PPA_PIN="$default_pin"
+  PPA_PIN_PRIORITY="$default_priority"
+
+  # Load version-specific alternates from setup_bsp.sh
+  # Extract PPA_ALT_* associative arrays
+  local alt_section=0
+  local current_array=""  # Track which array we're currently parsing
+
+  # Define regex patterns (avoids issues with brackets in [[ ]] expressions)
+  # Match lines with optional leading whitespace and array key format
+  local regex_alt_urls='^[[:space:]]*\["'"$ubuntu_ver"':([0-9]+)"\]="([^"]+)"'
+  local regex_alt_gpgs='^[[:space:]]*\["'"$ubuntu_ver"':([0-9]+)"\]="([^"]+)"'
+  local regex_alt_pin='^[[:space:]]*\["'"$ubuntu_ver"'"\]="([^"]+)"'
+  local regex_alt_pin_priority='^[[:space:]]*\["'"$ubuntu_ver"'"\]=([0-9]+)'
+
+  while IFS= read -r line; do
+    # Detect which PPA_ALT_ array declaration we're in
+    if [[ "$line" =~ ^declare\ -A\ PPA_ALT_URLS ]]; then
+      alt_section=1
+      current_array="URLS"
+      continue
+    elif [[ "$line" =~ ^declare\ -A\ PPA_ALT_GPGS ]]; then
+      alt_section=1
+      current_array="GPGS"
+      continue
+    elif [[ "$line" =~ ^declare\ -A\ PPA_ALT_PIN[^_] ]]; then
+      alt_section=1
+      current_array="PIN"
+      continue
+    elif [[ "$line" =~ ^declare\ -A\ PPA_ALT_PIN_PRIORITY ]]; then
+      alt_section=1
+      current_array="PIN_PRIORITY"
+      continue
+    fi
+
+    # Detect end of array declaration
+    if [[ $alt_section -eq 1 && "$line" =~ ^\) ]]; then
+      current_array=""
+      continue
+    fi
+
+    # Extract version-specific entries based on current array
+    if [[ $alt_section -eq 1 && -n "$current_array" && "$line" =~ \[\"$ubuntu_ver ]]; then
+      # Only test against the pattern matching the current array
+      case "$current_array" in
+        URLS)
+          if [[ "$line" =~ $regex_alt_urls ]]; then
+            PPA_ALT_URLS["$ubuntu_ver:${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+          fi
+          ;;
+        GPGS)
+          if [[ "$line" =~ $regex_alt_gpgs ]]; then
+            PPA_ALT_GPGS["$ubuntu_ver:${BASH_REMATCH[1]}"]="${BASH_REMATCH[2]}"
+          fi
+          ;;
+        PIN)
+          if [[ "$line" =~ $regex_alt_pin ]]; then
+            PPA_ALT_PIN["$ubuntu_ver"]="${BASH_REMATCH[1]}"
+          fi
+          ;;
+        PIN_PRIORITY)
+          if [[ "$line" =~ $regex_alt_pin_priority ]]; then
+            PPA_ALT_PIN_PRIORITY["$ubuntu_ver"]="${BASH_REMATCH[1]}"
+          fi
+          ;;
+      esac
+    fi
+  done < "$setup_bsp_path"
+
+  # Apply version-specific alternates if available (matching setup_bsp.sh logic)
+  if [[ -n "${PPA_ALT_PIN[$ubuntu_ver]:-}" ]]; then
+    PPA_PIN="${PPA_ALT_PIN[$ubuntu_ver]}"
+
+    if [[ -n "${PPA_ALT_PIN_PRIORITY[$ubuntu_ver]:-}" ]]; then
+      PPA_PIN_PRIORITY="${PPA_ALT_PIN_PRIORITY[$ubuntu_ver]}"
+    fi
+
+    # Load multi-value arrays from associative array using version:index pattern
+    local temp_urls=()
+    local temp_gpgs=()
+    local idx=0
+
+    while [[ -n "${PPA_ALT_URLS[$ubuntu_ver:$idx]:-}" ]]; do
+      temp_urls+=("${PPA_ALT_URLS[$ubuntu_ver:$idx]}")
+      temp_gpgs+=("${PPA_ALT_GPGS[$ubuntu_ver:$idx]:-auto}")
+      idx=$((idx + 1))
+    done
+
+    if [[ ${#temp_urls[@]} -gt 0 ]]; then
+      PPA_URLS=("${temp_urls[@]}")
+      PPA_GPGS=("${temp_gpgs[@]}")
+      echo "  Applied Ubuntu $ubuntu_ver-specific PPA configuration"
+    fi
+  fi
+
+  # Verify we have valid baseline configuration from setup_bsp.sh
+  if [[ ${#PPA_URLS[@]} -eq 0 || -z "$PPA_PIN" || -z "$PPA_PIN_PRIORITY" ]]; then
+    echo "Error: Failed to load valid PPA configuration from setup_bsp.sh" >&2
+    return 255
+  fi
+
+  return 0
+}
+
+function apply_installer_overrides() {
+  # Apply installer.sh overrides if the file exists. Extracts and applies:
+  #   - PPA configuration (URLs, GPG keys, PIN) - overwrites load_guest_ppa_configuration() baseline
+  #   - Kernel version (sets EXTRACTED_KERNEL_VER, used by validate_kernel_and_firmware())
+  #   - Package list (sets EXTRACTED_PACKAGES, used by setup_bsp.sh install_userspace_pkgs())
+  #
+  # Prerequisites: load_guest_ppa_configuration() must be called first
+  # to establish the baseline configuration.
+
+  local script
+  script=$(realpath "${BASH_SOURCE[0]}")
+  local scriptpath
+  scriptpath=$(dirname "$script")
+  local installer_utils_path="$scriptpath/unattend_ubuntu/installer_utils.sh"
+  local installer_path="$scriptpath/unattend_ubuntu/installer.sh"
+
+  # Check if installer.sh exists
+  if [[ ! -f "$installer_path" ]]; then
+    echo "  No installer.sh found, using setup_bsp.sh defaults"
+    return 0
+  fi
+
+  # Verify baseline configuration exists
+  if [[ ${#PPA_URLS[@]} -eq 0 ]]; then
+    echo "Error: Baseline PPA configuration not loaded. Call load_guest_ppa_configuration() first." >&2
+    return 255
+  fi
+
+  # Source installer_utils.sh for extraction functions
+  if [[ ! -f "$installer_utils_path" ]]; then
+    echo "Error: installer_utils.sh not found at $installer_utils_path" >&2
+    return 255
+  fi
+
+  # Set LOGD to suppress normal output
+  export LOGD=":"  # Null command, suppresses output
+  # shellcheck source-path=SCRIPTDIR disable=SC1090
+  if ! source "$installer_utils_path"; then
+    echo "Error: Failed to source installer_utils.sh" >&2
+    return 255
+  fi
+
+  echo "  Found installer.sh, checking for PPA overrides..."
+  if extract_ppa_from_installer "$installer_path"; then
+    echo "  Applied PPA configuration from installer.sh (overrides setup_bsp.sh)"
+    PPA_CONFIG_SOURCE="installer.sh"
+  else
+    echo "  Warning: Failed to extract PPA settings from installer.sh"
+    echo "  Continuing with setup_bsp.sh defaults"
+    return 0
+  fi
+
+  # Extract kernel version from installer.sh (optional, may not be present)
+  # Skip if user explicitly chose local .deb files
+  if [[ $FORCE_KERN_FROM_DEB != "1" ]]; then
+    if extract_kernel_ver_from_installer "$installer_path" "$RT"; then
+      if [[ -n "$EXTRACTED_KERNEL_VER" ]]; then
+        echo "  Extracted kernel version: $EXTRACTED_KERNEL_VER"
+      fi
+    fi
+  fi
+
+  # Extract package list from installer.sh
+  if extract_packages_from_installer "$installer_path"; then
+    if [[ -z "$EXTRACTED_PACKAGES" ]]; then
+      echo "  Warning: Package extraction returned empty list from installer.sh"
+    fi
+  else
+    echo "  Warning: Failed to extract package list from installer.sh"
+  fi
+
+  # Verify configuration is still valid after override
+  if [[ ${#PPA_URLS[@]} -eq 0 || -z "$PPA_PIN" || -z "$PPA_PIN_PRIORITY" ]]; then
+    echo "Error: Invalid PPA configuration after applying installer.sh overrides" >&2
+    return 255
+  fi
+
+  return 0
+}
+
+function validate_ppa_accessibility() {
+  # Validate that guest PPA configuration is accessible via network
+  # This provides early feedback on network/connectivity issues
+  #
+  # Prerequisites:
+  #   - load_guest_ppa_configuration() must be called first
+  #   - apply_installer_overrides() should be called first (if using installer.sh)
+  #
+  # This function validates network accessibility of PPAs, regardless of whether
+  # they came from installer.sh or setup_bsp.sh defaults.
+  # It does NOT extract/load settings - that's handled by load_guest_ppa_configuration()
+  # and apply_installer_overrides().
+
+  echo "Validating guest PPA configuration..."
+
+  # Verify PPA configuration was loaded
+  if [[ ${#PPA_URLS[@]} -eq 0 ]]; then
+    echo "ERROR: PPA configuration not loaded. Call load_guest_ppa_configuration() first." >&2
+    return 255
+  fi
+
+  # Compare guest and host PPA settings (info only)
+  check_ppa_consistency
+
+  # Validate PPA URLs are accessible (with retries)
+  for i in "${!PPA_URLS[@]}"; do
+    local ppa_url="${PPA_URLS[$i]}"
+    local url_base
+    url_base=$(echo "$ppa_url" | awk '{print $1}')
+
+    if ! timeout 10 wget --spider --quiet -t 3 --waitretry=2 "$url_base" 2>/dev/null; then
+      echo "  ERROR: PPA URL not accessible after 3 attempts: $url_base" >&2
+      return 255
+    fi
+  done
+
+  # Validate GPG keys are accessible (with retries)
+  for i in "${!PPA_GPGS[@]}"; do
+    local gpg_key="${PPA_GPGS[$i]}"
+    if [[ "$gpg_key" != "auto" && "$gpg_key" != "force" ]]; then
+      if ! timeout 10 wget --spider --quiet -t 3 --waitretry=2 "$gpg_key" 2>/dev/null; then
+        echo "  ERROR: GPG key not accessible after 3 attempts: $gpg_key" >&2
+        return 255
+      fi
+    fi
+  done
+
+  echo "  PPA accessibility validation complete"
+  echo ""
+  return 0
+}
+
+function validate_local_kernel_debs() {
+  # Validate that required kernel .deb files exist and are valid
+  # Must be called only when KERN_INSTALL_FROM_LOCAL == 1
+  # Returns: 0 on success, 255 on error
+
+  local script
+  script=$(realpath "${BASH_SOURCE[0]}")
+  local scriptpath
+  scriptpath=$(dirname "$script")
+  local missing_files=()
+
+  echo "  Validating local kernel .deb files..."
+
+  for file in "${REQUIRED_DEB_FILES[@]}"; do
+    local rfile="$scriptpath/unattend_ubuntu/$file"
+    if [[ -L "$rfile" ]]; then
+      echo "  Error: The following file is a symlink:" >&2
+      echo "    $rfile" >&2
+      return 255
+    fi
+    if [[ ! -f "$rfile" || ! -s "$rfile" ]]; then
+      missing_files+=("$file")
+    fi
+  done
+
+  if [[ ${#missing_files[@]} -gt 0 ]]; then
+    echo "  Error: Missing required kernel .deb files for local installation." >&2
+    echo "  Location: $scriptpath/unattend_ubuntu" >&2
+    echo "  Missing files:" >&2
+    for file in "${missing_files[@]}"; do
+      echo "    - $file" >&2
+    done
+    echo "  Please place the required kernel .deb files in the location above before running." >&2
+    return 255
+  fi
+
+  echo "  All required .deb files found and valid"
+  echo ""
+  return 0
+}
+
+function validate_kernel_and_firmware() {
+  # Validate kernel and firmware availability before starting installation
   # This runs early to fail fast before cleaning any existing images
-  # Sets global variable: VALIDATED_KERNEL_VER
-  
-  # Update package cache to ensure we have latest package information
-  echo "Updating package cache..."
-  sudo apt-get update > /dev/null 2>&1 || true
-  
-  # Check if we're installing from local .deb files or PPA
+  # Sets global variables: VALIDATED_KERNEL_VER, VALIDATED_LINUX_FW_VER
+
+  echo "Validating required packages..."
+
+  # ===== Kernel Validation =====
+  # Determine installation method: local .deb files or PPA
   is_host_kernel_local_install
-  
-  # Validate kernel availability if installing from PPA
-  if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
+
+  if [[ "$KERN_INSTALL_FROM_LOCAL" == "1" ]]; then
+    # Path 1: Installing from local .deb files
+    echo "  Kernel installation method: Local .deb files"
+    validate_local_kernel_debs || return 255
+  else
+    # Path 2: Installing from PPA
+    echo "  Kernel installation method: PPA"
+
     local kernel_ver
     local is_forced=0
-    
+
     # Determine which version to check
+    # Priority: --force-kern-apt-ver > installer.sh > host kernel
     if [[ -n $FORCE_KERN_APT_VER ]]; then
       kernel_ver=$FORCE_KERN_APT_VER
       is_forced=1
+    elif [[ -n "${EXTRACTED_KERNEL_VER:-}" ]]; then
+      # installer.sh specifies which kernel the guest will install — validate that,
+      # not the host kernel (which may differ and may not exist in the guest PPA)
+      kernel_ver=$EXTRACTED_KERNEL_VER
     else
       kernel_ver=$(uname -r)
       local kernel_pkg_ver
       kernel_pkg_ver=$(dpkg -l "linux-headers-$kernel_ver" 2>/dev/null | awk '/^ii/ {print $3}')
       if [[ -z "$kernel_pkg_ver" ]]; then
-        echo "Error: linux-headers package not found on host"
+        echo "  Error: linux-headers package not found on host"
         return 255
       fi
       kernel_ver="${kernel_ver}=${kernel_pkg_ver}"
     fi
 
-    # Validate and get final version
+    # Validate and get final version from guest PPAs
     VALIDATED_KERNEL_VER=$(validate_kernel_ppa_availability "$kernel_ver" "$is_forced") || return 255
 
     if [[ -z "$VALIDATED_KERNEL_VER" ]]; then
-      echo "Error: kernel version validation returned empty result"
+      echo "  Error: kernel version validation returned empty result"
+      return 255
+    fi
+    echo "  Validated: linux-{headers,image}-$VALIDATED_KERNEL_VER"
+  fi
+
+  # ===== Firmware Validation =====
+  local linux_fw_ver
+  local fw_ver_source="host"
+
+  # Determine which version to check
+  if [[ -n "$FORCE_LINUX_FW_APT_VER" ]]; then
+    linux_fw_ver="$FORCE_LINUX_FW_APT_VER"
+    fw_ver_source="forced"
+  else
+    # Get host's linux-firmware version
+    linux_fw_ver="$(dpkg -l "linux-firmware" 2>/dev/null | awk '/^ii/ {print $3}')"
+    if [[ -z "$linux_fw_ver" ]]; then
+      echo "  Error: linux-firmware package not found on host"
       return 255
     fi
   fi
 
+  # Validate version is available in guest PPAs via HTTP
+  echo "  Validating: linux-firmware=$linux_fw_ver..."
+
+  if check_package_in_guest_ppa "linux-firmware" "linux-firmware=$linux_fw_ver"; then
+    # Version found in guest PPAs
+    VALIDATED_LINUX_FW_VER="$linux_fw_ver"
+    echo "  Validated: linux-firmware=$VALIDATED_LINUX_FW_VER"
+  else
+    # Version not available in guest PPAs
+    if [[ "$fw_ver_source" == "forced" ]]; then
+      # For manual override, fail with error - user explicitly requested this version
+      echo "  Error: Forced linux-firmware version '$linux_fw_ver' is not available in guest PPAs"
+      echo "  Please check available versions or remove --force-linux-fw-apt-ver to use auto-detection"
+      return 255
+    fi
+
+    # For host auto-detection, use latest available version from PPAs
+    echo "  WARNING: Host linux-firmware version $linux_fw_ver not found in guest PPAs"
+    echo "  Will install latest available version from guest PPAs instead"
+
+    # Verify linux-firmware package exists in guest PPAs
+    if check_package_in_guest_ppa "linux-firmware" "linux-firmware"; then
+      # Package exists - set empty version to install latest available
+      VALIDATED_LINUX_FW_VER=""
+      echo "  Will use latest available linux-firmware version from PPA"
+    else
+      echo "  Error: linux-firmware package not found in guest PPAs"
+      return 255
+    fi
+  fi
+
+  echo "  All required packages validated successfully"
+  echo ""
   return 0
 }
 
@@ -578,7 +1129,7 @@ function install_ubuntu() {
     return 255
   fi
 
-  # KERN_INSTALL_FROM_LOCAL is already set by validate_package_availability()
+  # KERN_INSTALL_FROM_LOCAL is already set by validate_kernel_and_firmware()
   if [[ "$KERN_INSTALL_FROM_LOCAL" != "1" ]]; then
     REQUIRED_DEB_FILES=()
   fi
@@ -660,72 +1211,13 @@ function install_ubuntu() {
     sed -i "s|\$KERN_INSTALL_OPTION|-k \'\/\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   fi
 
-  # update for linux-firmware overlay package install via PPA version
-  local linux_fw_ver
-  local fw_ver_source="host"
-
-  # Refresh APT cache to get latest package information from repositories
-  sudo apt-get update > /dev/null 2>&1 || true
-
-  # Determine which version to use
-  if [[ -n "$FORCE_LINUX_FW_APT_VER" ]]; then
-    linux_fw_ver="$FORCE_LINUX_FW_APT_VER"
-    fw_ver_source="forced"
+  # Use the validated linux-firmware version from early validation
+  # If version is empty, omit the -fw option to install latest available version
+  if [[ -n "$VALIDATED_LINUX_FW_VER" ]]; then
+    sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$VALIDATED_LINUX_FW_VER\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   else
-    linux_fw_ver="$(dpkg -l "linux-firmware" 2>/dev/null | awk '/^ii/ {print $3}')"
-    if [[ -z "$linux_fw_ver" ]]; then
-      echo "Error: linux-firmware package not found on host"
-      return 255
-    fi
+    sed -i "s|\$LINUX_FW_INSTALL_OPTION||g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
   fi
-
-  # Validate version is available from repository using --print-uris (returns http URIs if downloadable)
-  if ! sudo apt-get install --print-uris -qq linux-firmware="$linux_fw_ver" 2>/dev/null | grep -q "^'http"; then
-    # Version not available from repository
-    if [[ "$fw_ver_source" == "forced" ]]; then
-      # For manual override, fail with error - user explicitly requested this version
-      echo "Error: Forced linux-firmware version '$linux_fw_ver' is not available in the Intel PPA"
-      echo "Please check available versions or remove --force-linux-fw-apt-ver to use auto-detection"
-      return 255
-    else
-      # For host auto-detection, fall back to latest available version
-      local latest_fw_ver
-      latest_fw_ver=$(apt-cache policy linux-firmware 2>/dev/null | awk '/Candidate:/ {print $2}')
-
-      if [[ -z "$latest_fw_ver" ]]; then
-        echo "Error: Unable to determine latest linux-firmware version from PPA"
-        return 255
-      fi
-
-      local warning_msg
-      warning_msg=$(cat <<EOF
-==========================================
-WARNING: Host linux-firmware version unavailable
-- Host version: $linux_fw_ver
-- Available version in Intel PPA: $latest_fw_ver
-
-Guest will install the available version.
-This may cause host/guest firmware mismatch.
-To sync, update host firmware after installation:
-- sudo apt update && sudo apt upgrade linux-firmware
-==========================================
-EOF
-)
-
-      echo "$warning_msg"
-      sudo bash -c "echo '$warning_msg' >> '${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log'"
-
-      # Use latest version for guest
-      linux_fw_ver="$latest_fw_ver"
-    fi
-  fi
-
-  if [[ -z "$linux_fw_ver" ]]; then
-    echo "Error: linux_fw_ver is empty after version check"
-    return 255
-  fi
-
-  sed -i "s|\$LINUX_FW_INSTALL_OPTION|-fw \'$linux_fw_ver\'|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
 
   if [[ $SETUP_DEBUG -ne 1 ]]; then
     sed -i "/\# more error handling here/a\    - echo \"ERROR\" | nc -q1 \$HOST_SERVER_IP \$HOST_SERVER_NC_PORT\n    - shutdown" "$scriptpath/auto-install-ubuntu-parsed.yaml"
@@ -748,7 +1240,7 @@ EOF
   if [[ $SETUP_DEBUG -eq 1 ]]; then
     openvino_install_opt="$openvino_install_opt --debug"
   fi
-  if sudo journalctl -k -o cat --no-pager | grep -q 'Initialized intel_vpu [0-9].[0-9].[0-9]'; then
+  if grep -q 'Initialized intel_vpu [0-9].[0-9].[0-9]' < <(sudo journalctl -k -o cat --no-pager || true); then
     if  is_npu_supported ; then
       openvino_install_opt="$openvino_install_opt --npu"
     fi
@@ -1014,8 +1506,7 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
 
-validate_package_availability || exit 255
-
+# Validate arguments
 if ! [[ $SETUP_DISK_SIZE =~ ^[0-9]+$ ]]; then
     echo "Invalid input disk size"
     exit 255
@@ -1032,33 +1523,17 @@ if [[ $VIEWER == "1" && -z "${DISPLAY:-}" ]]; then
     exit 255
 fi
 
-# Validate required kernel .deb files exist if --force-kern-from-deb is specified
-if [[ $FORCE_KERN_FROM_DEB == "1" ]]; then
-    script=$(realpath "${BASH_SOURCE[0]}")
-    scriptpath=$(dirname "$script")
-    missing_files=()
-    for file in "${REQUIRED_DEB_FILES[@]}"; do
-        rfile="$scriptpath/unattend_ubuntu/$file"
-        if [[ -L "$rfile" ]]; then
-            echo "Error: The following file is a symlink:"
-            echo "  $rfile"
-            exit 255
-        fi
-        if [[ ! -f "$rfile" || ! -s "$rfile" ]]; then
-            missing_files+=("$file")
-        fi
-    done
-    if [[ ${#missing_files[@]} -gt 0 ]]; then
-        echo "Error: Missing required kernel .deb files for --force-kern-from-deb installation."
-        echo "Location: $scriptpath/unattend_ubuntu"
-        echo "Missing files:"
-        for file in "${missing_files[@]}"; do
-            echo "  - $file"
-        done
-        echo "Please place the required kernel .deb files in the location above before running."
-        exit 255
-    fi
-fi
+# Load baseline PPA configuration from setup_bsp.sh
+load_guest_ppa_configuration || exit 255
+
+# Apply installer.sh overrides if available
+apply_installer_overrides || exit 255
+
+# Validate PPA network accessibility
+validate_ppa_accessibility || exit 255
+
+# Validate required packages (kernel and firmware)
+validate_kernel_and_firmware || exit 255
 
 if [[ $FORCECLEAN == "1" ]]; then
     clean_ubuntu_images || exit 255

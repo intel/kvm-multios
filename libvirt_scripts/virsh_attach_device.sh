@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -102,16 +102,48 @@ function attach_pci() {
   pci_iommu=$(sudo virsh nodedev-dumpxml pci_"${PCI_DOMAIN}"_"${PCI_BUS}"_"${PCI_SLOT}"_"${PCI_FUNC}" | grep address)
   mapfile pci_array <<< "$pci_iommu"
 
+  local kernel_release
+  local pci_bus
+  local pci_class pci_class_raw
+  local sysfs_class_file
+  kernel_release=$(uname -r)
+
   for pci in "${pci_array[@]}";do
+    # shellcheck disable=SC2001
+    pci_bus=$(echo "$pci" | sed "s/.*domain='0x\([^']\+\)'.*bus='0x\([^']\+\)'.*slot='0x\([^']\+\)'.*function='0x\([^']\+\)'.*/\1:\2:\3.\4/")
+
+    if [[ ! "$pci_bus" =~ ^[0-9a-fA-F]{4}:[0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.[0-7]$ ]]; then
+      echo "Invalid PCI BDF parsed from IOMMU entry: $pci_bus. Skip this device"
+      continue
+    fi
+
     # Only check for RAM memory on Linux kernel 6.12
-    if [[ $(uname -r) =~ ^6\.12 ]]; then
-      local pci_bus
-      # shellcheck disable=SC2001
-      pci_bus=$(echo "$pci" | sed "s/.*domain='0x\([^']\+\)'.*bus='0x\([^']\+\)'.*slot='0x\([^']\+\)'.*function='0x\([^']\+\)'.*/\1:\2:\3.\4/")
+    if [[ "$kernel_release" =~ ^6\.12 ]]; then
       if [[ $(lspci -s "$pci_bus") =~ $RAM_PCI_DEV ]]; then
         echo "Find ram memory: $pci_bus. Skip this device"
         continue;
       fi
+    fi
+
+    # Skip bridge-class PCI devices (class 06xx), such as PCI bridges and root ports.
+    # Read class from sysfs first (more reliable); fall back to lspci.
+    sysfs_class_file="/sys/bus/pci/devices/${pci_bus}/class"
+    pci_class=""
+    if [[ -r "$sysfs_class_file" ]]; then
+      pci_class_raw=$(tr -d '[:space:]' < "$sysfs_class_file")
+      pci_class="${pci_class_raw:2:4}"
+    else
+      pci_class=$(lspci -n -s "$pci_bus" 2>/dev/null | awk 'NR==1 {print $2}' | tr -d ':')
+    fi
+
+    if [[ -z "$pci_class" ]]; then
+      echo "Cannot determine PCI class for $pci_bus. Skip this device"
+      continue
+    fi
+
+    if [[ "$pci_class" == 06* ]]; then
+      echo "Skipping bridge-class PCI device: $pci_bus (class: $pci_class)"
+      continue
     fi
 
     cat<<EOF | tee pci.xml
@@ -439,9 +471,9 @@ if [[ "$FORCE_CLEANUP" == true ]]; then
 fi
 
 if [[ "--pci" == "$INTERFACE" ]]; then
-  DEVICE_FOUND=$(lspci -Dnn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk "$NR_DEVICE")
+  DEVICE_FOUND=$(lspci -Dnn | grep -i "$DEVICE_NAME" | cut -d' ' -f1 | awk "$NR_DEVICE" || true)
   if [[ -z "$DEVICE_FOUND" ]]; then
-    echo "No device $DEVICE_NAME found"
+    echo "Error: No PCI device '$DEVICE_NAME' found (index: $DEVICE_NUMBER). Passthrough aborted." >&2
     exit 255
   fi
   PCI_DOMAIN=$(echo "$DEVICE_FOUND" | cut -d':' -f1)
@@ -450,9 +482,9 @@ if [[ "--pci" == "$INTERFACE" ]]; then
   PCI_FUNC=$(echo "$DEVICE_FOUND" | cut -d':' -f3 | cut -d '.' -f2)
   attach_pci
 elif [[ "--usb" == "$INTERFACE" ]]; then
-  DEVICE_FOUND=$(lsusb | grep -i "$DEVICE_NAME" | awk "$NR_DEVICE" | grep -o "ID ....:....")
+  DEVICE_FOUND=$(lsusb | grep -i "$DEVICE_NAME" | awk "$NR_DEVICE" | grep -o "ID ....:...." || true)
   if [[ -z "$DEVICE_FOUND" ]]; then
-    echo "No device $DEVICE_NAME found"
+    echo "Error: No USB device '$DEVICE_NAME' found (index: $DEVICE_NUMBER). Passthrough aborted." >&2
     exit 255
   fi
   USB_VENDOR_ID=$(echo "$DEVICE_FOUND" | cut -d' ' -f2 | cut -d':' -f1)

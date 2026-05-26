@@ -1,6 +1,6 @@
 #cloud-config
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 #
 # Reference from https://github.com/canonical/autoinstall-desktop/blob/main/autoinstall.yaml
@@ -159,8 +159,10 @@ autoinstall:
 
     # A postinstall script may optionally be used for further install
     # customization. Deploy this postinstall.sh script on the webserver.
+    - wget --no-proxy -O /target/tmp/installer_utils.sh $FILE_SERVER_URL/installer_utils.sh
     - wget --no-proxy -O /target/tmp/setup_bsp.sh $FILE_SERVER_URL/setup_bsp.sh
     - wget --no-proxy -O /target/tmp/bsp_packages.sh $FILE_SERVER_URL/bsp_packages.sh
+    - wget --no-proxy -O /target/tmp/installer.sh $FILE_SERVER_URL/installer.sh || true
     - curtin in-target -- chmod +x /tmp/setup_bsp.sh
     - curtin in-target -- chmod +x /tmp/bsp_packages.sh
     - |

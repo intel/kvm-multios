@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2025 Intel Corporation.
+# Copyright (c) 2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -11,7 +11,7 @@ OVMF_DEFAULT_PATH=/usr/share/OVMF
 WIN_DOMAIN_NAME=windows11
 WIN_IMAGE_NAME=$WIN_DOMAIN_NAME.qcow2
 WIN_INSTALLER_ISO=windowsNoPrompt.iso
-WIN_VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win-0.1.240.iso"
+WIN_VIRTIO_URL="https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.271-1/virtio-win-0.1.271.iso"
 WIN_VIRTIO_ISO=virtio-win.iso
 WIN_UNATTEND_ISO=$WIN_DOMAIN_NAME-unattend-win11.iso
 WIN_UNATTEND_FOLDER=unattend_win11

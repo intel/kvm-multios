@@ -1,5 +1,6 @@
 # Table of Contents
 1. [Intel IoT Platforms Supported](#intel-iot-platforms-supported)
+    1. [Nova Lake S](#nova-lake-S)
     1. [Wildcat Lake](#wildcat-lake)
     1. [Panther Lake H](#panther-lake-h)
     1. [Bartlett Lake S 12P](#bartlett-lake-s-12p)
@@ -13,6 +14,7 @@
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Supported Host and Guest OS Details
 | :-- | :--
+| Nova Lake S | [refer here](platforms.md#nova-lake-S)
 | Wildcat Lake | [refer here](platforms.md#wildcat-lake)
 | Panther Lake H | [refer here](platforms.md#panther-lake-h)
 | Bartlett Lake S 12P | [refer here](platforms.md#bartlett-lake-s-12p)
@@ -24,6 +26,30 @@
 | Raptor Lake PS | [refer here](platforms.md#raptor-lake-p-and-ps)
 | Raptor Lake P | [refer here](platforms.md#raptor-lake-p-and-ps)
 | Alder Lake N | [refer here](platforms.md#amston-lake-and-alder-lake-n)
+
+## Nova Lake S
+| Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
+|:---|:---|:---|
+| Nova Lake - S SODIMM DDR5 RVP | Nova Lake S A0 Silicon and beyond | PCH/A0 and beyond |
+
+<table>
+    <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
+    <!-- Host Operating System -->
+    <tr>
+      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+    </tr>
+    <!-- Guest Operating Systems -->
+    <tr>
+      <td align="left">Ubuntu 24.04 release</br></td><td>Yes</td><td>Yes</td>
+    </tr>
+    <tr>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 22H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required: <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 kb5043080</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/66b28d24-251c-4c0a-8a19-82bc599deac3/public/windows11.0-kb5077241-x64_739bca934f7f45038f9752637f632afa52c35f75.msu">windows11.0-kb5077241</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8672</br>
+Windows Zero-copy driver release: 5.0.0.2319</br>
+      </td><td>NA</td><td>Yes</td>
+    </tr>
+</table>
 
 ## Wildcat Lake
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
@@ -42,9 +68,9 @@
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.6584 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">(kb5065426)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8344</br>
-Windows Zero-copy driver release: 4.0.0.2164</br>
+Window 11 OS patch required: Windows11.0 26100.7922 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/66b28d24-251c-4c0a-8a19-82bc599deac3/public/windows11.0-kb5077241-x64_739bca934f7f45038f9752637f632afa52c35f75.msu">(kb5077241)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8572</br>
+Windows Zero-copy driver release: 5.0.0.2319</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -52,7 +78,7 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
 ## Panther Lake H
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
-| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon B0 and beyond | NA |
+| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon B0 and beyond (12Xe) | NA |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
@@ -66,9 +92,9 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.7462 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/9d6e2b81-b755-4e68-af73-9f4ee41cd758/public/windows11.0-kb5072033-x64_a62291f0bad9123842bf15dcdd75d807d2a2c76a.msu">(kb5072033)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8361</br>
-Windows Zero-copy driver release: 5.0.0.2223</br>
+Window 11 OS patch required: Windows11.0 26100.7922 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/66b28d24-251c-4c0a-8a19-82bc599deac3/public/windows11.0-kb5077241-x64_739bca934f7f45038f9752637f632afa52c35f75.msu">(kb5077241)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8622</br>
+Windows Zero-copy driver release: 5.0.0.2319</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
