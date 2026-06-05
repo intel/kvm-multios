@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024-2025 Intel Corporation.
+# Copyright (c) 2024-2026 Intel Corporation.
 # All rights reserved.
 #
 
@@ -79,7 +79,6 @@ function next_available_igpu_vf() {
     max_vfs=$(</sys/bus/pci/devices/0000:00:02.0/sriov_totalvfs)
     local -A defined_vf_map=()  # Map VF number to domain name (O(1) lookup)
     local -A static_vf_map=()   # Map VF number to filename (O(1) lookup)
-    local IFS=$'\n'
 
     # Scan defined domains for VF usage
     local -a domains

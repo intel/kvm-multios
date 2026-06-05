@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024-2025 Intel Corporation.
+# Copyright (c) 2024-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -18,21 +18,21 @@ TMP_FILES=()
 
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
-    ['version']='2025.2.0'
+    ['version']='2025.3.0'
     ['ubuntu_version_supported']='22.04, 24.04'
 )
 
 INSTALL_NPU=0
 declare -A _LINUX_NPU_DRV_REL_2204=(
-    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2204.tar.gz'
-    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb'
+    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.26.0/linux-npu-driver-v1.26.0.20251125-19665715237-ubuntu2204.tar.gz'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u22.04_amd64.deb'
 )
 declare -A _LINUX_NPU_DRV_REL_2404=(
-    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz'
-    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb'
+    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.26.0/linux-npu-driver-v1.26.0.20251125-19665715237-ubuntu2404.tar.gz'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u24.04_amd64.deb'
 )
 declare -A LINUX_NPU_DRV_REL=(
-    ['version']="v1.23.0"
+    ['version']="v1.26.0"
     ['ubuntu_version_supported']='22.04, 24.04'
     ['22.04']="_LINUX_NPU_DRV_REL_2204"
     ['24.04']="_LINUX_NPU_DRV_REL_2404"
@@ -57,18 +57,18 @@ _COMPUTE_RUNTIME_PKGS_2204=(
 )
 
 declare -A _COMPUTE_RUNTIME_META_2204=(
-    ['intel-igc-core-2.version']='2.11.7'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.11.7'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
-    ['intel-ocloc.version']='25.18.33578.6'
-    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
-    ['intel-opencl-icd.version']='25.18.33578.6'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
-    ['libigdgmm12.version']='22.7.0'
-    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
-    ['libze-intel-gpu1.version']='25.18.33578.6'
-    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
+    ['intel-igc-core-2.version']='2.20.3'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-core-2_2.20.3+19972_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.20.3'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-opencl-2_2.20.3+19972_amd64.deb'
+    ['intel-ocloc.version']='25.40.35563.4-0'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-ocloc_25.40.35563.4-0_amd64.deb'
+    ['intel-opencl-icd.version']='25.40.35563.4-0'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-opencl-icd_25.40.35563.4-0_amd64.deb'
+    ['libigdgmm12.version']='22.8.2'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libigdgmm12_22.8.2_amd64.deb'
+    ['libze-intel-gpu1.version']='25.40.35563.4-0'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libze-intel-gpu1_25.40.35563.4-0_amd64.deb'
 )
 
 _COMPUTE_RUNTIME_PKGS_2404=(
@@ -81,18 +81,18 @@ _COMPUTE_RUNTIME_PKGS_2404=(
 )
 
 declare -A _COMPUTE_RUNTIME_META_2404=(
-    ['intel-igc-core-2.version']='2.11.7'
-    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-core-2_2.11.7+19146_amd64.deb'
-    ['intel-igc-opencl-2.version']='2.11.7'
-    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.11.7/intel-igc-opencl-2_2.11.7+19146_amd64.deb'
-    ['intel-ocloc.version']='25.18.33578.6'
-    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-ocloc_25.18.33578.6-0_amd64.deb'
-    ['intel-opencl-icd.version']='25.18.33578.6'
-    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/intel-opencl-icd_25.18.33578.6-0_amd64.deb'
-    ['libigdgmm12.version']='22.7.0'
-    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libigdgmm12_22.7.0_amd64.deb'
-    ['libze-intel-gpu1.version']='25.18.33578.6'
-    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.18.33578.6/libze-intel-gpu1_25.18.33578.6-0_amd64.deb'
+    ['intel-igc-core-2.version']='2.20.3'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-core-2_2.20.3+19972_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.20.3'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-opencl-2_2.20.3+19972_amd64.deb'
+    ['intel-ocloc.version']='25.40.35563.4-0'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-ocloc_25.40.35563.4-0_amd64.deb'
+    ['intel-opencl-icd.version']='25.40.35563.4-0'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-opencl-icd_25.40.35563.4-0_amd64.deb'
+    ['libigdgmm12.version']='22.8.2'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libigdgmm12_22.8.2_amd64.deb'
+    ['libze-intel-gpu1.version']='25.40.35563.4-0'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libze-intel-gpu1_25.40.35563.4-0_amd64.deb'
 )
 
 #---------      Functions    -------------------
@@ -201,13 +201,49 @@ function setup_openvino_npu() {
     # Extract the tar.gz archive
     tar -xzf "$dest_tmp_path/npu-driver-archive.tar.gz" -C "$dest_tmp_path" || return 255
 
-    # Purge old packages with the same name as those from the archive
-    echo "INFO: Checking for conflicting NPU packages in archive..." | tee -a "$LOG_FILE"
+    # Scan all .deb files once to collect package names, versions, and install status
+    echo "INFO: Scanning NPU packages in archive..." | tee -a "$LOG_FILE"
+    declare -A npu_pkg_names     # deb_file path -> package name
+    declare -A npu_needs_install # deb_file path -> 1 (needs install) or 0 (already installed)
+    local deb_file pkg_name pkg_ver installed_ver
+    local any_missing=0 any_present=0
     for deb_file in "$dest_tmp_path"/*.deb; do
-        if [[ -f "$deb_file" ]]; then
-            local pkg_name
-            pkg_name=$(dpkg-deb -f "$deb_file" Package 2>/dev/null)
-            if [[ -n "$pkg_name" ]] && dpkg -l "$pkg_name" 2>/dev/null | grep -q "^ii"; then
+        [[ -f "$deb_file" ]] || continue
+        pkg_name=$(dpkg-deb -f "$deb_file" Package 2>/dev/null)
+        pkg_ver=$(dpkg-deb -f "$deb_file" Version 2>/dev/null)
+        if [[ -z "$pkg_name" || -z "$pkg_ver" ]]; then
+            echo "WARNING: Could not read metadata from $(basename "$deb_file"), skipping." | tee -a "$LOG_FILE"
+            continue
+        fi
+        npu_pkg_names["$deb_file"]="$pkg_name"
+        if dpkg -l "$pkg_name" 2>/dev/null | grep -q "^ii"; then
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg_name" 2>/dev/null)
+            echo "INFO: $pkg_name ($installed_ver) is already installed. Skipping." | tee -a "$LOG_FILE"
+            npu_needs_install["$deb_file"]=0
+            any_present=1
+        else
+            echo "INFO: $pkg_name is not installed. Will install $pkg_ver." | tee -a "$LOG_FILE"
+            npu_needs_install["$deb_file"]=1
+            any_missing=1
+        fi
+    done
+
+    # Detect partial installation: if some packages are installed and some are missing,
+    # purge all installed packages and reinstall everything to ensure version coherence.
+
+    if [[ $any_missing -eq 1 && $any_present -eq 1 ]]; then
+        echo "INFO: Partial NPU installation detected." | tee -a "$LOG_FILE"
+        echo "INFO: Purging installed packages to ensure version coherence." | tee -a "$LOG_FILE"
+        for deb_file in "${!npu_needs_install[@]}"; do
+            npu_needs_install["$deb_file"]=1
+        done
+    fi
+
+    # Purge packages that are installed but need to be (re)installed
+    for deb_file in "${!npu_needs_install[@]}"; do
+        if [[ "${npu_needs_install[$deb_file]}" -eq 1 ]]; then
+            pkg_name="${npu_pkg_names[$deb_file]}"
+            if dpkg -l "$pkg_name" 2>/dev/null | grep -q "^ii"; then
                 echo "INFO: Removing existing package: $pkg_name" | tee -a "$LOG_FILE"
                 if ! sudo dpkg --purge --force-remove-reinstreq "$pkg_name" 2>/dev/null; then
                     echo "WARNING: Could not remove $pkg_name, continuing anyway..." | tee -a "$LOG_FILE"
@@ -220,14 +256,19 @@ function setup_openvino_npu() {
     echo "INFO: Installing dependencies for Linux NPU Driver" | tee -a "$LOG_FILE"
     sudo apt-get install -y libtbb12
 
-    # Install all NPU driver packages from archive
+    # Install only packages that are missing
     echo "INFO: Installing Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
-    for deb_file in "$dest_tmp_path"/*.deb; do
-        if [[ -f "$deb_file" ]]; then
+    local any_installed=0
+    for deb_file in "${!npu_needs_install[@]}"; do
+        if [[ "${npu_needs_install[$deb_file]}" -eq 1 ]]; then
             echo "INFO: Installing $(basename "$deb_file")" | tee -a "$LOG_FILE"
             sudo dpkg -i "$deb_file" || echo "WARNING: Failed to install $(basename "$deb_file")" | tee -a "$LOG_FILE"
+            any_installed=1
         fi
     done
+    if [[ $any_installed -eq 0 ]]; then
+        echo "INFO: All NPU driver packages are already installed. Skipping installation." | tee -a "$LOG_FILE"
+    fi
 
     # Install level-zero only if it's missing
     if ! dpkg -l "level-zero" 2>/dev/null | grep -q "^ii"; then
@@ -458,7 +499,7 @@ function setup_neo() {
     dest_tmp_path=$(realpath "/tmp/linux_compute_runtime_install-$osver")
 
     log_func check_os "${COMPUTE_RUNTIME_REL['ubuntu_version_supported']}" \
-        || (echo "INFO: Please use Ubuntu ${OPENVINO_REL['ubuntu_version_supported']} for OpenVino GPU support" \
+        || (echo "INFO: Please use Ubuntu ${COMPUTE_RUNTIME_REL['ubuntu_version_supported']} for OpenVino GPU support" \
         | tee -a "$LOG_FILE"; return 0)
 
     # Select correct package and meta arrays for the OS version using COMPUTE_RUNTIME_REL
@@ -473,14 +514,15 @@ function setup_neo() {
     declare -n META="$meta_var"
 
     # Check if compute runtime packages are already installed
-    local packages_installed=0
+    local packages_installed=1
     for pkg in "${PKGS[@]}"; do
-        local pkg_base="${pkg%%.*}"
-        if dpkg-query -W -f='${Status}' "$pkg_base" 2>/dev/null | grep -q "install ok installed"; then
+        if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
             local installed_ver
-            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg_base" 2>/dev/null)
-            echo "INFO: $pkg_base is already installed (version: $installed_ver). Skipping compute runtime installation." | tee -a "$LOG_FILE"
-            packages_installed=1
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)
+            echo "INFO: $pkg is already installed (version: $installed_ver)." | tee -a "$LOG_FILE"
+        else
+            echo "INFO: $pkg is not installed." | tee -a "$LOG_FILE"
+            packages_installed=0
         fi
     done
 
@@ -504,6 +546,7 @@ function setup_neo() {
             continue
         fi
 
+        local current_ver candidate_ver version_key required_ver
         current_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null || echo "")
         candidate_ver=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2}')
         version_key="${pkg}.version"
@@ -530,34 +573,33 @@ function setup_neo() {
         fi
     done
 
-    # Download and install packages
-    echo "INFO: Downloading and installing neo packages from file..." | tee -a "$LOG_FILE"
-    for pkg_file in "${PKGS[@]}"; do
-        local version_key="${pkg_file}.version"
-        local url_key="${pkg_file}.url"
+    # Download packages
+    echo "INFO: Downloading neo packages..." | tee -a "$LOG_FILE"
+    for pkg in "${PKGS[@]}"; do
+        local version_key="${pkg}.version"
+        local url_key="${pkg}.url"
         local pkg_ver="${META[$version_key]}"
         local pkg_url="${META[$url_key]}"
-        local pkg_base="${pkg_file%%.*}"
 
         if [[ -z "$pkg_ver" || -z "$pkg_url" ]]; then
-            echo "ERROR: Missing version or URL for $pkg_file" | tee -a "$LOG_FILE"
+            echo "ERROR: Missing version or URL for $pkg" | tee -a "$LOG_FILE"
             exit 255
         fi
 
         # Check if installed and compare version
         local installed_ver=""
-        if dpkg-query -W -f='${Status}' "$pkg_base" 2>/dev/null | grep -q "install ok installed"; then
-            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg_base" 2>/dev/null)
+        if dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"; then
+            installed_ver=$(dpkg-query -W -f='${Version}' "$pkg" 2>/dev/null)
         fi
 
         if [[ -z "$installed_ver" ]]; then
-            echo "INFO: $pkg_base not installed. Installing: $pkg_ver" | tee -a "$LOG_FILE"
+            echo "INFO: $pkg not installed. Installing: $pkg_ver" | tee -a "$LOG_FILE"
             download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
         elif is_new_version_avail "$installed_ver" "$pkg_ver"; then
-            echo "INFO: $pkg_base ver: $installed_ver. Installing: $pkg_ver" | tee -a "$LOG_FILE"
+            echo "INFO: $pkg ver: $installed_ver. Installing: $pkg_ver" | tee -a "$LOG_FILE"
             download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
         else
-            echo "INFO: $pkg_base ver: $installed_ver is already up to-date" | tee -a "$LOG_FILE"
+            echo "INFO: $pkg ver: $installed_ver is already up-to-date" | tee -a "$LOG_FILE"
         fi
     done
 

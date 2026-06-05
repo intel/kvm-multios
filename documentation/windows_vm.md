@@ -183,7 +183,7 @@ Host platform DUT setup:
 
         ***Sub-steps to manually install fresh Windows VM image from boot ISO:***
 
-        1. Download virtio-win.iso from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win.iso to temporary path in host machine.
+        1. Download virtio-win.iso from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.271-1/virtio-win.iso to temporary path in host machine.
 
         1. Run Windows guest installation with below virt-install command corresponding to desired Windows VM OS version in a graphical terminal window or bash shell in host machine (replace values accordingly).
 
@@ -327,7 +327,7 @@ Host platform DUT setup:
            --live
         ```
 
-    1. If virtio-win ISO (from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win.iso) is not already present in Windows VM as CD drive, download and copy virtio-win.iso into VM.
+    1. If virtio-win ISO (from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.271-1/virtio-win.iso) is not already present in Windows VM as CD drive, download and copy virtio-win.iso into VM.
 
     1. If virtio-win ISO is not already present in Windows VM as CD drive, double click virtio-win ISO iso file in Windows File Explorer to mount the iso file or extract ISO contents to a folder.
 
@@ -809,7 +809,7 @@ Like windows-updates_01.msu, windows-updates_02.msu, and so on.
             silent_install_option: # '' or options required to run silent installation as per installation guide
             enable_test_sign: # yes | no.
         ````
-1. Download virtio-win.iso from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.240-1/virtio-win.iso into \<path_to_unattend_winXX_folder\>.
+1. Download virtio-win.iso from https://fedorapeople.org/groups/virt/virtio-win/direct-downloads/archive-virtio/virtio-win-0.1.271-1/virtio-win.iso into \<path_to_unattend_winXX_folder\>.
 
     ***Notes***
     - if virtio-win.iso is not found in \<path_to_unattend_winXX_folder\>, it will be downloaded during automatic automated install.

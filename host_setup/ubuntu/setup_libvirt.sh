@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -199,10 +199,20 @@ function setup_sriov_scheduling() {
   local base_path="\$2"
   local numvfs="\$3"
 
+  pfexecquanta=25
+  pfpreemtimeout=0
+
   vfschedexecq=25
   vfschedtimeout=500000
 
   if [[ "\$drm_drv" == "xe" ]]; then
+    echo "\$pfexecquanta" | tee \$base_path/gt0/pf/exec_quantum_ms
+    echo "\$pfpreemtimeout" | tee \$base_path/gt0/pf/preempt_timeout_us
+    if [[ -d "\$base_path/gt1" ]]; then
+      echo "\$pfexecquanta" | tee \$base_path/gt1/pf/exec_quantum_ms
+      echo "\$pfpreemtimeout" | tee \$base_path/gt1/pf/preempt_timeout_us
+    fi
+
     for (( i = 1; i <= numvfs; i++ )); do
       echo "\$vfschedexecq" | tee \$base_path/gt0/vf\$i/exec_quantum_ms
       echo "\$vfschedtimeout" | tee \$base_path/gt0/vf\$i/preempt_timeout_us

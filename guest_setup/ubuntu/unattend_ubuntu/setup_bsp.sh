@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -76,16 +76,32 @@ NO_BSP_INSTALL=0
 KERN_PATH=""
 KERN_INSTALL_FROM_PPA=0
 KERN_PPA_VER=""
+INSTALLED_KERN_VER=""
 LINUX_FW_PPA_VER=""
 RT=0
 DRM_DRV_SUPPORTED=('i915' 'xe')
 DRM_DRV_SELECTED=""
 FORCE_SW_CURSOR=0
+# Cache for installer.sh file path (found once, used by multiple functions)
+INSTALLER_FILE=""
 
 script=$(realpath "${BASH_SOURCE[0]}")
-#scriptpath=$(dirname "$script")
+scriptpath=$(dirname "$script")
 LOGTAG=$(basename "$script")
-LOGD="logger -t $LOGTAG"
+
+# Logging function that works with or without syslog
+function log_debug() {
+    local msg="$*"
+    # Try logger first, fall back to echo if it fails (e.g., /dev/log doesn't exist)
+    if [[ -e /dev/log ]]; then
+        logger -s -t "$LOGTAG" "$msg" 2>/dev/null || echo "$LOGTAG: $msg"
+    else
+        echo "$LOGTAG: $msg"
+    fi
+}
+
+# For backward compatibility, LOGD can be used as an alias
+LOGD="log_debug"
 
 # Function to log errors and optionally send to host via netcat
 function log_error() {
@@ -100,6 +116,13 @@ function log_error() {
 
 # For backward compatibility, LOGE can be used as a function
 LOGE="log_error"
+
+# Source shared installer extraction utilities
+# shellcheck source-path=SCRIPTDIR
+source "$scriptpath/installer_utils.sh" || {
+    $LOGE "Failed to source installer_utils.sh"
+    exit 255
+}
 
 #---------      Functions    -------------------
 declare -F "check_non_symlink" >/dev/null || function check_non_symlink() {
@@ -148,6 +171,17 @@ function setup_ubuntu_ppa_config() {
     UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null || echo "24.04")
     UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "noble")
 
+    # First, try to extract settings from installer file if available
+    # Use cached INSTALLER_FILE if already found
+    if [[ -n "$INSTALLER_FILE" ]] && extract_ppa_from_installer "$INSTALLER_FILE"; then
+        $LOGD "Using PPA settings extracted from installer file"
+        # Settings have been updated by extract_ppa_from_installer
+        return 0
+    fi
+
+    # If no installer file or extraction failed, proceed with version-specific alternates or defaults
+    $LOGD "Using default PPA configuration for Ubuntu $UBUNTU_VERSION"
+
     # Check if there's a version-specific alternate configuration
     if [[ -n "${PPA_ALT_PIN[$UBUNTU_VERSION]:-}" ]]; then
         # Apply PIN alternate
@@ -183,8 +217,9 @@ function setup_ubuntu_ppa_config() {
         fi
 
         $LOGD "Applied version-specific PPA config for Ubuntu $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+    else
+        $LOGD "No version-specific alternate found, using global defaults"
     fi
-    # If no alternate exists, global default settings are already configured
 }
 
 function check_url() {
@@ -247,6 +282,7 @@ function install_kernel_from_deb() {
 
     # Update boot menu to boot to the new kernel
     kernel_version=$(dpkg --info "$path"/linux-headers.deb | grep "Package: " | awk -F 'linux-headers-' '{print $2}')
+    INSTALLED_KERN_VER="$kernel_version"
     sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $kernel_version'/" /etc/default/grub
     sudo update-grub
 
@@ -270,8 +306,45 @@ function install_kernel_from_ppa() {
     # Update boot menu to boot to the new kernel
     local kernel_name
     kernel_name=$(echo "$1" | awk -F '=' '{print $1}')
+    INSTALLED_KERN_VER="$kernel_name"
     sudo sed -i -r -e "s/GRUB_DEFAULT=.*/GRUB_DEFAULT='Advanced options for Ubuntu>Ubuntu, with Linux $kernel_name'/" /etc/default/grub
     sudo update-grub
+
+    $LOGD "${FUNCNAME[0]} end"
+}
+
+function install_kernel() {
+    $LOGD "${FUNCNAME[0]} begin"
+
+    # Determine kernel installation method and version
+    # Priority: -k (local debs) > installer.sh (PPA) > -kp (PPA)
+    if [[ "$KERN_INSTALL_FROM_PPA" -eq "0" ]]; then
+        # Install from local .deb files specified by -k parameter
+        $LOGD "Kernel installation method: Local .deb files from $KERN_PATH"
+        install_kernel_from_deb "$KERN_PATH" || return 255
+    else
+        # Install from PPA - check if installer.sh has version first
+        # Use cached INSTALLER_FILE if already found
+        if [[ -n "$INSTALLER_FILE" ]] && extract_kernel_ver_from_installer "$INSTALLER_FILE" "$RT"; then
+            # installer.sh found and has kernel version - use it (supersedes -kp)
+            KERN_PPA_VER="$EXTRACTED_KERNEL_VER"
+            $LOGD "Kernel installation method: PPA (from installer.sh, overriding -kp if specified)"
+        else
+            # No installer.sh or extraction failed - use -kp parameter
+            $LOGD "Kernel installation method: PPA (from -kp parameter)"
+        fi
+
+        # Validate that we have a kernel version to install
+        if [[ -z "$KERN_PPA_VER" ]]; then
+            $LOGE "Error: No kernel version specified for PPA installation."
+            $LOGE "Provide kernel version via -kp parameter or place installer.sh with kernel configuration."
+            $LOGE "Alternatively, use -k parameter to install from local .deb files."
+            return 255
+        fi
+
+        $LOGD "Installing kernel version: $KERN_PPA_VER"
+        install_kernel_from_ppa "$KERN_PPA_VER" || return 255
+    fi
 
     $LOGD "${FUNCNAME[0]} end"
 }
@@ -342,7 +415,7 @@ function validate_packages_availability() {
     local package_list="$1"
     local log_file="$2"
 
-    $LOGD "Validating package availability from repository..."
+    $LOGD "Validating package availability from repository..." >&2
     echo "=== Package Availability Validation ===" >> "$log_file"
 
     # Update apt cache to get latest package information
@@ -350,7 +423,7 @@ function validate_packages_availability() {
 
     # Get all available packages once (much faster than checking each individually)
     # Use apt-cache pkgnames which is script-friendly and fast
-    $LOGD "Building package availability cache..."
+    $LOGD "Building package availability cache..." >&2
     declare -A pkg_cache
     while IFS= read -r pkg; do
         pkg_cache["$pkg"]=1
@@ -374,7 +447,7 @@ function validate_packages_availability() {
 
         # Check if package exists using O(1) hash lookup
         if [[ -z "${pkg_cache[$pkg_name]:-}" ]]; then
-            $LOGD "WARNING: Package $pkg not available in repository, skipping"
+            $LOGD "WARNING: Package $pkg not available in repository, skipping" >&2
             missing_packages+="$pkg "
             echo "WARNING: Package $pkg not available in repository, skipping installation" >> "$log_file"
             continue
@@ -393,7 +466,7 @@ function validate_packages_availability() {
         fi
 
         # Specified version not available, try without version constraint
-        $LOGD "WARNING: Package $pkg_name version $pkg_version not available, trying without version constraint"
+        $LOGD "WARNING: Package $pkg_name version $pkg_version not available, trying without version constraint" >&2
         echo "WARNING: Package $pkg_name=$pkg_version not available with specified version" >> "$log_file"
         validated_list+="$pkg_name "
         echo "  -> Will install $pkg_name with default available version" >> "$log_file"
@@ -410,7 +483,7 @@ function validate_packages_availability() {
             done
             echo ""
         } >> "$log_file"
-        $LOGD "WARNING: Some packages are not available in repository. See log for details: $log_file"
+        $LOGD "WARNING: Some packages are not available in repository. See log for details: $log_file" >&2
     fi
 
     {
@@ -426,41 +499,70 @@ function validate_packages_availability() {
 function install_userspace_pkgs() {
     $LOGD "${FUNCNAME[0]} begin"
 
-    # Load bsp packages from configuration file
-    local script_dir
-    script_dir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+    local selected_packages=""
 
-    if [[ ! -f "$script_dir/bsp_packages.sh" ]]; then
-        $LOGE "Error: Package configuration file not found: $script_dir/bsp_packages.sh"
-        return 255
+    # First, try to extract packages from installer file if available
+    # Use cached INSTALLER_FILE if already found
+    if [[ -n "$INSTALLER_FILE" ]] && extract_packages_from_installer "$INSTALLER_FILE"; then
+        selected_packages="$EXTRACTED_PACKAGES"
+        $LOGD "Using package list extracted from $INSTALLER_FILE"
+    else
+        # Fallback to bsp_packages.sh configuration
+        $LOGD "Falling back to bsp_packages.sh for package list"
+        local script_dir
+        script_dir=$(dirname "$(realpath "${BASH_SOURCE[0]}")")
+
+        if [[ ! -f "$script_dir/bsp_packages.sh" ]]; then
+            $LOGE "Error: Package configuration file not found: $script_dir/bsp_packages.sh"
+            return 255
+        fi
+
+        # Source the packages configuration
+        # shellcheck source-path=SCRIPTDIR
+        source "$script_dir/bsp_packages.sh"
+
+        # Select the appropriate package list based on detected Ubuntu version
+        $LOGD "Detected Ubuntu version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
+
+        # Use the kernel version that was saved during kernel installation
+        local kernel_version="$INSTALLED_KERN_VER"
+        if [[ -n "$kernel_version" ]]; then
+            $LOGD "Using installed kernel version: $kernel_version"
+        fi
+
+        # Extract major.minor version (e.g., 6.18 from 6.18-intel or 6.12 from 6.12-intel)
+        local kernel_major_minor=""
+        if [[ -n "$kernel_version" ]]; then
+            kernel_major_minor=$(echo "$kernel_version" | grep -oP '^\d+\.\d+')
+        fi
+
+        # Look up the package variable name for this version
+        local package_var_name="${BSP_PACKAGE_VERSION_MAP[$UBUNTU_VERSION]:-$BSP_PACKAGE_DEFAULT}"
+
+        # Check if there's a kernel-specific package list
+        if [[ -n "$kernel_major_minor" && -n "${BSP_PACKAGE_KERNEL_MAP[$UBUNTU_VERSION:$kernel_major_minor]:-}" ]]; then
+            package_var_name="${BSP_PACKAGE_KERNEL_MAP[$UBUNTU_VERSION:$kernel_major_minor]}"
+            $LOGD "Using kernel-specific package list for kernel $kernel_major_minor: $package_var_name"
+        else
+            $LOGD "Using default package list for Ubuntu $UBUNTU_VERSION: $package_var_name"
+        fi
+
+        # Use indirect variable expansion to get the package list
+        selected_packages="${!package_var_name}"
+        $LOGD "Using package list: $package_var_name"
     fi
-
-    # Source the packages configuration
-    # shellcheck source-path=SCRIPTDIR
-    source "$script_dir/bsp_packages.sh"
-
-    # Select the appropriate package list based on detected Ubuntu version
-    $LOGD "Detected Ubuntu version: $UBUNTU_VERSION ($UBUNTU_CODENAME)"
-
-    # Look up the package variable name for this version
-    local package_var_name="${BSP_PACKAGE_VERSION_MAP[$UBUNTU_VERSION]:-$BSP_PACKAGE_DEFAULT}"
-
-    # Use indirect variable expansion to get the package list
-    local selected_packages="${!package_var_name}"
-    $LOGD "Using package list: $package_var_name"
 
     # Process comma-separated string directly into space-separated string, removing empty entries and whitespace
     local package_list=""
-    local old_ifs="$IFS"
-    IFS=','
-    for pkg in $selected_packages; do
+    local -a pkg_array
+    mapfile -t pkg_array < <(tr ',' '\n' <<< "$selected_packages")
+    for pkg in "${pkg_array[@]}"; do
         # Trim whitespace, newlines, and carriage returns, skip empty entries
         pkg=$(echo "$pkg" | tr -d '\n\r' | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         if [[ -n "$pkg" ]]; then
             package_list+="$pkg "
         fi
     done
-    IFS="$old_ifs"
 
     # Add version to linux-firmware if specified
     if [[ -n $LINUX_FW_PPA_VER ]]; then
@@ -481,7 +583,14 @@ function install_userspace_pkgs() {
     if [[ -n "$package_list" ]]; then
         echo "Installing BSP overlay packages..."
         local log_file
-        log_file="/var/log/bsp_install_$(date +%Y%m%d_%H%M%S).log"
+        # Use /var/log if available and writable, otherwise fall back to /tmp or current directory
+        if [[ -d /var/log && -w /var/log ]]; then
+            log_file="/var/log/bsp_install_$(date +%Y%m%d_%H%M%S).log"
+        elif [[ -d /tmp && -w /tmp ]]; then
+            log_file="/tmp/bsp_install_$(date +%Y%m%d_%H%M%S).log"
+        else
+            log_file="./bsp_install_$(date +%Y%m%d_%H%M%S).log"
+        fi
         $LOGD "Logging package installation to: $log_file"
         {
             echo "=== BSP Package Installation Log ==="
@@ -788,6 +897,12 @@ trap 'echo "Error line ${LINENO}: $BASH_COMMAND"' ERR
 
 parse_arg "$@" || exit 255
 
+# Find installer.sh once and cache for use by all functions
+INSTALLER_FILE=$(find_installer_file) || true
+if [[ -n "$INSTALLER_FILE" ]]; then
+    $LOGD "Found installer file: $INSTALLER_FILE"
+fi
+
 if [[ "$NO_BSP_INSTALL" -ne "1" ]]; then
     # Detect Ubuntu version and configure PPA settings
     setup_ubuntu_ppa_config
@@ -795,12 +910,9 @@ if [[ "$NO_BSP_INSTALL" -ne "1" ]]; then
     # Install PPA
     setup_overlay_ppa || exit 255
 
-    # Install bsp kernel
-    if [[ "$KERN_INSTALL_FROM_PPA" -eq "0" ]]; then
-        install_kernel_from_deb "$KERN_PATH" || exit 255
-    else
-        install_kernel_from_ppa "$KERN_PPA_VER" || exit 255
-    fi
+    # Install kernel (local debs or from PPA)
+    install_kernel || exit 255
+
     # Install bsp userspace
     install_userspace_pkgs || exit 255
 fi
