@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -9,7 +9,6 @@ set -Eeuo pipefail
 # Define supported VM domains and configuration files
 declare -A VM_DOMAIN=(
   ["ubuntu"]="ubuntu_vnc_spice.xml"
-  ["windows"]="windows_vnc_spice.xml"
   ["windows11"]="windows11_vnc_spice.xml"
   ["redhat"]="redhat_vnc_spice.xml"
   ["centos"]="centos_vnc_spice.xml"

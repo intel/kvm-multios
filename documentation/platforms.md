@@ -36,7 +36,7 @@
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="3" align="left">Ubuntu 24.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
@@ -78,7 +78,7 @@ Windows Zero-copy driver release: 5.0.0.2319</br>
 ## Panther Lake H
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
-| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon B0 and beyond (12Xe) | NA |
+| Panther Lake H SODIMM DDR5 CRB | Panther Lake H Silicon B0 and beyond (12Xe/4Xe) | NA |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
@@ -92,9 +92,9 @@ Windows Zero-copy driver release: 5.0.0.2319</br>
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.7922 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/66b28d24-251c-4c0a-8a19-82bc599deac3/public/windows11.0-kb5077241-x64_739bca934f7f45038f9752637f632afa52c35f75.msu">(kb5077241)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8622</br>
-Windows Zero-copy driver release: 5.0.0.2319</br>
+Window 11 OS patch required: Windows11.0 26100.8524 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/17caea23-ee77-4074-87dc-5820c52a9f45/public/windows11.0-kb5089573-x64_cc650a5cea73a2bca157ef66e0ce88f5c1d95e14.msu">(kb5089573)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8801</br>
+Windows Zero-copy driver release: 5.0.0.2494</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -241,13 +241,6 @@ Windows Zero-copy driver release: 5.0.0.2400</br>
       <td align="left">Ubuntu 24.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required <a href="https://catalog.s.download.windowsupdate.com/c/msdownload/update/software/secu/2025/09/windows10.0-kb5065429-x64_83acdf09e991adf6d9b1fa9c69f1f58c84e86c28.msu">Windows10.0 19044.6332 (kb5065429)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8132</br>
-Windows Zero-copy driver release: 4.0.0.2164</br>
-      </td><td>Yes*</td><td>Yes</td>
-    </tr>
-    <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8584 (kb5043080)</a></br>
 Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/7342fa97-e584-4465-9b3d-71e771c9db5b/public/windows11.0-kb5065426-x64_32b5f85e0f4f08e5d6eabec6586014a02d3b6224.msu">Windows11.0 26100.6584 (kb5065426)</a></br>
@@ -267,18 +260,11 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="3" align="left">Ubuntu 24.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
       <td align="left">Ubuntu 24.04 release</br></td><td>Yes*</td><td>Yes</td>
-    </tr>
-    <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-10-enterprise">Windows 10 IoT Enterprise LTSC 21H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195587&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 10 OS patch required: Windows10.0 19044.5371 <a href="https://catalog.s.download.windowsupdate.com/d/msdownload/update/software/secu/2025/01/windows10.0-kb5049981-x64_bda073f7d8e14e65c2632b47278924b8a0f6b374.msu">(kb5049981)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.6733</br>
-Windows Zero-copy driver release: 4.0.0.1918</br>
-      </td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
@@ -292,9 +278,3 @@ Windows Zero-copy driver release: 4.0.0.1918</br>
 Notes:
 * GVT-d can only be applied for one running VM while other runnings VMs will be using VNC/SPICE or no display.
   GVT-d is not fully validated in this release.
-* The KVM MultiOS Portfolio release provides only limited support for Android CiV guests.
-  It is intended solely for demonstration purposes and is not validated.
-  Users are encouraged to collaborate with ISV/OSV partners to evaluate and develop the solution using a reference Base Release from the Celadon Project.
-  For more information, please visit:
-  * [Celadon Ecosystem](https://www.intel.com/content/www/us/en/developer/topic-technology/open/celadon/ecosystem.html)
-  * [Celadon Base Releases](https://projectceladon.github.io/celadon-documentation/release-notes/base-releases.html)

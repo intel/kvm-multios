@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2024 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -23,7 +23,7 @@ function show_help() {
     printf "%s -h -d <domain_name> -type <passthrough/emulated> [-model <tis/crb>] [-version <2.0>] [-device </dev/tpm0>]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h            show this help message\n"
-    printf "\t-d            domain name, eg. ubuntu or windows \n"
+    printf "\t-d            domain name, eg. ubuntu or windows11 \n"
     printf "\t-type         TPM backend type, eg. passthrough or emulated \n"
     printf "\t-model        TPM model, eg. tis or crb\n"
     printf "\t-version      TPM version, eg. 2.0\n"

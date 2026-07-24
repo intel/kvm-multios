@@ -37,6 +37,7 @@ SETUP_ZC_GUI_INSTALLER=1 # default assume installer
 SETUP_ZC_FILENAME=''
 ADD_INSTALL_DL_FAIL_EXIT=0
 GEN_GFX_ZC_SCRIPT_ONLY=0
+SETUP_ENABLE_ADDITIONAL_INSTALLS=0
 
 VIEWER_DAEMON_PID=
 FILE_SERVER_DAEMON_PID=
@@ -166,17 +167,17 @@ function validate_zc_driver_content() {
   }
 
   if [[ "$expected_type" == "non-installer" ]]; then
-    # Expect: ZCBuild_[digits]_MSFT_Signed/ with DVInstaller.ps1
-    if ! echo "$zip_contents" | grep -q "ZCBuild_[0-9]*_MSFT_Signed/DVInstaller.ps1"; then
+    # Expect: ZCBuild_[digits]_MSFT_Signed/ with IntelVirtDisplayInstaller.ps1
+    if ! echo "$zip_contents" | grep -q "ZCBuild_[0-9]*_MSFT_Signed/IntelVirtDisplayInstaller.ps1"; then
       echo "Error: ZCBuild_MSFT_Signed.zip missing expected structure or may be incorrectly named."
-      echo "       Expected: ZCBuild_*_MSFT_Signed/DVInstaller.ps1"
+      echo "       Expected: ZCBuild_*_MSFT_Signed/IntelVirtDisplayInstaller.ps1"
       return 255
     fi
   elif [[ "$expected_type" == "installer" ]]; then
-    # Expect: ZCBuild_*_Installer/ZC_Installer/ZeroCopyInstaller.exe
-    if ! echo "$zip_contents" | grep -q "ZCBuild_.*_Installer/ZC_Installer/ZeroCopyInstaller.exe"; then
+    # Expect: ZCBuild_*_Installer/ZC_Installer/IntelVirtDisplayInstallerPackage.exe
+    if ! echo "$zip_contents" | grep -q "ZCBuild_.*_Installer/ZC_Installer/IntelVirtDisplayInstallerPackage.exe"; then
       echo "Error: ZCBuild_MSFT_Signed_Installer.zip missing expected structure or may be incorrectly named."
-      echo "       Expected: ZCBuild_*_Installer/ZC_Installer/ZeroCopyInstaller.exe"
+      echo "       Expected: ZCBuild_*_Installer/ZC_Installer/IntelVirtDisplayInstallerPackage.exe"
       return 255
     fi
   fi
@@ -917,7 +918,7 @@ function install_windows() {
       echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml has formatting error!"
       return 255
     fi
-    if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
+    if [[ $SETUP_ENABLE_ADDITIONAL_INSTALLS -eq 1 && -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
       check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"
       if ! yamllint -d "{extends: relaxed, rules: {line-length: {max: 120}}}" "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml"; then
         echo "Error: Yaml file $scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml has formatting error!"
@@ -1018,12 +1019,12 @@ EOF
 \$tempdir="\$PSScriptRoot"
 \$GfxDir="\$tempdir\GraphicsDriver"
 \$SkipGFXInstall=\$False
-Start-Transcript -Path "\$tempdir\RunDVInstallerLogs.txt" -Force -Append
+Start-Transcript -Path "\$tempdir\RunIntelVirtDisplayInstallerLogs.txt" -Force -Append
 EOF
       if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 \$Host.UI.RawUI.WindowTitle = 'Check for installing Zero-copy drivers as required.'
-if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "DVServerUMD*" }) ) {
+if ( (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "IntelVirtDisplay*" }) ) {
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
@@ -1174,14 +1175,14 @@ EOF
         \$ErrorActionPreference = 'Stop'
         # Script restarts computer upon success
         Try {
-            & ".\DVInstaller.ps1"
+            & ".\IntelVirtDisplayInstaller.ps1"
         }
         Catch {
-            Write-Output "Zero-copy install script threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+            Write-Output "Zero-copy install script threw error. Check \$tempdir\RunIntelVirtDisplayInstallerLogs.txt"
         }
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install script did not reboot
-        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+        if (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") {
             Write-Output "Force compuer restart after Zero-copy driver install"
             Restart-Computer -Force
         }
@@ -1200,10 +1201,10 @@ EOF
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
         # ZeroCopy installer does not return with /NORESTART for -Wait.
-        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
+        \$p=Start-Process IntelVirtDisplayInstallerPackage.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
         if (\$? -ne \$True) {
-          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
-          Write-Output "Did not find Zero-copy driver service. Check/run ZeroCopyInstaller manually"
+          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunIntelVirtDisplayInstallerLogs.txt"
+          Write-Output "Did not find Zero-copy driver service. Check/run IntelVirtDisplayInstallerPackage.exe manually"
           Exit \$LastExitCode
         }
         # Give some time for installation to complete
@@ -1211,11 +1212,11 @@ EOF
         Start-Sleep -Seconds 60
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install did not reboot
-        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+        if (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") {
             Write-Output "Force computer restart after Zero-copy driver install"
             Restart-Computer -Force
         } Else {
-            Write-Output "Did not find Zero-copy driver service installed. Check/run ZeroCopyInstaller.exe manually"
+            Write-Output "Did not find Zero-copy driver service installed. Check/run IntelVirtDisplayInstallerPackage.exe manually"
         }
         Exit \$LastExitCode
 EOF
@@ -1234,13 +1235,13 @@ EOF
 \$tempdir="\$PSScriptRoot"
 \$GfxDir="\$tempdir\GraphicsDriver"
 \$SkipGFXInstall=\$False
-Start-Transcript -Path "\$tempdir\RunDVInstallerLogs.txt" -Force -Append
+Start-Transcript -Path "\$tempdir\RunIntelVirtDisplayInstallerLogs.txt" -Force -Append
 EOF
 
       if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
         tee -a "$fileserverdir/gfx_zc_install.ps1" &>/dev/null <<EOF
 \$Host.UI.RawUI.WindowTitle = 'Check for installing Zero-copy drivers as required.'
-if ( (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "DVServerUMD*" }) ) {
+if ( (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") -or (Get-CimInstance -ClassName Win32_VideoController | where-Object { \$_.Name -like "IntelVirtDisplay*" }) ) {
     Write-Output "Zero-copy driver already installed"
     Disable-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\'
     Unregister-ScheduledTask -TaskName 'RunZCDrvInstall' -TaskPath '\Microsoft\Windows\RunZCDrvInstall\' -Confirm:\$false
@@ -1373,14 +1374,14 @@ EOF
         \$ErrorActionPreference = 'Stop'
         # Script restarts computer upon success
         Try {
-            & ".\DVInstaller.ps1"
+            & ".\IntelVirtDisplayInstaller.ps1"
         }
         Catch {
-            Write-Output "Zero-copy install script threw error. Check \$tempdir\RunDVInstallerLogs.txt"
+            Write-Output "Zero-copy install script threw error. Check \$tempdir\RunIntelVirtDisplayInstallerLogs.txt"
         }
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install script did not reboot
-        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+        if (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") {
             Write-Output "Force compuer restart after Zero-copy driver install"
             Restart-Computer -Force
         }
@@ -1399,10 +1400,10 @@ EOF
         \$EAPBackup = \$ErrorActionPreference
         \$ErrorActionPreference = 'Stop'
         # ZeroCopy installer does not return with /NORESTART for -Wait.
-        \$p=Start-Process ZeroCopyInstaller.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
+        \$p=Start-Process IntelVirtDisplayInstallerPackage.exe -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WorkingDirectory "\$zcpname\ZC_Installer" -Verb RunAs -PassThru
         if (\$? -ne \$True) {
-          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunDVInstallerLogs.txt"
-          Write-Output "Did not find Zero-copy driver service. Check/run ZeroCopyInstaller manually"
+          Write-Output "Running Zero-copy installer threw error. Check \$tempdir\RunIntelVirtDisplayInstallerLogs.txt"
+          Write-Output "Did not find Zero-copy driver service. Check/run IntelVirtDisplayInstallerPackage.exe manually"
           Exit \$LastExitCode
         }
         # Give some time for installation to complete
@@ -1410,11 +1411,11 @@ EOF
         Start-Sleep -Seconds 60
         \$ErrorActionPreference = \$EAPBackup
         # check for installed driver and reboot in case zero-copy install did not reboot
-        if (Get-ScheduledTask -TaskName "DVEnabler" -TaskPath "\Microsoft\Windows\DVEnabler\") {
+        if (Get-ScheduledTask -TaskName "IntelVirtDisplayEnabler" -TaskPath "\Microsoft\Windows\IntelVirtDisplayEnabler\") {
             Write-Output "Force computer restart after Zero-copy driver install"
             Restart-Computer -Force
         } Else {
-            Write-Output "Did not find Zero-copy driver service installed. Check/run ZeroCopyInstaller.exe manually"
+            Write-Output "Did not find Zero-copy driver service installed. Check/run IntelVirtDisplayInstallerPackage.exe manually"
         }
         Exit \$LastExitCode
 EOF
@@ -1444,7 +1445,7 @@ EOF
   sed -i "s|%FILE_SERVER_URL%|$file_server_url|g" "$dest_tmp_path/autounattend.xml"
 
   # setup additional Windows guest installations
-  if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
+  if [[ $SETUP_ENABLE_ADDITIONAL_INSTALLS -eq 1 && -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
     setup_additional_installs "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" \
       "$fileserverdir" "$file_server_url" "$dest_tmp_path/autounattend.xml" || return 255
   fi
@@ -1641,7 +1642,7 @@ function show_help() {
 
     required_files_help+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
     required_files_help+=("Driver-Release-64-bit.[zip|7z]") 
-    printf "%s [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--non-whql-gfx-installer] [--force] [--viewer] [--debug] [--dl-fail-exit] [--gen-gfx-zc-script]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "%s [-h] [-p] [--disk-size] [--no-sriov] [--non-whql-gfx] [--non-whql-gfx-installer] [--force] [--viewer] [--debug] [--dl-fail-exit] [--gen-gfx-zc-script] [--enable-additional-installs]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Create Windows vm required images and data to dest folder %s.qcow2\n" "$LIBVIRT_DEFAULT_IMAGES_PATH/${WIN_DOMAIN_NAME}"
     printf "Place required Windows installation files as listed below in guest_setup/ubuntu/%s folder prior to running.\n" "$WIN_UNATTEND_FOLDER"
     printf "("
@@ -1669,6 +1670,7 @@ function show_help() {
     printf "\t--debug                   Do not remove temporary files. For debugging only.\n"
     printf "\t--dl-fail-exit            Do not continue on any additional installation file download failure.\n"
     printf "\t--gen-gfx-zc-script       Generate SRIOV setup Powershell helper script only, do not run any installation.\n"
+    printf "\t--enable-additional-installs  Enable optional installs from additional_installs.yaml (disabled by default).\n"
 }
 
 function parse_arg() {
@@ -1722,6 +1724,10 @@ function parse_arg() {
             --gen-gfx-zc-script)
                 GEN_GFX_ZC_SCRIPT_ONLY=1
                 ;;
+
+            --enable-additional-installs)
+              SETUP_ENABLE_ADDITIONAL_INSTALLS=1
+              ;;
 
             -?*)
                 echo "Error: Invalid option $1"

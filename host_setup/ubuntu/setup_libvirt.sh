@@ -373,50 +373,6 @@ if [[ "\${1}" == "ubuntu" ]]; then
     /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
   fi
 
-elif [[ "\${1}" == "windows" ]]; then
-
-  # Update the following variables to fit your setup
-  GUEST_IP=192.168.122.22
-  declare -A HOST_PORTS
-  HOST_PORTS=([22]=2222 [3389]=3389)
-
-  for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
-    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
-    fi
-    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
-    fi
-  done
-
-elif [[ "\${1}" == "android" ]]; then
-
-  # Update the following variables to fit your setup
-  GUEST_IP=192.168.122.33
-  declare -A HOST_PORTS
-  HOST_PORTS=([22]=3333 [5554]=5554 [5555]=5555)
-
-  for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
-    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
-    fi
-    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport "\${HOST_PORTS[\$GUEST_PORT]}" -j DNAT --to "\$GUEST_IP:\$GUEST_PORT"
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d "\$GUEST_IP" --dport "\$GUEST_PORT" -j MASQUERADE
-    fi
-  done
-
 elif [[ "\${1}" == "ubuntu_rt" ]]; then
 
   # Update the following variables to fit your setup

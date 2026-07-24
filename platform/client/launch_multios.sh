@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -10,9 +10,7 @@ set -Eeuo pipefail
 # Define supported VM domains and configuration files
 declare -A VM_DOMAIN=(
   ["ubuntu"]="ubuntu_vnc_spice.xml"
-  ["windows"]="windows_vnc_spice_ovmf.xml"
   ["ubuntu_rt"]="ubuntu_rt_headless.xml"
-  ["android"]="android_virtio-gpu.xml"
   ["windows11"]="windows11_vnc_spice_ovmf.xml"
 )
 
@@ -51,7 +49,7 @@ FORCE_LAUNCH="false"
 # Set default vm config xml file directory
 XML_DIR="./platform/client/libvirt_xml"
 
-# Set default BIOS used for windows VM
+# Set default BIOS used for windows11 VM
 BIOS_WIN="ovmf"
 
 # Disable SRIOV by default
@@ -68,9 +66,7 @@ LAST_PASSTHROUGH_VM=""
 # This variable is used to check if the domain is already defined
 declare -A REDEFINE_DOMAIN=(
   ["ubuntu"]=1
-  ["windows"]=1
   ["ubuntu_rt"]=1
-  ["android"]=1
   ["windows11"]=1
 )
 
@@ -224,16 +220,8 @@ function parse_arg() {
               show_help
               exit 255
             fi
-            # No VNC/SPICE/headless display support for Android
-            if [[ "$1" == "android" ]]; then
-              if [[ "${display}" == "vnc" || "${display}" == "spice" || "${display}" == "spice-gst" || "${display}" == "headless" ]]; then
-                log_error "VNC/SPICE/SPICE-GST/headless display for Android is not supported."
-                show_help
-                exit 255
-              fi
-            fi
             if [[ ! "${VM_DOMAIN[$1]}" =~ ${display} ]]; then
-              if [[ "$1" == "windows" || "$1" == "windows11" ]]; then
+              if [[ "$1" == "windows11" ]]; then
                 VM_DOMAIN[$1]="${1}_${display}_${BIOS_WIN}.xml"
               else
                 VM_DOMAIN[$1]="${1}_${display}.xml"
@@ -618,9 +606,7 @@ function launch_domains() {
   # Array to store the domains to launch
   local -A EXCLUDED_DOMAIN_BY_USER=(
     ["ubuntu"]=0
-    ["windows"]=0
     ["ubuntu_rt"]=0
-    ["android"]=0
     ["windows11"]=0
   )
 
@@ -788,7 +774,7 @@ function passthrough_devices() {
           # Process TPM device parameters
           ((i+=1))
           tpm_backend_type=${devices[$i]}
-          if [[ "$tpm_backend_type" != "passthrough" ]] || grep -q 'android' <<< "$domain_xml_info"; then
+          if [[ "$tpm_backend_type" != "passthrough" ]]; then
             log_error "tpm backend type $tpm_backend_type is not supported for domain $domain"
             show_help
             exit 255
