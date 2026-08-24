@@ -10,7 +10,6 @@
 1. [Virtual Machine Image Creation](#virtual-machine-image-creation)
     1. [Ubuntu/Ubuntu RT VM Image Creation](#ubuntuubuntu-rt-vm-image-creation)
     1. [Windows VM Image Creation](#windows-vm-image-creation)
-    1. [Android VM Image Creation](#android-vm-image-creation)
 1. [VM Definition](#vm-definition)
 1. [VM Management](#vm-management)
     1. [VM vCPU Allocation](#vm-vcpu-allocation)
@@ -49,21 +48,11 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
     - Ubuntu 24.04
-    - Windows 10 IoT Enterprise LTSC 21H2
     - Windows 11 IoT Enterprise 24H2
-    - Android CiV from Celadon Project *
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 - Cloning of VMs with SR-IOV Multi-Display support enabled.
 - Launching multiple VMs using SPICE with GStreamer acceleration via SR-IOV support.
 - Qemu hardware cursor feature enabled.
-
-Note:
-* The KVM MultiOS Portfolio release provides only limited support for Android CiV guests.
-  It is intended solely for demonstration purposes and is not validated.
-  Users are encouraged to collaborate with ISV/OSV partners to evaluate and develop the solution using a reference Base Release from the Celadon Project.
-  For more information, please visit:
-  * [Celadon Ecosystem](https://www.intel.com/content/www/us/en/developer/topic-technology/open/celadon/ecosystem.html)
-  * [Celadon Base Releases](https://projectceladon.github.io/celadon-documentation/release-notes/base-releases.html)
 
 # Intel IoT Platforms Supported
 | Supported Intel IoT platform | Detailed Name |
@@ -125,8 +114,6 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | VM Operating System | Domain name | MAC address | IP address | VNC port | SPICE port |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Ubuntu | ubuntu | 52:54:00:ab:cd:11 | 192.168.122.11 | 5901 | 5951 |
-| Windows 10 | windows | 52:54:00:ab:cd:22 | 192.168.122.22 | 5902 | 5952 |
-| Android | android | 52:54:00:ab:cd:33 | 192.168.122.33 | - | - |
 | Ubuntu RT | ubuntu_rt | 52:54:00:ab:cd:44 | 192.168.122.44 | - | - |
 | Windows 11 | windows11 | 52:54:00:ab:cd:55 | 192.168.122.55 | 5905 | 5955 |
 | Redhat | redhat | 52:54:00:ab:cd:33 | 192.168.122.33 | 5903 | 5953 |
@@ -140,14 +127,6 @@ KVM MultiOS Portfolio release is laid out as summarised below.
 | ubuntu_gvtd.xml | Ubuntu | Local Display | GVT-d in legacy mode | UEFI | Yes |
 | ubuntu_sriov.xml | Ubuntu | Local Display | SR-IOV | UEFI | Yes |
 | ubuntu_rt_headless.xml | Ubuntu RT | Headless | None | UEFI | Yes |
-| windows_vnc_spice_ovmf.xml | Windows 10 | VNC/SPICE | None | UEFI | Yes |
-| windows_spice-gst_ovmf.xml | Windows 10 | SPICE with gstreamer integration | SR-IOV | UEFI | Yes |
-| windows_gvtd_ovmf.xml | Windows 10 | Local Display | GVT-d in legacy mode| UEFI | Yes |
-| windows_gvtd_upt_ovmf.xml | Windows 10 | VNC | GVT-d in UPT mode | UEFI | No |
-| windows_sriov_ovmf.xml | Windows 10 | Local Display | SR-IOV | UEFI | Yes |
-| android_virtio-gpu.xml | Android | Local Display | Virtio-GPU | UEFI | Yes |
-| android_gvtd.xml | Android | Local Display | GVT-d in legacy mode | UEFI | Yes |
-| android_sriov.xml | Android | Local Display | SR-IOV | UEFI | Yes |
 | centos_vnc_spice.xml | CentOS | VNC/SPICE | None | UEFI | Yes |
 | redhat_vnc_spice.xml | Redhat | VNC/SPICE | None | UEFI | Yes |
 | windows11_vnc_spice_ovmf.xml | Windows 11 | VNC/SPICE | None | UEFI | Yes |
@@ -191,9 +170,6 @@ Refer [here](ubuntu_vm.md#automated-ubuntuubuntu-rt-vm-installation) for steps o
 ## Windows VM Image Creation 
 Refer [here](windows_vm.md#automated-windows-vm-installation) for steps on creating Window VM image for using GPU virtualization technologies for Intel IoT platforms.
 
-## Android VM Image Creation
-Refer [here](android_vm.md#android-vm-auto-installation) for steps on creating Android VM image for using GPU virtualization technologies for Intel IoT platforms.
-
 # VM Definition
 KVM MultiOS Portfolio release provides default VM configurations for supported guest operating system and GPU/display virtualization desired as per libvirt XML schema.
 Refer to [xml naming convention](#guest-os-libvirt-domain-xml-naming-convention) for XML file naming used.
@@ -226,9 +202,9 @@ The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where 
 
 The number of vCPUs allocated to VM could be found in the \<vcpu\> element of XML file which could be modified accordingly to desired values.
 
-For example, the below shows 2 vCPU allocation for windows 10 guest VM.
+For example, the below shows 2 vCPU allocation for windows 11 guest VM.
 
-        <name>windows</name>
+        <name>windows11</name>
         ...
         <vcpu>2</vcpu>
         ...
@@ -367,9 +343,9 @@ The XML file could then be found at ./platform/\<platform_name\>/xxxx.xml where 
 
 The memory allocated to VM could be found in the \<memory\> and \<currentMemory\> elements of XML file which could be modified accordingly to desired values. The unit is default to "KiB" for kibibytes (1024 bytes) unless otherwise specified.
 
-For example, the below shows 4GB allocation for windows 10 guest VM.
+For example, the below shows 4GB allocation for windows 11 guest VM.
 
-        <name>windows</name>
+        <name>windows11</name>
         ...
         <memory>4194304</memory>
         <currentMemory>4194304</currentMemory>
@@ -401,7 +377,7 @@ To Launch one or more guest VM domain(s) and passthrough device(s) with libvirt 
     <tr><td rowspan="5">-p</td><td>&ltdomain&gt --usb &ltdevice_type&gt [N]</td><td>Passthrough Nth USB device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --usbtree &lttree&gt [N]</td><td>Passthrough Nth USB bus device tree in host of topology &lttree&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --pci &ltdevice_type&gt [N]</td><td>Passthrough Nth PCI device in host of type &ltdevice_type&gt in description to VM of name &ltdomain&gt</td></tr>
-    <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt. Note: not supported on Android VM in this release</td></tr>
+    <tr><td>&ltdomain&gt --tpm &lttype&gt &ltmodel&gt</td><td>Passthrough TPM device in host with backend type &lttype&gt and &ltmodel&gt in description to VM of name &ltdomain&gt</td></tr>
     <tr><td>&ltdomain&gt --xml &ltfile&gt</td><td>Passthrough device(s) in &ltfile&gt according to libvirt Domain XML format to VM of name &ltdomain&gt</td></tr>
     <tr><td rowspan="6">-m</td><td>&ltdomain&gt --output &ltN&gt</td><td>Specify the number of guest displays N (range: 1-4) assigned to the &ltdomain&gt. The --connectors option must be specified together.</td></tr>
     <tr><td>&ltdomain&gt --connectors &ltdisplay_port&gt </td><td>Specify the display connector assigned to the &ltdomain&gt. </br>Refer to the note below on retrieving the names of the display ports. </br>Also refer to the examples below for detailed usage of &ltdisplay_port&gt.</td></tr>
@@ -457,34 +433,34 @@ For this sample output, the connected displays are at DP-1 and HDMI-1.
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d ubuntu</td><td>To launch ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu</td><td>To force launch ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g gvtd ubuntu</td><td>To force launch ubuntu guest VM configured with GVT-d display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g gvtd windows</td><td>To force launch windows guest VM configured with GVT-d display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g gvtd windows11</td><td>To force launch windows 11 guest VM configured with GVT-d display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g vnc ubuntu</td><td>To force launch ubuntu guest VM with VNC display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g vnc windows</td><td>To force launch windows guest VM with VNC display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g vnc windows11</td><td>To force launch windows 11 guest VM with VNC display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g spice ubuntu</td><td>To force launch ubuntu guest VM with SPICE display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g spice windows</td><td>To force launch windows guest VM with SPICE display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g spice windows11</td><td>To force launch windows 11 guest VM with SPICE display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -g spice-gst ubuntu</td><td>To force launch ubuntu guest VM with SPICE-GST (SPICE with GStreamer acceleration) display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g spice-gst windows</td><td>To force launch windows guest VM with SPICE-GST (SPICE with GStreamer acceleration) display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -g sriov windows</td><td>To force launch windows 10 guest VM configured with SR-IOV display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows</td><td>To force launch all guest VMs, ubuntu and windows 10 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g spice-gst windows11</td><td>To force launch windows 11 guest VM with SPICE-GST (SPICE with GStreamer acceleration) display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -g sriov windows11</td><td>To force launch windows 11 guest VM configured with SR-IOV display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -g sriov ubuntu windows11</td><td>To force launch all guest VMs, ubuntu and windows 11 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu -n sriov ubuntu</td><td>To force launch ubuntu guest VM configured with SR-IOV network (if supported by NIC)</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows -n &ltnetwork_name&gt windows</td><td>To force launch windows 10 guest VM configured with a network from 'virsh net-list --name'</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu windows -n sriov ubuntu windows</td><td>To force launch Ubuntu and Windows guest VMs both configured with SR-IOV network (if supported by NIC)</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu windows windows11 -n &ltnetwork_name&gt ubuntu windows -n sriov windows11</td><td>To force launch multiple guest VMs with Ubuntu and Windows 10 configured with a custom network, and Windows 11 configured with SR-IOV network</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -n sriov ubuntu windows -n &ltnetwork_name&gt windows11</td><td>To force launch all guest VMs, with Ubuntu and Windows 10 configured with SR-IOV network, and Windows 11 configured with a network from 'virsh net-list --name'</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d windows11 -n &ltnetwork_name&gt windows11</td><td>To force launch windows 11 guest VM configured with a network from 'virsh net-list --name'</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu windows11 -n sriov ubuntu windows11</td><td>To force launch Ubuntu and Windows 11 guest VMs both configured with SR-IOV network (if supported by NIC)</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -d ubuntu windows11 -n &ltnetwork_name&gt ubuntu -n sriov windows11</td><td>To force launch multiple guest VMs with Ubuntu configured with a custom network, and Windows 11 configured with SR-IOV network</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -n sriov ubuntu -n &ltnetwork_name&gt windows11</td><td>To force launch all guest VMs, with Ubuntu configured with SR-IOV network, and Windows 11 configured with a network from 'virsh net-list --name'</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard</td><td>To force launch all guest VMs and passthrough USB Keyboard to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usbtree bus-port_L1.port_L2...port_Lx </td><td>To force launch all guest VMs and passthrough USB devices to guest VM, using USB tree topology containing the bus and port numbers (see section below).</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci wi-fi</td><td>To force launch all guest VMs and passthrough PCI WiFi to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --pci network controller 2</td><td>To force launch all guest VMs and passthrough the 2nd PCI Network Controller in lspci list to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --tpm passthrough crb</td><td>To force launch all guest VMs and passthrough TPM with crb model to ubuntu guest VM</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs and passthrough the device(s) in the XML file to ubuntu guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows 10 guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 10 guest VM</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --connectors DP-1</td><td>To launch windows 10 guest VM with SR-IOV graphics on DP-1 physical display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --connectors DP-1 -full-screen</td><td>To launch windows 10 guest VM with SR-IOV graphics on DP-1 physical display in full screen mode</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors DP-1,DP-1 </td><td>To launch windows 10 guest VM with 2 guest display windows on a single DP-1 physical display</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows -g sriov windows -m windows --output 2 --connectors DP-1,HDMI-1 --full-screen</td><td>To launch windows 10 guest VM with 2 guest displays in full-screen mode on HDMI-1 and DP-1 physical displays</td></tr>
-    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d ubuntu windows -g sriov ubuntu windows -m ubuntu --connectors DP-1 -m windows --connectors HDMI-1 </td><td>To launch ubuntu and windows 10 guest VMs with ubuntu guest display window on DP-1 physical display and windows guest display window on HDMI-1 physical display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard -p windows11 --pci wi-fi -p ubuntu --xml xxxx.xml</td><td>To force launch all guest VMs, passthrough USB Keyboard to ubuntu guest VM, passthrough PCI WiFi to windows 11 guest VM, and passthrough device(s) in the XML file to ubuntu guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet -p windows11 --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 11 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -f -a -p ubuntu --usb keyboard --usb ethernet --tpm passthrough crb -p windows11 --usb mouse --pci wi-fi</td><td>To force launch all guest VMs, passthrough USB Keyboard, USB ethernet and TPM device to ubuntu guest VM, passthrough USB Mouse and PCI WiFi to windows 11 guest VM</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -g sriov windows11 -m windows11 --connectors DP-1</td><td>To launch windows 11 guest VM with SR-IOV graphics on DP-1 physical display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -g sriov windows11 -m windows11 --connectors DP-1 -full-screen</td><td>To launch windows 11 guest VM with SR-IOV graphics on DP-1 physical display in full screen mode</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -g sriov windows11 -m windows11 --output 2 --connectors DP-1,DP-1 </td><td>To launch windows 11 guest VM with 2 guest display windows on a single DP-1 physical display</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -g sriov windows11 -m windows11 --output 2 --connectors DP-1,HDMI-1 --full-screen</td><td>To launch windows 11 guest VM with 2 guest displays in full-screen mode on HDMI-1 and DP-1 physical displays</td></tr>
+    <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d ubuntu windows11 -g sriov ubuntu windows11 -m ubuntu --connectors DP-1 -m windows11 --connectors HDMI-1 </td><td>To launch ubuntu and windows 11 guest VMs with ubuntu guest display window on DP-1 physical display and windows guest display window on HDMI-1 physical display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g sriov windows11</td><td>To force launch windows 11 guest VM configured with SR-IOV display</td></tr>
     <tr><td rowspan="1">./platform/xxxx/launch_multios.sh -d windows11 -f -g gvtd windows11</td><td>To force launch windows 11 guest VM configured with GVT-d display</td></tr>
 </table>
@@ -544,7 +520,7 @@ Lastly, to start guest VMs and passthrough the keyboards to the various guest VM
             $ ./platform/client/launch_multios.sh -f -d windows11 -g sriov windows11 -p windows11 --usbtree 3-12
 
             # Dev 019
-            $ ./platform/client/launch_multios.sh -f -d windows -g sriov windows -p windows --usbtree 3-4.4
+            $ ./platform/client/launch_multios.sh -f -d windows11 -g sriov windows11 -p windows11 --usbtree 3-4.4
 
             # Dev 021
             $ ./platform/client/launch_multios.sh -f -d ubuntu -g sriov ubuntu -p ubuntu --usbtree 3-2.1
@@ -727,7 +703,7 @@ The script supports two methods for specifying the cloning source:
 
 The `-s` (Existing Domain) option clones from an existing, defined domain on the system (visible in `virsh list --all`). The cloned VM will use a duplicate copy of the source domain's XML configuration and inherit the same graphics configuration (VNC, SPICE, SR-IOV, GVT-d, etc.). By default, the source domain's disk image is duplicated to create a new independent disk image for the cloned VM.
 
-With the `-x` (XML Template) option, the script clones from an XML template file in the `platform/<platform>/libvirt_xml/` directory. This allows you to create a new VM with a specific graphics setup by selecting the appropriate XML file (e.g., `windows_sriov_ovmf.xml` for SR-IOV, `windows_vnc_spice_ovmf.xml` for VNC/SPICE). When used alone, the disk image referenced in the XML file must already exist. By default, it will be duplicated to create a new independent disk image for the cloned VM.
+With the `-x` (XML Template) option, the script clones from an XML template file in the `platform/<platform>/libvirt_xml/` directory. This allows you to create a new VM with a specific graphics setup by selecting the appropriate XML file (e.g., `windows11_sriov_ovmf.xml` for SR-IOV, `windows11_vnc_spice_ovmf.xml` for VNC/SPICE). When used alone, the disk image referenced in the XML file must already exist. By default, it will be duplicated to create a new independent disk image for the cloned VM.
 
 ### Image Handling Options
 The script provides several options for handling disk images during cloning:
@@ -814,8 +790,8 @@ The script also provides a system state summary feature (--sys_state) that displ
         # Clone from existing ubuntu domain, auto search available iGPU VF starting from 4
         ./guest_setup/ubuntu/clone_guest.sh -s ubuntu -n ubuntu_2 -p client --igpu_vf_auto 4
 
-        # Clone from windows xml, using iGPU VF 4
-        ./guest_setup/ubuntu/clone_guest.sh -x windows_sriov_ovmf.xml -n windows_2 -p client --igpu_vf 4
+        # Clone from windows11 xml, using iGPU VF 4
+        ./guest_setup/ubuntu/clone_guest.sh -x windows11_sriov_ovmf.xml -n windows11_2 -p client --igpu_vf 4
 
         # Import existing qcow2 image with ubuntu configuration
         ./guest_setup/ubuntu/clone_guest.sh -x ubuntu_sriov.xml --import_data /path/to/existing.qcow2 -n ubuntu_imported -p client
@@ -829,12 +805,12 @@ The script also provides a system state summary feature (--sys_state) that displ
 ### Launching Cloned Domains
 New domain created will be automatically added to the platform launch_multios.sh and the domain xml saved in the libvirt_xml folder. The new domain can be launched via virsh or launch_multios.sh
 
-        # Launch ubuntu_x/windows_x via virsh
+        # Launch ubuntu_x/windows11_x via virsh
         virsh start ubuntu_x
-        virsh start windows_x
+        virsh start windows11_x
 
-        # Launch both ubuntu/windows and ubuntu_x/windows_x via launch_multios.sh
-        ./platform/<plat>/launch_multios.sh -d ubuntu ubuntu_x windows windows_x -g sriov ubuntu ubuntu_x windows windows_x
+        # Launch both ubuntu/windows11 and ubuntu_x/windows11_x via launch_multios.sh
+        ./platform/<plat>/launch_multios.sh -d ubuntu ubuntu_x windows11 windows11_x -g sriov ubuntu ubuntu_x windows11 windows11_x
 
 ## VM Snapshots
 The VM Snapshot functionality in KVM MultiOS provides users with the capability to record the state of a virtual machine (VM) at a designated moment. This snapshot serves as a restore point, allowing users to revert the VM to its previous state when necessary. This feature is invaluable for scenarios involving backup, testing, and recovery, as it ensures data integrity and system consistency. By utilizing VM snapshots, users can efficiently manage changes, test configurations, and safeguard against data loss, making it an essential tool for maintaining robust virtual environments.

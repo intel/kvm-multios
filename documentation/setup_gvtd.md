@@ -3,7 +3,7 @@
   1. [BIOS Setup](#bios-setup)
   1. [Prerequisites](#prerequisites)
   1. [Running KVM MultiOS Host Setup](#running-kvm-multios-host-setup)
-  1. [Build OVMF binaries for Windows GVT-d](#build-ovmf-binaries-for-windows-gvt-d)
+  1. [Build OVMF binaries for Windows11 GVT-d](#build-ovmf-binaries-for-windows11-gvt-d)
 1. [Virtual Machine Additional Setup for GVT-d](#virtual-machine-additional-setup-for-gvt-d)
 
 This setup guide provide the procedures to configure the host and VMs for using GVT-d with KVM MultiOS Portfolio release.
@@ -37,8 +37,8 @@ Host platform DUT setup:
 3. Refer to [here](README.md#virtual-machine-image-creation) for steps on creating desired VM images for running on host platform.
 Refer to platforms support documentation [here](platforms.md) for detailed information on what guest operating systems are supported on each platform. 
 
-## Build OVMF Binaries for Windows GVT-d
-OVMF binaries used for Windows with GVT-d need to be patched (0001-OvmfPkg-add-IgdAssignmentDxe.patch), else GPU driver would not load properly in windows VM.
+## Build OVMF Binaries for Windows11 GVT-d
+OVMF binaries used for Windows11 with GVT-d need to be patched (0001-OvmfPkg-add-IgdAssignmentDxe.patch), else GPU driver would not load properly in windows11 VM.
 
 To build the OVMF binaries, run
 
@@ -69,18 +69,13 @@ The libvirt xml should include
     <qemu:arg value='device.ua-igpu.x-igd-gms=2'/>
   </qemu:commandline>
 ````
-## Windows VM Additional Setup
-### Windows GVT-d UPT mode
-For first time setup of the Windows VM with GVT-d, it is easier to use UPT mode, where the main display is a VNC and the iGPU is the secondary<br>
+## Windows11 VM Additional Setup
+### Windows11 GVT-d UPT mode
+For first time setup of the Windows11 VM with GVT-d, it is easier to use UPT mode, where the main display is a VNC and the iGPU is the secondary<br>
 
 Use VNC display to install GPU graphics driver and verify installed driver is initialized properly
 
-1. Launch Windows VM in UPT mode
-
-   for Windows 10
-
-        sudo virsh define ./platform/client/libvirt_xml/windows_gvtd_upt_ovmf.xml
-        sudo virsh start windows
+1. Launch Windows11 VM in UPT mode
 
    for Windows 11
 
@@ -89,13 +84,13 @@ Use VNC display to install GPU graphics driver and verify installed driver is in
 
 2. Install Intel Graphics GPU graphic driver.
 
-### Windows GVT-d Legacy mode
+### Windows11 GVT-d Legacy mode
 Legacy mode is used when iGPU is configured as the main display.<br>
-Before launching the windows in legacy GVT-d, ensure the VM can be connected via remote desktop for first time installation of the graphic driver
+Before launching the windows11 in legacy GVT-d, ensure the VM can be connected via remote desktop for first time installation of the graphic driver
 
-1. Refer to [VM Launch](README.md#vm-launch) to launch Windowd VM with GVT-d. 
+1. Refer to [VM Launch](README.md#vm-launch) to launch Windowd11 VM with GVT-d.
 
-2. Log in to Windows VM using remote desktop to install Intel Graphics GPU driver and reboot.
+2. Log in to Windows11 VM using remote desktop to install Intel Graphics GPU driver and reboot.
 
 # Ubuntu VM Additional Setup
 
