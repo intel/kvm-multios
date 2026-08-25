@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -111,7 +111,6 @@ tee default_network.xml &>/dev/null <<EOF
     <dhcp>
       <range start='192.168.122.2' end='192.168.122.254'/>
       <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.122.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.122.22'/>
       <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.122.55'/>
       <host mac='52:54:00:ab:cd:66' name='redhat' ip='192.168.122.66'/>
       <host mac='52:54:00:ab:cd:77' name='centos' ip='192.168.122.77'/>
@@ -143,8 +142,6 @@ tee isolated-guest-net.xml &>/dev/null <<EOF
     <dhcp>
       <range start='192.168.200.2' end='192.168.200.254'/>
       <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.200.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.200.22'/>
-      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.200.33'/>
       <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.200.44'/>
       <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.200.55'/>
     </dhcp>
@@ -189,28 +186,6 @@ if [[ "\${1}" == "ubuntu" ]]; then
     /sbin/iptables -t nat -I OUTPUT -p tcp --dport \$HOST_PORT -j DNAT --to \$GUEST_IP:\$GUEST_PORT
     /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
   fi
-
-elif [[ "\${1}" == "windows" ]]; then
-
-  # Update the following variables to fit your setup
-  GUEST_IP=192.168.122.22
-  declare -A HOST_PORTS
-  HOST_PORTS=([22]=2222 [3389]=3389)
-
-  for GUEST_PORT in "\${!HOST_PORTS[@]}"; do
-    if [[ "\${2}" == "stopped" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -D FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -D PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -D POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
-    fi
-    if [[ "\${2}" == "start" ]] || [[ "\${2}" == "reconnect" ]]; then
-      /sbin/iptables -I FORWARD -o virbr0 -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j ACCEPT
-      /sbin/iptables -t nat -I PREROUTING -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I OUTPUT -p tcp --dport \${HOST_PORTS[\$GUEST_PORT]} -j DNAT --to \$GUEST_IP:\$GUEST_PORT
-      /sbin/iptables -t nat -I POSTROUTING -p tcp -d \$GUEST_IP --dport \$GUEST_PORT -j MASQUERADE
-    fi
-  done
 
 elif [[ "\${1}" == "windows11" ]]; then
 

@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2025 Intel Corporation.
+# Copyright (c) 2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -46,8 +46,6 @@ function create_default_network() {
     <dhcp>
       <range start='192.168.122.2' end='192.168.122.254'/>
       <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.122.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.122.22'/>
-      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.122.33'/>
       <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.122.44'/>
       <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.122.55'/>
     </dhcp>
@@ -89,8 +87,6 @@ function create_isolated_network() {
     <dhcp>
       <range start='192.168.200.2' end='192.168.200.254'/>
       <host mac='52:54:00:ab:cd:11' name='ubuntu' ip='192.168.200.11'/>
-      <host mac='52:54:00:ab:cd:22' name='windows' ip='192.168.200.22'/>
-      <host mac='52:54:00:ab:cd:33' name='android' ip='192.168.200.33'/>
       <host mac='52:54:00:ab:cd:44' name='ubuntu_rt' ip='192.168.200.44'/>
       <host mac='52:54:00:ab:cd:55' name='windows11' ip='192.168.200.55'/>
     </dhcp>
