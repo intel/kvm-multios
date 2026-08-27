@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2023-2025 Intel Corporation.
+# Copyright (c) 2023-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -324,10 +324,32 @@ function host_update_cmdline() {
     fi
 }
 
+function print_display_login_error() {
+    local -a session_types=()
+    mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+
+    if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
+        echo "Error: Host graphical session is Wayland, but an Xorg session is required."
+        echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
+        echo "       then run 'sudo systemctl restart gdm' or reboot the host."
+    else
+        echo "Error: Please log in to the host's graphical login screen on the physical display."
+    fi
+}
+
 function host_customise_ubuntu() {
     # Switch to Xorg
     check_file_valid_nonzero "/etc/gdm3/custom.conf"
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
+    # Ubuntu 24.04 and later no longer ship a commented out WaylandEnable entry.
+    if ! grep -q '^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false' /etc/gdm3/custom.conf; then
+        if grep -q '^\[daemon\]' /etc/gdm3/custom.conf; then
+            sudo sed -i '0,/^\[daemon\]/s//[daemon]\nWaylandEnable=false/' /etc/gdm3/custom.conf
+        else
+            printf '[daemon]\nWaylandEnable=false\n' | sudo tee -a /etc/gdm3/custom.conf > /dev/null
+        fi
+        reboot_required=1
+    fi
 
     if ! grep -Fq 'kernel.printk = 7 4 1 7' /etc/sysctl.d/99-kernel-printk.conf; then
         echo 'kernel.printk = 7 4 1 7' | sudo tee -a /etc/sysctl.d/99-kernel-printk.conf
@@ -360,7 +382,7 @@ EOF
         user_id=$(id -u "$user")
         display=$(who | { grep -o ' :.' || :; } | xargs)
         if [[ -z $display ]]; then
-          echo "Error: Please log in to the host's graphical login screen on the physical display."
+          print_display_login_error
           return 255
         fi
         local environment=("DISPLAY=$display" "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$user_id/bus")

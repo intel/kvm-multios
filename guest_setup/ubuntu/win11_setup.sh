@@ -889,6 +889,19 @@ EOF
   fi
 }
 
+function print_display_login_error() {
+  local -a session_types=()
+  mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+
+  if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
+    echo "Error: Host graphical session is Wayland, but an Xorg session is required."
+    echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
+    echo "       then run 'sudo systemctl restart gdm' or reboot the host."
+  else
+    echo "Error: Please log in to the host's graphical login screen on the physical display."
+  fi
+}
+
 function install_windows() {
   local dest_tmp_path
   dest_tmp_path=$(realpath "/tmp/${WIN_DOMAIN_NAME}_install_tmp_files")
@@ -896,11 +909,6 @@ function install_windows() {
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   local display
   display=$(who | { grep -o ' :.' || :; } | xargs)
-
-  if [[ -z $display ]]; then
-    echo "Error: Please log in to the host's graphical login screen on the physical display."
-    return 255
-  fi
 
   if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
     # install dependencies
@@ -928,6 +936,11 @@ function install_windows() {
     if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
       REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
       REQUIRED_FILES+=("Driver-Release-64-bit.[zip|7z]")
+      # A local Xorg display is required only for the SR-IOV installation
+      if [[ -z $display ]]; then
+        print_display_login_error
+        return 255
+      fi
       if [[ $(xrandr -d "$display" | grep -c "\bconnected\b") -lt 1 ]]; then
           echo "Error: Need at least 1 display connected for SR-IOV install."
           return 255

@@ -769,6 +769,14 @@ function update_ubuntu_cfg() {
     # Setup SRIOV graphics
     # Switch to Xorg
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
+    # Ubuntu 24.04 and later no longer ship a commented out WaylandEnable entry
+    if ! grep -q '^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false' /etc/gdm3/custom.conf; then
+        if grep -q '^\[daemon\]' /etc/gdm3/custom.conf; then
+            sudo sed -i '0,/^\[daemon\]/s//[daemon]\nWaylandEnable=false/' /etc/gdm3/custom.conf
+        else
+            printf '[daemon]\nWaylandEnable=false\n' | sudo tee -a /etc/gdm3/custom.conf > /dev/null
+        fi
+    fi
     if ! grep -Fq 'needs_root_rights=no' /etc/X11/Xwrapper.config; then
         echo 'needs_root_rights=no' | sudo tee -a /etc/X11/Xwrapper.config
     fi
