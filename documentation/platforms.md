@@ -54,7 +54,7 @@ Windows Zero-copy driver release: 5.0.0.2319</br>
 ## Wildcat Lake
 | Hardware Board Type | Silicon/Stepping/QDF | PCH Stepping/QDF |
 |:---|:---|:---|
-| Wildcat Lake SODIMM DDR5 | Wildcat Lake Silicon A0 (ES1) and beyond | NA |
+| Wildcat Lake SODIMM DDR5 | Wildcat Lake Silicon A1 and beyond | NA |
 
 <table>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
@@ -68,9 +68,9 @@ Windows Zero-copy driver release: 5.0.0.2319</br>
     </tr>
    <tr>
    <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.7922 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/66b28d24-251c-4c0a-8a19-82bc599deac3/public/windows11.0-kb5077241-x64_739bca934f7f45038f9752637f632afa52c35f75.msu">(kb5077241)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8572</br>
-Windows Zero-copy driver release: 5.0.0.2319</br>
+Window 11 OS patch required: Windows11.0 26100.8737 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/0c7a093a-ecf2-4386-afa5-75bcd763ae00/public/windows11.0-kb5095093-x64_871fd990cedd9d3da6c90ca8b1dd0cc62b42c330.msu">(kb5095093)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.8860</br>
+Windows Zero-copy driver release: 5.0.0.2537</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>

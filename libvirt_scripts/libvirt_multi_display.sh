@@ -14,11 +14,24 @@ GUEST_MAX_OUTPUTS=1
 GUEST_CONNECTORS=""
 
 #---------      Functions    -------------------
+function print_display_login_error() {
+    local -a session_types=()
+    mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+
+    if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
+        echo "Error: Host graphical session is Wayland, but an Xorg session is required."
+        echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
+        echo "       then run 'sudo systemctl restart gdm' or reboot the host."
+    else
+        echo "Error: Please log in to the host's graphical login screen on the physical display."
+    fi
+}
+
 function edit_xml() {
     local display
     display=$(who | { grep -o ' :.' || :; } | xargs)
     if [[ -z $display ]]; then
-      echo "Error: Please log in to the host's graphical login screen on the physical display."
+      print_display_login_error
       return 255
     fi
 
