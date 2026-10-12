@@ -48,28 +48,40 @@ PACKAGES_ADD_INSTALL=(
     ""
 )
 
-# Version-specific PPA configuration alternates
-# These will be applied if the detected Ubuntu version differs from the default above
+# Version-specific PPA configuration alternates.
+# Each Ubuntu version maps to the Intel BSP overlay release for that codename.
 # Each version can define: ppa_pin, ppa_pin_priority, ppa_urls, gpgs, wget_no_proxy, and apt_conf
 # Format: ["version:index"] = "value"
 # Multiple entries per version are supported by incrementing the index (0, 1, 2, ...)
 declare -A PPA_ALT_URLS=(
     ["22.04:0"]="https://download.01.org/intel-linux-overlay/ubuntu jammy main non-free multimedia kernels"
+    ["24.04:0"]="https://download.01.org/intel-linux-overlay/ubuntu noble main non-free multimedia kernels"
+    ["26.04:0"]="https://download.01.org/intel-linux-overlay/ubuntu resolute main non-free multimedia kernels"
 )
 declare -A PPA_ALT_GPGS=(
     ["22.04:0"]="auto"
+    ["24.04:0"]="auto"
+    ["26.04:0"]="auto"
 )
 declare -A PPA_ALT_WGET_NO_PROXY=(
     ["22.04:0"]=""
+    ["24.04:0"]=""
+    ["26.04:0"]=""
 )
 declare -A PPA_ALT_APT_CONF=(
     ["22.04:0"]=""
+    ["24.04:0"]=""
+    ["26.04:0"]=""
 )
 declare -A PPA_ALT_PIN=(
     ["22.04"]="release o=intel-iot-linux-overlay"
+    ["24.04"]="release o=intel-iot-linux-overlay-noble"
+    ["26.04"]="release o=intel-iot-linux-overlay-resolute"
 )
 declare -A PPA_ALT_PIN_PRIORITY=(
     ["22.04"]=2000
+    ["24.04"]=2000
+    ["26.04"]=2000
 )
 
 NO_BSP_INSTALL=0
@@ -168,8 +180,8 @@ declare -F "check_dir_valid" >/dev/null || function check_dir_valid() {
 # Detect Ubuntu version and configure PPA settings accordingly
 function setup_ubuntu_ppa_config() {
     # Get Ubuntu version and codename dynamically from system
-    UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null || echo "24.04")
-    UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "noble")
+    UBUNTU_VERSION=$(lsb_release -rs 2>/dev/null || echo "26.04")
+    UBUNTU_CODENAME=$(lsb_release -cs 2>/dev/null || echo "resolute")
 
     # First, try to extract settings from installer file if available
     # Use cached INSTALLER_FILE if already found
@@ -177,6 +189,29 @@ function setup_ubuntu_ppa_config() {
         $LOGD "Using PPA settings extracted from installer file"
         # Settings have been updated by extract_ppa_from_installer
         return 0
+    fi
+
+    # Ubuntu 26.04 default behavior remains Ubuntu repositories only unless
+    # Intel overlay packages are explicitly requested.
+    if [[ "$UBUNTU_VERSION" == "26.04" ]]; then
+        local overlay_requested=0
+
+        if [[ "$KERN_INSTALL_FROM_PPA" -eq "1" && -n "$KERN_PPA_VER" && "$KERN_PPA_VER" == *"-intel"* ]]; then
+            overlay_requested=1
+        fi
+        if [[ -n "$LINUX_FW_PPA_VER" ]]; then
+            overlay_requested=1
+        fi
+
+        if [[ "$overlay_requested" -eq "0" ]]; then
+            PPA_URLS=()
+            PPA_PIN=""
+            PPA_PIN_PRIORITY=0
+            $LOGD "Ubuntu 26.04 using Ubuntu repositories only (no explicit Intel overlay request)"
+            return 0
+        fi
+
+        $LOGD "Ubuntu 26.04 Intel overlay request detected; applying resolute Intel BSP overlay settings"
     fi
 
     # If no installer file or extraction failed, proceed with version-specific alternates or defaults
@@ -351,6 +386,13 @@ function install_kernel() {
 
 function setup_overlay_ppa() {
     $LOGD "${FUNCNAME[0]} begin"
+
+    if [[ ${#PPA_URLS[@]} -eq 0 ]]; then
+        sudo rm -f /etc/apt/sources.list.d/ubuntu_bsp.list
+        sudo apt-get update -y
+        $LOGD "No Intel BSP overlay configured; using Ubuntu repositories only"
+        return 0
+    fi
 
     sudo apt-get update -y
     sudo apt-get upgrade -y
@@ -769,7 +811,7 @@ function update_ubuntu_cfg() {
     # Setup SRIOV graphics
     # Switch to Xorg
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
-    # Ubuntu 24.04 and later no longer ship a commented out WaylandEnable entry
+    # Ubuntu 26.04 and later no longer ship a commented out WaylandEnable entry
     if ! grep -q '^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false' /etc/gdm3/custom.conf; then
         if grep -q '^\[daemon\]' /etc/gdm3/custom.conf; then
             sudo sed -i '0,/^\[daemon\]/s//[daemon]\nWaylandEnable=false/' /etc/gdm3/custom.conf
@@ -780,9 +822,40 @@ function update_ubuntu_cfg() {
     if ! grep -Fq 'needs_root_rights=no' /etc/X11/Xwrapper.config; then
         echo 'needs_root_rights=no' | sudo tee -a /etc/X11/Xwrapper.config
     fi
-    if ! grep -Fq 'MESA_LOADER_DRIVER_OVERRIDE=pl111' /etc/environment; then
-        echo 'MESA_LOADER_DRIVER_OVERRIDE=pl111' | sudo tee -a /etc/environment
+    # The pl111 override is only correct when the guest is given an Intel SR-IOV
+    # VF. The same image also boots with a virtio-gpu, where forcing pl111 stops
+    # virgl loading and crashes gnome-shell, so pick the value at each boot.
+    sudo sed -i '/^MESA_LOADER_DRIVER_OVERRIDE=/d' /etc/environment
+    sudo tee /usr/local/sbin/multios-mesa-override >/dev/null <<'EOF'
+#!/bin/bash
+set -euo pipefail
+
+sed -i '/^MESA_LOADER_DRIVER_OVERRIDE=/d' /etc/environment
+
+for driver_link in /sys/class/drm/card*/device/driver; do
+    [[ -e "$driver_link" ]] || continue
+    driver=$(basename "$(readlink -f "$driver_link")")
+    if [[ "$driver" == "i915" || "$driver" == "xe" ]]; then
+        echo 'MESA_LOADER_DRIVER_OVERRIDE=pl111' >> /etc/environment
+        break
     fi
+done
+EOF
+    sudo chmod 755 /usr/local/sbin/multios-mesa-override
+    sudo tee /etc/systemd/system/multios-mesa-override.service >/dev/null <<'EOF'
+[Unit]
+Description=Select Mesa driver override for the GPU present at boot
+Before=display-manager.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/multios-mesa-override
+
+[Install]
+WantedBy=multi-user.target
+EOF
+    sudo systemctl enable multios-mesa-override.service
     # Enable for SW cursor
     if ! grep -Fq 'VirtIO-GPU' /usr/share/X11/xorg.conf.d/20-modesetting.conf; then
         sudo tee -a "/usr/share/X11/xorg.conf.d/20-modesetting.conf" &>/dev/null <<EOF

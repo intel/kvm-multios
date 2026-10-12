@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <!--
- Copyright (c) 2024-2025 Intel Corporation.
+ Copyright (c) 2024-2026 Intel Corporation.
  All rights reserved.
 -->
-<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+<domain xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0" type="kvm">
   <name>windows11</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
@@ -39,7 +39,9 @@
     </kvm>
     <vmport state="off"/>
   </features>
-  <cpu mode="host-passthrough"/>
+  <cpu mode="host-passthrough">
+    <maxphysaddr mode="passthrough" limit="39"/>
+  </cpu>
   <clock offset="localtime">
     <timer name="rtc" tickpolicy="catchup"/>
     <timer name="pit" tickpolicy="delay"/>
@@ -92,7 +94,7 @@
     <sound model="ich9">
       <codec type="micro"/>
       <audio id="1"/>
-      <alias name='sound0'/>
+      <alias name="sound0"/>
     </sound>
     <audio id="1" type="spice">
       <input mixingEngine="yes" fixedSettings="no"/>
@@ -103,9 +105,8 @@
     </video>
     <redirdev bus="usb" type="spicevmc"/>
     <redirdev bus="usb" type="spicevmc"/>
-    <tpm model='tpm-crb'>
-      <backend type='emulator' version='2.0'/>
+    <tpm model="tpm-crb">
+      <backend type="emulator" version="2.0"/>
     </tpm>
   </devices>
 </domain>
-

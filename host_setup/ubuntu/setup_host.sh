@@ -143,7 +143,7 @@ function check_os() {
     fi
 
     # Check Ubuntu version
-    local -a req_versions=('22.04' '24.04')
+    local -a req_versions=('22.04' '24.04' '26.04')
     local version
     local supported_ver=0
     version=$(lsb_release -rs)
@@ -324,24 +324,52 @@ function host_update_cmdline() {
     fi
 }
 
-function print_display_login_error() {
-    local -a session_types=()
-    mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+# Echo the X display of the active local graphical session. Wayland sessions are
+# served by Xwayland, which exposes a socket instead of a logind Display property.
+function detect_host_display() {
+    local session_id
+    local session_type
+    local session_state
+    local session_remote
+    local session_display
+    local sock
 
-    if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
-        echo "Error: Host graphical session is Wayland, but an Xorg session is required."
-        echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
-        echo "       then run 'sudo systemctl restart gdm' or reboot the host."
-    else
-        echo "Error: Please log in to the host's graphical login screen on the physical display."
-    fi
+    while read -r session_id; do
+        [[ -n "$session_id" ]] || continue
+
+        session_remote=$(loginctl show-session "$session_id" -p Remote --value 2>/dev/null || true)
+        [[ "$session_remote" == "no" ]] || continue
+        session_state=$(loginctl show-session "$session_id" -p State --value 2>/dev/null || true)
+        [[ "$session_state" == "active" ]] || continue
+        session_type=$(loginctl show-session "$session_id" -p Type --value 2>/dev/null || true)
+        [[ "$session_type" == "x11" || "$session_type" == "wayland" ]] || continue
+
+        session_display=$(loginctl show-session "$session_id" -p Display --value 2>/dev/null || true)
+        if [[ -n "$session_display" ]]; then
+            echo "$session_display"
+            return 0
+        fi
+
+        for sock in /tmp/.X11-unix/X*; do
+            [[ -S "$sock" ]] || continue
+            echo ":${sock##*/X}"
+            return 0
+        done
+    done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' || true)
+
+    return 1
+}
+
+function print_display_login_error() {
+    echo "Error: No active local graphical session found on the host."
+    echo "       Log in on the physical display and retry."
 }
 
 function host_customise_ubuntu() {
     # Switch to Xorg
     check_file_valid_nonzero "/etc/gdm3/custom.conf"
     sudo sed -i "s/\#WaylandEnable=false/WaylandEnable=false/g" /etc/gdm3/custom.conf
-    # Ubuntu 24.04 and later no longer ship a commented out WaylandEnable entry.
+    # Ubuntu 26.04 and later no longer ship a commented out WaylandEnable entry.
     if ! grep -q '^[[:space:]]*WaylandEnable[[:space:]]*=[[:space:]]*false' /etc/gdm3/custom.conf; then
         if grep -q '^\[daemon\]' /etc/gdm3/custom.conf; then
             sudo sed -i '0,/^\[daemon\]/s//[daemon]\nWaylandEnable=false/' /etc/gdm3/custom.conf
@@ -380,8 +408,7 @@ EOF
         local display
         user="$SUDO_USER";
         user_id=$(id -u "$user")
-        display=$(who | { grep -o ' :.' || :; } | xargs)
-        if [[ -z $display ]]; then
+        if ! display=$(detect_host_display); then
           print_display_login_error
           return 255
         fi

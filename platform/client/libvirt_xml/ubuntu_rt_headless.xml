@@ -1,22 +1,22 @@
 <?xml version="1.0"?>
 <!--
- Copyright (c) 2023-2025 Intel Corporation.
+ Copyright (c) 2023-2026 Intel Corporation.
  All rights reserved.
 -->
-<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+<domain xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0" type="kvm">
   <name>ubuntu_rt</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
-      <libosinfo:os id="http://ubuntu.com/ubuntu/24.04"/>
+      <libosinfo:os id="http://ubuntu.com/ubuntu/26.04"/>
     </libosinfo:libosinfo>
   </metadata>
   <memory>4194304</memory>
   <currentMemory>4194304</currentMemory>
-  <vcpu placement='static'>2</vcpu>
+  <vcpu placement="static">2</vcpu>
   <cputune>
-    <vcpupin vcpu='0' cpuset='2'/>
-    <vcpupin vcpu='1' cpuset='3'/>
-    <emulatorpin cpuset='0'/>
+    <vcpupin vcpu="0" cpuset="2"/>
+    <vcpupin vcpu="1" cpuset="3"/>
+    <emulatorpin cpuset="0"/>
   </cputune>
   <os>
     <type arch="x86_64" machine="q35">hvm</type>
@@ -29,7 +29,9 @@
     <apic/>
     <vmport state="off"/>
   </features>
-  <cpu mode="host-passthrough"/>
+  <cpu mode="host-passthrough">
+    <maxphysaddr mode="passthrough" limit="39"/>
+  </cpu>
   <clock offset="utc">
     <timer name="rtc" tickpolicy="catchup"/>
     <timer name="pit" tickpolicy="delay"/>

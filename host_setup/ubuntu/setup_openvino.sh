@@ -19,7 +19,7 @@ TMP_FILES=()
 #OPENVINO_VIRT_ENV_NAME='openvino_env'
 declare -A OPENVINO_REL=(
     ['version']='2025.3.0'
-    ['ubuntu_version_supported']='22.04, 24.04'
+    ['ubuntu_version_supported']='22.04, 24.04, 26.04'
 )
 
 INSTALL_NPU=0
@@ -31,20 +31,28 @@ declare -A _LINUX_NPU_DRV_REL_2404=(
     ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.26.0/linux-npu-driver-v1.26.0.20251125-19665715237-ubuntu2404.tar.gz'
     ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u24.04_amd64.deb'
 )
+declare -A _LINUX_NPU_DRV_REL_2604=(
+    ['npu-driver-archive']='https://github.com/intel/linux-npu-driver/releases/download/v1.26.0/linux-npu-driver-v1.26.0.20251125-19665715237-ubuntu2404.tar.gz'
+    ['level-zero']='https://github.com/oneapi-src/level-zero/releases/download/v1.24.2/level-zero_1.24.2+u24.04_amd64.deb'
+)
 declare -A LINUX_NPU_DRV_REL=(
     ['version']="v1.26.0"
-    ['ubuntu_version_supported']='22.04, 24.04'
+    ['ubuntu_version_supported']='22.04, 24.04, 26.04'
     ['22.04']="_LINUX_NPU_DRV_REL_2204"
     ['24.04']="_LINUX_NPU_DRV_REL_2404"
+    ['26.04']="_LINUX_NPU_DRV_REL_2604"
 )
 
 INSTALL_NEO=0
+NEO_STRICT=${NEO_STRICT:=0}
 declare -A COMPUTE_RUNTIME_REL=(
-    ['ubuntu_version_supported']='22.04, 24.04'
+    ['ubuntu_version_supported']='22.04, 24.04, 26.04'
     ['22.04-pkgs']="_COMPUTE_RUNTIME_PKGS_2204"
     ['22.04-meta']="_COMPUTE_RUNTIME_META_2204"
     ['24.04-pkgs']="_COMPUTE_RUNTIME_PKGS_2404"
     ['24.04-meta']="_COMPUTE_RUNTIME_META_2404"
+    ['26.04-pkgs']="_COMPUTE_RUNTIME_PKGS_2604"
+    ['26.04-meta']="_COMPUTE_RUNTIME_META_2604"
 )
 
 _COMPUTE_RUNTIME_PKGS_2204=(
@@ -80,7 +88,31 @@ _COMPUTE_RUNTIME_PKGS_2404=(
     "libze-intel-gpu1"
 )
 
+_COMPUTE_RUNTIME_PKGS_2604=(
+    "intel-igc-core-2"
+    "intel-igc-opencl-2"
+    "intel-ocloc"
+    "intel-opencl-icd"
+    "libigdgmm12"
+    "libze-intel-gpu1"
+)
+
 declare -A _COMPUTE_RUNTIME_META_2404=(
+    ['intel-igc-core-2.version']='2.20.3'
+    ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-core-2_2.20.3+19972_amd64.deb'
+    ['intel-igc-opencl-2.version']='2.20.3'
+    ['intel-igc-opencl-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-opencl-2_2.20.3+19972_amd64.deb'
+    ['intel-ocloc.version']='25.40.35563.4-0'
+    ['intel-ocloc.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-ocloc_25.40.35563.4-0_amd64.deb'
+    ['intel-opencl-icd.version']='25.40.35563.4-0'
+    ['intel-opencl-icd.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/intel-opencl-icd_25.40.35563.4-0_amd64.deb'
+    ['libigdgmm12.version']='22.8.2'
+    ['libigdgmm12.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libigdgmm12_22.8.2_amd64.deb'
+    ['libze-intel-gpu1.version']='25.40.35563.4-0'
+    ['libze-intel-gpu1.url']='https://github.com/intel/compute-runtime/releases/download/25.40.35563.4/libze-intel-gpu1_25.40.35563.4-0_amd64.deb'
+)
+
+declare -A _COMPUTE_RUNTIME_META_2604=(
     ['intel-igc-core-2.version']='2.20.3'
     ['intel-igc-core-2.url']='https://github.com/intel/intel-graphics-compiler/releases/download/v2.20.3/intel-igc-core-2_2.20.3+19972_amd64.deb'
     ['intel-igc-opencl-2.version']='2.20.3'
@@ -179,6 +211,72 @@ function install_dep() {
     which sha256sum > /dev/null || sudo apt-get install -y coreutils
 }
 
+function package_is_unconfigured() {
+    local pkg_name="$1"
+    local pkg_status
+
+    pkg_status=$(dpkg-query -W -f='${Status}' "$pkg_name" 2>/dev/null || true)
+    [[ "$pkg_status" == install* && "$pkg_status" != "install ok installed" ]]
+}
+
+function repair_openvino_apt_state() {
+    local osver
+    osver=$(lsb_release -rs 2>/dev/null || true)
+    if [[ "$osver" != "26.04" ]]; then
+        return 0
+    fi
+
+    local dpkg_audit
+    dpkg_audit=$(dpkg --audit 2>/dev/null || true)
+
+    local -a ov_pkg_candidates=(
+        "intel-igc-opencl-2"
+        "intel-igc-core-2"
+        "intel-ocloc"
+        "intel-opencl-icd"
+        "libigdgmm12"
+        "libze-intel-gpu1"
+    )
+
+    local -a broken_pkgs=()
+    local pkg
+    for pkg in "${ov_pkg_candidates[@]}"; do
+        if package_is_unconfigured "$pkg"; then
+            broken_pkgs+=("$pkg")
+        fi
+    done
+
+    if [[ -z "$dpkg_audit" && ${#broken_pkgs[@]} -eq 0 ]]; then
+        return 0
+    fi
+
+    echo "WARNING: Ubuntu 26.04 package state is not clean after OpenVINO install." | tee -a "$LOG_FILE"
+    if [[ -n "$dpkg_audit" ]]; then
+        echo "INFO: dpkg --audit output:" | tee -a "$LOG_FILE"
+        echo "$dpkg_audit" | tee -a "$LOG_FILE"
+    fi
+
+    echo "INFO: Running apt --fix-broken install" | tee -a "$LOG_FILE"
+    sudo apt-get -y --fix-broken install || true
+
+    broken_pkgs=()
+    for pkg in "${ov_pkg_candidates[@]}"; do
+        if package_is_unconfigured "$pkg"; then
+            broken_pkgs+=("$pkg")
+        fi
+    done
+
+    if [[ ${#broken_pkgs[@]} -gt 0 ]]; then
+        echo "WARNING: Purging unresolved packages: ${broken_pkgs[*]}" | tee -a "$LOG_FILE"
+        for pkg in "${broken_pkgs[@]}"; do
+            sudo dpkg --purge --force-remove-reinstreq "$pkg" || true
+        done
+        sudo apt-get -y --fix-broken install || true
+    fi
+
+    return 0
+}
+
 function setup_openvino_npu() {
     local dest_tmp_path
     dest_tmp_path=$(realpath "/tmp/linux_npu_driver_install")
@@ -193,9 +291,17 @@ function setup_openvino_npu() {
     mkdir -p "$dest_tmp_path"
     TMP_FILES+=("$dest_tmp_path")
 
-    # Download and extract NPU driver archive
-    echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
-    wget -O "$dest_tmp_path/npu-driver-archive.tar.gz" "${LINUX_NPU_DRV_REL_BIN['npu-driver-archive']}" || return 255
+    if [[ -c /dev/accel/accel0 ]]; then
+        echo "INFO: NPU device is already available. Skipping external NPU driver archive." | tee -a "$LOG_FILE"
+    else
+        # Download and extract NPU driver archive
+        echo "INFO: Downloading Linux NPU Driver release ${LINUX_NPU_DRV_REL['version']}" | tee -a "$LOG_FILE"
+        if ! download_url_checksum "$dest_tmp_path/npu-driver-archive.tar.gz" "${LINUX_NPU_DRV_REL_BIN['npu-driver-archive']}"; then
+            echo "WARNING: Linux NPU Driver download failed; continuing without NPU driver installation." | tee -a "$LOG_FILE"
+        fi
+    fi
+
+    if [[ -f "$dest_tmp_path/npu-driver-archive.tar.gz" ]]; then
     check_file_valid_nonzero "$dest_tmp_path/npu-driver-archive.tar.gz"
 
     # Extract the tar.gz archive
@@ -269,11 +375,13 @@ function setup_openvino_npu() {
     if [[ $any_installed -eq 0 ]]; then
         echo "INFO: All NPU driver packages are already installed. Skipping installation." | tee -a "$LOG_FILE"
     fi
+    fi
 
-    # Install level-zero only if it's missing
-    if ! dpkg -l "level-zero" 2>/dev/null | grep -q "^ii"; then
+    # Ubuntu 26.04 provides the Level Zero loader through libze1.
+    if ! dpkg -l "level-zero" 2>/dev/null | grep -q "^ii" && \
+       { [[ "$osver" != "26.04" ]] || ! dpkg -l "libze1" 2>/dev/null | grep -q "^ii"; }; then
         echo "INFO: Downloading level-zero package" | tee -a "$LOG_FILE"
-        wget -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL_BIN['level-zero']}" || return 255
+        wget --no-check-certificate -O "$dest_tmp_path/level-zero.deb" "${LINUX_NPU_DRV_REL_BIN['level-zero']}" || return 255
         check_file_valid_nonzero "$dest_tmp_path/level-zero.deb"
 
         echo "INFO: Installing level-zero package" | tee -a "$LOG_FILE"
@@ -341,13 +449,13 @@ function download_url_checksum() {
     while [[ "$count" -lt "$maxcount" ]]; do
         count=$((count+1))
         echo "$count: Download $src_url"
-        if ! curl -JL --connect-timeout 10 --output "$dest_path" "$src_url"; then
+        if ! curl -fJL --connect-timeout 10 --output "$dest_path" "$src_url"; then
             # attempt again with proxy enabled except for localhost
-            if ! curl -JL --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path" "$src_url"; then
+            if ! curl -fJL --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path" "$src_url"; then
                 # attempt again without proxy
-                if ! curl -JL --noproxy '*' --connect-timeout 10 --output "$dest_path" "$src_url"; then
-                    echo "Unable download $src_url. Check internet connection."
-                    return 255
+                if ! curl -fJL --noproxy '*' --connect-timeout 10 --output "$dest_path" "$src_url"; then
+                    rm -f "$dest_path"
+                    continue
                 fi
             fi
         fi
@@ -358,8 +466,8 @@ function download_url_checksum() {
                 if ! curl --noproxy "localhost,127.0.0.1" --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
                     # attempt again without proxy
                     if ! curl --noproxy '*' --connect-timeout 10 --output "$dest_path.sha256" "$src_sha256sum_url"; then
-                        echo "Unable download $src_sha256sum_url. Check internet connection."
-                        return 255
+                        rm -f "$dest_path" "$dest_path.sha256"
+                        continue
                     fi
                 fi
             fi
@@ -436,7 +544,7 @@ function setup_openvino() {
         "22.04")
             repo_name="ubuntu22"
             ;;
-        "24.04")
+        "24.04"|"26.04")
             repo_name="ubuntu24"
             ;;
         *)
@@ -490,6 +598,24 @@ function is_new_version_avail() {
     else
         return 1  # current is newer or equal
     fi
+}
+
+function install_neo_package_from_apt() {
+    local pkg="$1"
+    local candidate_ver
+
+    candidate_ver=$(apt-cache policy "$pkg" | awk '/Candidate:/ {print $2}')
+    if [[ -z "$candidate_ver" || "$candidate_ver" == "(none)" ]]; then
+        return 1
+    fi
+
+    echo "WARNING: Falling back to apt package $pkg ($candidate_ver) because the pinned release download failed." \
+        | tee -a "$LOG_FILE"
+    if ! sudo apt-get install -y "$pkg"; then
+        return 1
+    fi
+
+    dpkg-query -W -f='${Status}' "$pkg" 2>/dev/null | grep -q "install ok installed"
 }
 
 function setup_neo() {
@@ -594,10 +720,22 @@ function setup_neo() {
 
         if [[ -z "$installed_ver" ]]; then
             echo "INFO: $pkg not installed. Installing: $pkg_ver" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
+            if ! download_url_checksum "$dest_tmp_path" "$pkg_url"; then
+                if ! install_neo_package_from_apt "$pkg"; then
+                    echo "WARNING: Unable to install NEO package $pkg; continuing without it." \
+                        | tee -a "$LOG_FILE"
+                    [[ "$NEO_STRICT" -eq 1 ]] && return 255
+                fi
+            fi
         elif is_new_version_avail "$installed_ver" "$pkg_ver"; then
             echo "INFO: $pkg ver: $installed_ver. Installing: $pkg_ver" | tee -a "$LOG_FILE"
-            download_url_checksum "$dest_tmp_path" "$pkg_url" || return 255
+            if ! download_url_checksum "$dest_tmp_path" "$pkg_url"; then
+                if ! install_neo_package_from_apt "$pkg"; then
+                    echo "WARNING: Unable to upgrade NEO package $pkg; keeping installed version $installed_ver." \
+                        | tee -a "$LOG_FILE"
+                    [[ "$NEO_STRICT" -eq 1 ]] && return 255
+                fi
+            fi
         else
             echo "INFO: $pkg ver: $installed_ver is already up-to-date" | tee -a "$LOG_FILE"
         fi
@@ -623,11 +761,12 @@ function setup_neo() {
 }
 
 function show_help() {
-    printf "Usage: %s [-h|--help] [--npu] [--neo]\n" "$(basename "${BASH_SOURCE[0]}")"
+    printf "Usage: %s [-h|--help] [--npu] [--neo] [--neo-strict]\n" "$(basename "${BASH_SOURCE[0]}")"
     printf "Options:\n"
     printf "\t-h\tshow this help message\n"
     printf "\t--npu\tInstall NPU device driver for OpenVINO\n"
     printf "\t--neo\tInstall Intel(R) Graphics Compute Runtime for oneAPI Level Zero and OpenCL(TM) Driver\n"
+    printf "\t--neo-strict\tFail if a requested NEO package cannot be installed\n"
 }
 
 function parse_arg() {
@@ -644,6 +783,11 @@ function parse_arg() {
 
             --neo)
                 INSTALL_NEO=1
+                ;;
+
+            --neo-strict)
+                INSTALL_NEO=1
+                NEO_STRICT=1
                 ;;
 
             --debug)
@@ -688,9 +832,11 @@ log_func install_dep || exit 255
 log_func setup_openvino || exit 255
 if [[ $INSTALL_NPU -eq 1 ]]; then
     log_func setup_openvino_npu || exit 255
+    log_func repair_openvino_apt_state || exit 255
 fi
 if [[ $INSTALL_NEO -eq 1 ]]; then
     log_func setup_neo || exit 255
+    log_func repair_openvino_apt_state || exit 255
 fi
 
 echo "Done: \"$(realpath "${BASH_SOURCE[0]}") $*\""

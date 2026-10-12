@@ -28,26 +28,29 @@ declare -a DOMAIN_NET_PAIRS=()
 # Set default vm image directory and vm config xml file directory
 #IMAGE_DIR="/var/lib/libvirt/images/"
 
+SCRIPT_DIR="$(cd -- "$(dirname -- "$(realpath "${BASH_SOURCE[0]}")")" && pwd)"
+REPO_ROOT="$(cd -- "$SCRIPT_DIR/../.." && pwd)"
+
 # Set passthrough script name
-PASSTHROUGH_SCRIPT="./libvirt_scripts/virsh_attach_device.sh"
+PASSTHROUGH_SCRIPT="$REPO_ROOT/libvirt_scripts/virsh_attach_device.sh"
 
 # Set tpm attach script name
-TPM_ATTACH_SCRIPT="./libvirt_scripts/libvirt_attach_tpm.sh"
+TPM_ATTACH_SCRIPT="$REPO_ROOT/libvirt_scripts/libvirt_attach_tpm.sh"
 
 # Set multi display script name
-MULTI_DISPLAY_SCRIPT="./libvirt_scripts/libvirt_multi_display.sh"
+MULTI_DISPLAY_SCRIPT="$REPO_ROOT/libvirt_scripts/libvirt_multi_display.sh"
 
 # Set libvirt xml script name
-SETUP_LIBVIRT_XML_SCRIPT="./host_setup/ubuntu/setup_libvirt_xml.sh"
+SETUP_LIBVIRT_XML_SCRIPT="$REPO_ROOT/host_setup/ubuntu/setup_libvirt_xml.sh"
 
 # Set libvirt network script name
-LIBVIRT_NETWORK_SCRIPT="./libvirt_scripts/libvirt_network.sh"
+LIBVIRT_NETWORK_SCRIPT="$REPO_ROOT/libvirt_scripts/libvirt_network.sh"
 
 # Set default domain force launch option
 FORCE_LAUNCH="false"
 
 # Set default vm config xml file directory
-XML_DIR="./platform/client/libvirt_xml"
+XML_DIR="$REPO_ROOT/platform/client/libvirt_xml"
 
 # Set default BIOS used for windows11 VM
 BIOS_WIN="ovmf"
@@ -811,17 +814,122 @@ function passthrough_devices() {
   fi
 }
 
-function print_display_login_error() {
-  local -a session_types=()
-  mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+# Echo the logind session id of the active local graphical session.
+function active_graphical_session_id() {
+  local session_id
+  local session_type
 
-  if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
-    echo "Error: Host graphical session is Wayland, but an Xorg session is required."
-    echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
-    echo "       then run 'sudo systemctl restart gdm' or reboot the host."
-  else
-    echo "Error: Please log in to the host's graphical login screen on the physical display."
+  while read -r session_id; do
+    [[ -n "$session_id" ]] || continue
+
+    [[ "$(loginctl show-session "$session_id" -p Remote --value 2>/dev/null || true)" == "no" ]] || continue
+    [[ "$(loginctl show-session "$session_id" -p State --value 2>/dev/null || true)" == "active" ]] || continue
+    session_type=$(loginctl show-session "$session_id" -p Type --value 2>/dev/null || true)
+    [[ "$session_type" == "x11" || "$session_type" == "wayland" ]] || continue
+
+    echo "$session_id"
+    return 0
+  done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' || true)
+
+  return 1
+}
+
+# Wayland sessions are served by Xwayland, which exposes an X socket instead of a
+# logind Display property.
+function detect_host_display() {
+  local session_id
+  local session_display
+  local sock
+
+  session_id=$(active_graphical_session_id) || return 1
+
+  session_display=$(loginctl show-session "$session_id" -p Display --value 2>/dev/null || true)
+  if [[ -n "$session_display" ]]; then
+    echo "$session_display"
+    return 0
   fi
+
+  for sock in /tmp/.X11-unix/X*; do
+    [[ -S "$sock" ]] || continue
+    echo ":${sock##*/X}"
+    return 0
+  done
+
+  return 1
+}
+
+function detect_session_owner() {
+  local session_id
+
+  session_id=$(active_graphical_session_id) || return 1
+  loginctl show-session "$session_id" -p Name --value 2>/dev/null
+}
+
+# QEMU runs as root per qemu.conf, but root holds no X authority cookie, so the
+# user owning the graphical session must grant it access.
+function grant_x_access() {
+  local display="$1"
+  local owner="${SUDO_USER:-}"
+  local uid
+  local home
+  local xauth=""
+  local candidate
+  local qemu_user
+  local -a env_args=()
+
+  if ! command -v xhost >/dev/null 2>&1; then
+    echo "Error: xhost not found. Install it with 'sudo apt-get install -y x11-xserver-utils'."
+    return 255
+  fi
+
+  if [[ -z "$owner" ]]; then
+    owner=$(detect_session_owner || true)
+  fi
+  [[ -n "$owner" ]] || owner="$USER"
+
+  if ! uid=$(id -u "$owner" 2>/dev/null); then
+    echo "Error: Cannot resolve user '$owner' owning the graphical session."
+    return 255
+  fi
+  home=$(getent passwd "$owner" | cut -d: -f6 || true)
+
+  for candidate in /run/user/"$uid"/.mutter-Xwaylandauth.* \
+                   /run/user/"$uid"/gdm/Xauthority \
+                   "$home/.Xauthority"; do
+    if [[ -r "$candidate" ]]; then
+      xauth="$candidate"
+      break
+    fi
+  done
+
+  env_args=("DISPLAY=$display")
+  if [[ -n "$xauth" ]]; then
+    env_args+=("XAUTHORITY=$xauth")
+  fi
+
+  # Grant only the account QEMU runs as, rather than disabling access control.
+  qemu_user=$(awk -F'"' '/^[[:space:]]*user[[:space:]]*=/{u=$2} END{print u}' /etc/libvirt/qemu.conf 2>/dev/null || true)
+  [[ -n "$qemu_user" ]] || qemu_user="root"
+
+  if [[ "$(id -u)" -eq 0 && "$owner" != "root" ]]; then
+    if sudo -u "$owner" env "${env_args[@]}" xhost "+SI:localuser:$qemu_user" >/dev/null; then
+      return 0
+    fi
+  elif env "${env_args[@]}" xhost "+SI:localuser:$qemu_user" >/dev/null; then
+    return 0
+  fi
+
+  echo "Error: Failed to grant X access on display $display as user '$owner'."
+  if [[ -z "$xauth" ]]; then
+    echo "       No X authority file was found for '$owner'."
+  fi
+  echo "       Log in on the physical display and retry."
+  return 255
+}
+
+function print_display_login_error() {
+  echo "Error: No active local graphical session found on the host."
+  echo "       Log in on the physical display and retry."
 }
 
 #-------------    main processes    -------------
@@ -831,13 +939,13 @@ parse_arg "$@" || exit 255
 check_virtualization || exit 255
 
 if [[ "$SRIOV_ENABLE" == "true" ]]; then
-  display_num=$(who | { grep -o ' :.' || :; } | xargs)
+  display_num=$(detect_host_display || :)
   if [[ -z $display_num ]]; then
     print_display_login_error
     exit 255
   fi
   export DISPLAY=$display_num
-  xhost +
+  grant_x_access "$display_num" || exit 255
 fi
 
 "$SETUP_LIBVIRT_XML_SCRIPT"

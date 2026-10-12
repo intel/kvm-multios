@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <!--
- Copyright (c) 2024-2025 Intel Corporation.
+ Copyright (c) 2024-2026 Intel Corporation.
  All rights reserved.
 -->
-<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+<domain xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0" type="kvm">
   <name>windows11</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
@@ -48,7 +48,9 @@
     </kvm>
     <vmport state="off"/>
   </features>
-  <cpu mode="host-passthrough"/>
+  <cpu mode="host-passthrough">
+    <maxphysaddr mode="passthrough" limit="39"/>
+  </cpu>
   <clock offset="localtime">
     <timer name="rtc" tickpolicy="catchup"/>
     <timer name="pit" tickpolicy="delay"/>
@@ -129,12 +131,18 @@
     </tpm>
   </devices>
   <qemu:commandline>
-    <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
-    <qemu:arg value="device.video0.blob=true"/>
+    <!-- enable blob for virtio-vga-->
     <qemu:arg value="-spice"/>
     <qemu:arg value="preferred-codec=gstreamer:h264"/>
     <qemu:env name="SPICE_CONVERTER_PREFERRED_FORMAT" value="NV12"/>
     <qemu:env name="GST_REGISTRY_FORK" value="no"/>
     <qemu:env name="DISPLAY" value=":0"/>
   </qemu:commandline>
+  <qemu:override>
+    <qemu:device alias="video0">
+      <qemu:frontend>
+        <qemu:property name="blob" type="bool" value="true"/>
+      </qemu:frontend>
+    </qemu:device>
+  </qemu:override>
 </domain>

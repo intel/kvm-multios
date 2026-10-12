@@ -87,16 +87,82 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     fi
 }
 
+# Echo the listening socket line for the given address, retrying with sudo since
+# ss only reveals the owning pid for the caller's own processes.
+function port_listener_info() {
+    local ip=$1
+    local port=$2
+    local info
+
+    info=$(ss -lptnH "sport = :$port" 2>/dev/null | grep -F "$ip:$port" || true)
+    if [[ "$info" != *"pid="* ]]; then
+        info=$(sudo ss -lptnH "sport = :$port" 2>/dev/null | grep -F "$ip:$port" || true)
+    fi
+    echo "$info"
+}
+
+# Free the port only when it is held by a stale instance of this file server, so
+# an unrelated service listening on the port is never killed.
+function reclaim_file_server_port() {
+    local ip=$1
+    local port=$2
+    local holder_pid
+    local holder_cmd
+    local count=0
+
+    holder_pid=$(port_listener_info "$ip" "$port" | grep -o 'pid=[0-9]*' | head -1 | cut -d= -f2 || true)
+    [[ -n "$holder_pid" ]] || return 1
+
+    holder_cmd=$(ps -p "$holder_pid" -o args= 2>/dev/null || true)
+    if [[ "$holder_cmd" != *"http.server"* ]]; then
+        return 1
+    fi
+
+    echo "INFO: Reclaiming port $port from stale file server (pid $holder_pid)."
+    kill_by_pid "$holder_pid"
+
+    while [[ $count -lt 25 ]]; do
+        if [[ -z "$(port_listener_info "$ip" "$port")" ]]; then
+            return 0
+        fi
+        sleep 0.2
+        count=$((count+1))
+    done
+
+    return 1
+}
+
 function run_file_server() {
     local folder=$1
     local ip=$2
     local port=$3
     local -n pid=$4
+    local attempt
 
-    cd "$folder"
-    python3 -m http.server -b "$ip" "$port" &
-    pid=$!
-    cd -
+    for attempt in 1 2; do
+        cd "$folder"
+        python3 -m http.server -b "$ip" "$port" &
+        pid=$!
+        cd - > /dev/null
+
+        # http.server backgrounds before binding, so a port clash only surfaces as the
+        # child exiting; without this check the install proceeds with no file server.
+        sleep 1
+        if kill -0 "$pid" 2>/dev/null; then
+            return 0
+        fi
+
+        if [[ $attempt -eq 1 ]] && reclaim_file_server_port "$ip" "$port"; then
+            continue
+        fi
+        break
+    done
+
+    echo "Error: File server failed to start on $ip:$port."
+    echo "       Port $port is held by a process that is not a stale file server:"
+    port_listener_info "$ip" "$port" | sed 's/^/         /'
+    echo "       Stop the process holding the port and retry."
+    return 255
 }
 
 function kill_by_pid() {
@@ -889,17 +955,89 @@ EOF
   fi
 }
 
-function print_display_login_error() {
-  local -a session_types=()
-  mapfile -t session_types < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' | xargs -r -n1 loginctl show-session -p Type 2>/dev/null || true)
+# Echo the X display of the active local graphical session. Wayland sessions are
+# served by Xwayland, which exposes an X socket instead of a logind Display property.
+function detect_host_display() {
+  local session_id
+  local session_type
+  local session_display
+  local sock
 
-  if [[ "${session_types[*]-}" =~ Type=wayland ]]; then
-    echo "Error: Host graphical session is Wayland, but an Xorg session is required."
-    echo "       Set 'WaylandEnable=false' in the [daemon] section of /etc/gdm3/custom.conf,"
-    echo "       then run 'sudo systemctl restart gdm' or reboot the host."
-  else
-    echo "Error: Please log in to the host's graphical login screen on the physical display."
+  while read -r session_id; do
+    [[ -n "$session_id" ]] || continue
+
+    [[ "$(loginctl show-session "$session_id" -p Remote --value 2>/dev/null || true)" == "no" ]] || continue
+    [[ "$(loginctl show-session "$session_id" -p State --value 2>/dev/null || true)" == "active" ]] || continue
+    session_type=$(loginctl show-session "$session_id" -p Type --value 2>/dev/null || true)
+    [[ "$session_type" == "x11" || "$session_type" == "wayland" ]] || continue
+
+    session_display=$(loginctl show-session "$session_id" -p Display --value 2>/dev/null || true)
+    if [[ -n "$session_display" ]]; then
+      echo "$session_display"
+      return 0
+    fi
+
+    for sock in /tmp/.X11-unix/X*; do
+      [[ -S "$sock" ]] || continue
+      echo ":${sock##*/X}"
+      return 0
+    done
+  done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' || true)
+
+  return 1
+}
+
+function print_display_login_error() {
+  echo "Error: No active local graphical session found on the host."
+  echo "       Log in on the physical display and retry."
+}
+
+# Echo the user owning the active local graphical session.
+function detect_session_owner() {
+  local session_id
+  local session_type
+
+  while read -r session_id; do
+    [[ -n "$session_id" ]] || continue
+
+    [[ "$(loginctl show-session "$session_id" -p Remote --value 2>/dev/null || true)" == "no" ]] || continue
+    [[ "$(loginctl show-session "$session_id" -p State --value 2>/dev/null || true)" == "active" ]] || continue
+    session_type=$(loginctl show-session "$session_id" -p Type --value 2>/dev/null || true)
+    [[ "$session_type" == "x11" || "$session_type" == "wayland" ]] || continue
+
+    loginctl show-session "$session_id" -p Name --value 2>/dev/null
+    return 0
+  done < <(loginctl list-sessions --no-legend 2>/dev/null | awk '{print $1}' || true)
+
+  return 1
+}
+
+# Echo the X authority file of the user owning the graphical session, which may
+# differ from the invoking user over SSH. Xwayland and GDM keep it outside $HOME.
+function detect_host_xauthority() {
+  local owner
+  local uid
+  local home
+  local candidate
+
+  if ! owner=$(detect_session_owner); then
+    owner="${SUDO_USER:-${USER:-}}"
   fi
+  [[ -n "$owner" ]] || return 1
+
+  uid=$(id -u "$owner" 2>/dev/null) || return 1
+  home=$(getent passwd "$owner" | cut -d: -f6 || true)
+
+  for candidate in /run/user/"$uid"/.mutter-Xwaylandauth.* \
+                   /run/user/"$uid"/gdm/Xauthority \
+                   "$home/.Xauthority"; do
+    if [[ -r "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
 }
 
 function install_windows() {
@@ -908,7 +1046,7 @@ function install_windows() {
   local fileserverdir="$scriptpath/$WIN_UNATTEND_FOLDER"
   local file_server_url="http://$FILE_SERVER_IP:$FILE_SERVER_PORT"
   local display
-  display=$(who | { grep -o ' :.' || :; } | xargs)
+  display=$(detect_host_display || true)
 
   if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
     # install dependencies
@@ -936,12 +1074,17 @@ function install_windows() {
     if [[ $SETUP_NO_SRIOV -eq 0 ]]; then
       REQUIRED_FILES+=("ZCBuild_MSFT_Signed.zip|ZCBuild_MSFT_Signed_Installer.zip")
       REQUIRED_FILES+=("Driver-Release-64-bit.[zip|7z]")
-      # A local Xorg display is required only for the SR-IOV installation
+      # A local display is required only for the SR-IOV installation
       if [[ -z $display ]]; then
         print_display_login_error
         return 255
       fi
-      if [[ $(xrandr -d "$display" | grep -c "\bconnected\b") -lt 1 ]]; then
+      local -a xenv=("DISPLAY=$display")
+      local xauth_file
+      if xauth_file=$(detect_host_xauthority); then
+        xenv+=("XAUTHORITY=$xauth_file")
+      fi
+      if [[ $(env "${xenv[@]}" xrandr | grep -c "\bconnected\b") -lt 1 ]]; then
           echo "Error: Need at least 1 display connected for SR-IOV install."
           return 255
       fi
@@ -1476,12 +1619,47 @@ EOF
     fi
   fi
 
-  if [[ ! -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
+  if [[ ! -s "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
     echo "Download Powershell OpenSSH msi release."
-    local is_200_okay
-    is_200_okay=$(wget --server-response --content-on-error=off -O "$fileserverdir/${WIN_OPENSSH_MSI}" "${WIN_OPENSSH_MSI_URL}" 2>&1 | grep -c '200 OK')
     TMP_FILES+=("$fileserverdir/${WIN_OPENSSH_MSI}")
-    if [[ "$is_200_okay" -ne 1 || ! -f "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
+    local download_attempt
+    local download_succeeded=0
+    local openssh_msi_url
+    local openssh_msi_tmp
+    local alternate_https_proxy="${HTTPS_PROXY:-}"
+    local default_https_proxy="${https_proxy:-}"
+    openssh_msi_tmp=$(mktemp "${fileserverdir}/.${WIN_OPENSSH_MSI}.XXXXXX")
+    for ((download_attempt=1; download_attempt<=10; download_attempt++)); do
+      openssh_msi_url="${WIN_OPENSSH_MSI_URL}?cache_bust=$(date +%s)-$download_attempt"
+      if [[ -n "$alternate_https_proxy" ]] && \
+        https_proxy="$alternate_https_proxy" HTTPS_PROXY="$alternate_https_proxy" \
+        wget --quiet --no-check-certificate --no-cache --tries=1 --timeout=30 \
+          --output-document="$openssh_msi_tmp" "$openssh_msi_url" && \
+        file -r "$openssh_msi_tmp" | grep -q "MSI Installer"; then
+        download_succeeded=1
+        break
+      fi
+      rm -f "$openssh_msi_tmp"
+      : > "$openssh_msi_tmp"
+      if [[ "$default_https_proxy" != "$alternate_https_proxy" ]] && \
+        wget --quiet --no-check-certificate --no-cache --tries=1 --timeout=30 \
+          --output-document="$openssh_msi_tmp" "$openssh_msi_url" && \
+        file -r "$openssh_msi_tmp" | grep -q "MSI Installer"; then
+        download_succeeded=1
+        break
+      fi
+      rm -f "$openssh_msi_tmp"
+      : > "$openssh_msi_tmp"
+      if [[ $download_attempt -lt 10 ]]; then
+        sleep 15
+      fi
+    done
+    if [[ $download_succeeded -eq 1 ]]; then
+      mv -f "$openssh_msi_tmp" "$fileserverdir/${WIN_OPENSSH_MSI}"
+    else
+      rm -f "$openssh_msi_tmp"
+    fi
+    if [[ $download_succeeded -eq 0 || ! -s "$fileserverdir/${WIN_OPENSSH_MSI}" ]]; then
         echo "Error: download ${WIN_OPENSSH_MSI} failure!"
         if [[ ADD_INSTALL_DL_FAIL_EXIT -eq 1 ]]; then
           return 255
@@ -1513,7 +1691,7 @@ EOF
     fi
   fi
 
-  mkisofs -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
+  mkisofs -input-charset utf-8 -o "/tmp/${WIN_UNATTEND_ISO}" -J -r "$dest_tmp_path" || return 255
   TMP_FILES+=("/tmp/${WIN_UNATTEND_ISO}")
 
   # Create Windows automatic updates enable/disable scripts
@@ -1539,7 +1717,7 @@ EOF
   --name="${WIN_DOMAIN_NAME}" \
   --ram=4096 \
   --vcpus=4 \
-  --cpu host \
+  --cpu host-model \
   --machine q35 \
   --network network=isolated-guest-net,model=e1000e \
   --graphics vnc,listen=0.0.0.0,port=5905 \
@@ -1752,6 +1930,11 @@ function parse_arg() {
 
 function cleanup () {
   if [[ $GEN_GFX_ZC_SCRIPT_ONLY -eq 0 ]]; then
+      # Stop the daemons first: every step below can fail under 'set -e' and would
+      # otherwise abort this trap, leaving the file server holding its port.
+      kill_by_pid "$FILE_SERVER_DAEMON_PID" || true
+      kill_by_pid "$VIEWER_DAEMON_PID" || true
+
       local state
       state=$(virsh list | awk -v a="$WIN_DOMAIN_NAME" '{ if ( NR > 2 && $2 == a ) { print $3 } }')
       if [[ -n ${state+x} && "$state" == "running" ]]; then
@@ -1786,16 +1969,17 @@ function cleanup () {
       for f in "${TMP_FILES[@]}"; do
         if [[ $SETUP_DEBUG -ne 1 ]]; then
           local fowner
-          fowner=$(stat -c "%U" "$f")
-          if [[ "$fowner" == "$USER" ]]; then
+          fowner=$(stat -c "%U" "$f" 2>/dev/null || true)
+          if [[ -z "$fowner" ]]; then
+              continue
+          fi
+          if [[ "$fowner" == "${USER:-}" ]]; then
               rm -rf "$f"
           else
               sudo rm -rf "$f"
           fi
         fi
       done
-      kill_by_pid "$FILE_SERVER_DAEMON_PID"
-      kill_by_pid "$VIEWER_DAEMON_PID"
   fi
 }
 
