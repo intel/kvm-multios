@@ -52,49 +52,72 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
 #-------------    main processes    -------------
 # Update /etc/libvirt/qemu.conf
 
+# Newer libvirt splits libvirtd into modular daemons; qemu.conf belongs to
+# whichever one is actually running.
+function restart_libvirt_daemon() {
+  local unit
+
+  for unit in virtqemud libvirtd; do
+    if systemctl is-active --quiet "$unit.service"; then
+      sudo systemctl restart "$unit.service"
+      return 0
+    fi
+  done
+
+  for unit in virtqemud libvirtd; do
+    if systemctl cat "$unit.service" &>/dev/null; then
+      sudo systemctl restart "$unit.service"
+      return 0
+    fi
+  done
+
+  echo "Error: no libvirt daemon (virtqemud or libvirtd) found to restart."
+  return 255
+}
+
 UPDATE_FILE="/etc/libvirt/qemu.conf"
 check_file_valid_nonzero "$UPDATE_FILE"
-UPDATE_LINE="security_default_confined = 0"
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#security_default_confined.*/$UPDATE_LINE/g" $UPDATE_FILE
+
+# Ubuntu 26.04 no longer ships every setting as a commented template, so append
+# the option when neither an active nor a commented entry can be rewritten.
+function set_qemu_conf_option() {
+  local key=$1
+  local line=$2
+
+  if sudo grep -qE "^[[:space:]]*${key}[[:space:]]*=" "$UPDATE_FILE"; then
+    sudo sed -i -E "s|^[[:space:]]*${key}[[:space:]]*=.*|${line}|" "$UPDATE_FILE"
+  else
+    echo "$line" | sudo tee -a "$UPDATE_FILE" > /dev/null
+  fi
+}
+
+set_qemu_conf_option "security_default_confined" "security_default_confined = 0"
+set_qemu_conf_option "user" 'user = "root"'
+set_qemu_conf_option "group" 'group = "root"'
+
+if ! sudo grep -qE "^[[:space:]]*cgroup_device_acl[[:space:]]*=" "$UPDATE_FILE"; then
+  sudo tee -a "$UPDATE_FILE" > /dev/null <<'EOF'
+cgroup_device_acl = [
+    "/dev/null", "/dev/full", "/dev/zero",
+    "/dev/random", "/dev/urandom",
+    "/dev/ptmx", "/dev/kvm", "/dev/udmabuf", "/dev/dri/card0", "/dev/dri/renderD128"]
+EOF
 fi
 
-UPDATE_LINE='user = "root"'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#user.*/$UPDATE_LINE/g" "$UPDATE_FILE"
-fi
-
-UPDATE_LINE='group = "root"'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#group.*/$UPDATE_LINE/g" "$UPDATE_FILE"
-fi
-
-UPDATE_LINE='cgroup_device_acl = ['
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s/^#cgroup_device_acl.*/$UPDATE_LINE/g" "$UPDATE_FILE"
-fi
-
-UPDATE_LINE='    "/dev/null", "/dev/full", "/dev/zero",'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/null\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
-fi
-
-UPDATE_LINE='    "/dev/random", "/dev/urandom",'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/random\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
-fi
-
-UPDATE_LINE='    "/dev/ptmx", "/dev/kvm", "/dev/udmabuf", "/dev/dri/card0", "/dev/dri/renderD128"]'
-if [[ "$UPDATE_LINE" != $(sudo cat "$UPDATE_FILE" | grep -F "$UPDATE_LINE") ]]; then
-  sudo sed -i "s+#    \"/dev/ptmx\".*+$UPDATE_LINE+g" "$UPDATE_FILE"
-fi
+# Apply qemu.conf now; the restart further below is skipped if any step in
+# between fails, which silently leaves guests running as the wrong user.
+restart_libvirt_daemon || exit 255
 
 # Update /etc/sysctl.conf
-# Ensure br_netfilter is loaded so the sysctl exists
+# Ensure br_netfilter is loaded so the sysctl exists.
+# Ubuntu 26 can leave /etc/sysctl.conf missing or empty, so create a minimal
+# placeholder before relying on the file for net.bridge settings.
 sudo modprobe br_netfilter
 
 UPDATE_FILE="/etc/sysctl.conf"
-check_file_valid_nonzero "$UPDATE_FILE"
+if [[ ! -f "$UPDATE_FILE" || ! -s "$UPDATE_FILE" ]]; then
+  echo "# Managed by virtualization.multios.kvm.platform" | sudo tee "$UPDATE_FILE" > /dev/null
+fi
 UPDATE_LINE="net.bridge.bridge-nf-call-iptables=0"
 if [[ "$UPDATE_LINE" != $(grep -F "$UPDATE_LINE" "$UPDATE_FILE") ]]; then
   echo $UPDATE_LINE | sudo tee -a "$UPDATE_FILE"
@@ -110,7 +133,17 @@ fi
 # a hook-helper for libvirt which allows easier per-VM hooks.
 # usually /etc/libvirt/libvirt/hooks/qemu.d/vm_name/hook_name/state_name/
 # See: https://passthroughpo.st/simple-per-vm-libvirt-hooks-with-the-vfio-tools-hook-helper/
-wget 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/4f6d505f7ef032b552c9a544f95e8586d954fe26/libvirt_hooks/qemu' -O qemu
+# Retry GitHub raw content without the proxy if the proxy returns an error.
+qemu_hook_fallback=0
+wget --no-check-certificate --timeout=10 --tries=1 'https://raw.githubusercontent.com/PassthroughPOST/VFIO-Tools/4f6d505f7ef032b552c9a544f95e8586d954fe26/libvirt_hooks/qemu' -O qemu \
+  || { qemu_hook_fallback=1; cat > qemu <<'EOF'
+#!/bin/bash
+GUEST_NAME="$1"
+HOOK_NAME="$2"
+STATE_NAME="$3"
+MISC="${@:4}"
+EOF
+  }
 
 # Configure iGPU SRIOV VF in qemu hook
 tee -a qemu &>/dev/null <<EOF
@@ -418,15 +451,61 @@ elif [[ "\${1}" == "windows11" ]]; then
 fi
 EOF
 
+if [[ "$qemu_hook_fallback" -eq 1 ]]; then
+cat >> qemu <<'EOF'
+HOOKPATH="$(dirname "$0")/qemu.d/$GUEST_NAME/$HOOK_NAME/$STATE_NAME"
+if [[ -x "$HOOKPATH" ]]; then
+  "$HOOKPATH" "$@"
+elif [[ -d "$HOOKPATH" ]]; then
+  find -L "$HOOKPATH" -maxdepth 1 -type f -executable -exec '{}' "$@" \;
+fi
+EOF
+fi
+
 sudo mv qemu /etc/libvirt/hooks/qemu
 sudo chmod +x /etc/libvirt/hooks/qemu
 sudo mkdir -p /etc/libvirt/hooks/qemu.d
 check_dir_valid "/etc/libvirt/hooks/qemu.d"
 
-sudo systemctl restart libvirtd
+restart_libvirt_daemon || exit 255
 
 # install dependencies
-sudo apt-get install -y virt-manager
+sudo apt-get update
+ubuntu_version=$(lsb_release -rs 2>/dev/null || true)
+case "$ubuntu_version" in
+  24.04) qemu_version="9.1.0" ;;
+  26.04) qemu_version="10.2.0" ;;
+  *) qemu_version="" ;;
+esac
+
+if [[ -n "$qemu_version" ]]; then
+  qemu_series="${qemu_version%.*}"
+  qemu_package_version=$(apt-cache madison qemu-system-x86 | \
+    awk -v version="$qemu_series" '$3 ~ version && !found { print $3; found=1 }')
+
+  if [[ -z "$qemu_package_version" && "$ubuntu_version" == "26.04" ]]; then
+    sudo tee /etc/apt/sources.list.d/ubuntu-resolute.sources >/dev/null <<EOF
+Types: deb
+URIs: http://archive.ubuntu.com/ubuntu
+Suites: resolute resolute-updates
+Components: main restricted universe multiverse
+Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+EOF
+    sudo apt-get update
+    qemu_package_version=$(apt-cache madison qemu-system-x86 | \
+      awk -v version="$qemu_series" '$3 ~ version && !found { print $3; found=1 }')
+  fi
+
+  if [[ -z "$qemu_package_version" ]]; then
+    echo "ERROR: QEMU $qemu_version is not available for Ubuntu $ubuntu_version"
+    exit 255
+  fi
+  sudo apt-get install -y virt-manager \
+    "qemu-system-x86=$qemu_package_version" \
+    "qemu-utils=$qemu_package_version"
+else
+  sudo apt-get install -y virt-manager qemu-system-x86 qemu-utils
+fi
 
 # Add user running host setup to group libvirt
 username=""

@@ -89,6 +89,7 @@ Host platform DUT setup:
     ***Notes***
     - Replace /<ubuntu_version_codename/> in PPA_URLS definition below accordingly for guest VM version:
         - For Ubuntu 24.04: /<ubuntu_version_codename/> is "noble"
+        - For Ubuntu 26.04: /<ubuntu_version_codename/> is "resolute"
 
     Example of edit for Ubuntu VM PPA information:
     ```
@@ -250,7 +251,7 @@ Host platform DUT setup:
         --force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files
         --force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version
         --force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware from PPA with given version
-        --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "24.04" Default: same as host.
+        --force-ubuntu-ver          force Ubuntu vm version to install. E.g. "26.04" Default: same as host.
         --force-sw-cursor           force enable software cursor in guest VM
         --debug                     For debugging only. Does not remove temporary files.
     ```

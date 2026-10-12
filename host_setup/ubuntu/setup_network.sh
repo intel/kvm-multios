@@ -14,8 +14,14 @@ NUM_VFS=8
 declare -a sriov_nics
 
 #-------------    functions    -------------
+# A log file left behind by a previous sudo run is not writable by a later
+# non-root run, and must not abort the script under 'set -e'.
 function log() {
-    echo "$@" | tee -a "$LOG_FILE"
+    if [[ -w "$LOG_FILE" ]] || { [[ ! -e "$LOG_FILE" ]] && [[ -w "$(dirname "$LOG_FILE")" ]]; }; then
+        echo "$@" | tee -a "$LOG_FILE"
+    else
+        echo "$@"
+    fi
 }
 
 function create_default_network() {

@@ -16,18 +16,22 @@ UBUNTU_SEED_ISO=ubuntu-seed.iso
 declare -A UBUNTU_INSTALLER_ISO_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/ubuntu-22.04-live-server-amd64+intel-iot.iso'
   ['24.04']='https://releases.ubuntu.com/noble/ubuntu-24.04.3-live-server-amd64.iso'
+  ['26.04']='https://releases.ubuntu.com/resolute/ubuntu-26.04-live-server-amd64.iso'
 )
 declare -A UBUNTU_INSTALLER_SHA256SUMS_URLS=(
   ['22.04']='https://cdimage.ubuntu.com/releases/jammy/release/inteliot/SHA256SUMS'
   ['24.04']='https://releases.ubuntu.com/noble/SHA256SUMS'
+  ['26.04']='https://releases.ubuntu.com/resolute/SHA256SUMS'
 )
 declare -A UBUNTU_INSTALLER_ISO_OLD_RELEASES_URLS=(
   ['22.04']='https://old-releases.ubuntu.com/releases/jammy/'
   ['24.04']='https://old-releases.ubuntu.com/releases/noble/'
+  ['26.04']='https://old-releases.ubuntu.com/releases/resolute/'
 )
 declare -A UBUNTU_SNAP_GNOME_VERSIONS=(
   ['22.04']='gnome-3-38-2004'
   ['24.04']='gnome-42-2204'
+  ['26.04']='gnome-46-2404'
 )
 UBUNTU_INSTALL_OS_TYPE=""
 
@@ -280,6 +284,26 @@ function is_host_kernel_local_install() {
 
   local kern_ver
   kern_ver=$(uname -r)
+  local script
+  script=$(realpath "${BASH_SOURCE[0]}")
+  local scriptpath
+  scriptpath=$(dirname "$script")
+  local kernel_deb_dir="$scriptpath/unattend_ubuntu"
+  local host_headers_ver
+  host_headers_ver=$(dpkg-query -W -f='${Version}' "linux-headers-$kern_ver" 2>/dev/null || true)
+  local host_image_ver
+  host_image_ver=$(dpkg-query -W -f='${Version}' "linux-image-$kern_ver" 2>/dev/null || true)
+
+  if [[ -s "$kernel_deb_dir/linux-headers.deb" && -s "$kernel_deb_dir/linux-image.deb" ]] && \
+     [[ "$(dpkg-deb -f "$kernel_deb_dir/linux-headers.deb" Package 2>/dev/null)" == "linux-headers-$kern_ver" ]] && \
+     [[ "$(dpkg-deb -f "$kernel_deb_dir/linux-image.deb" Package 2>/dev/null)" == "linux-image-$kern_ver" ]] && \
+     [[ "$(dpkg-deb -f "$kernel_deb_dir/linux-headers.deb" Version 2>/dev/null)" == "$host_headers_ver" ]] && \
+     [[ "$(dpkg-deb -f "$kernel_deb_dir/linux-image.deb" Version 2>/dev/null)" == "$host_image_ver" ]]; then
+    echo "  Kernel installation method: matching local .deb files"
+    KERN_INSTALL_FROM_LOCAL=1
+    return
+  fi
+
   local kern_header_ppa
   kern_header_ppa=$(dpkg -l "linux-headers-$kern_ver" 2>/dev/null | grep "^ii")
   local kern_image_ppa
@@ -525,7 +549,18 @@ function validate_kernel_ppa_availability() {
       echo "  Please check available versions or remove --force-kern-apt-ver to use auto-detection" >&2
       return 255
     else
-      # For host auto-detection, always fail - guest cannot use host-only packages
+      # A host may use an internal package revision while the guest overlay
+      # provides the same kernel ABI with a different revision.
+      if [[ -n "$kern_pkg_ver" ]] && \
+         check_package_in_guest_ppa "linux-headers-${kern_base_ver}" "linux-headers-${kern_base_ver}" && \
+         check_package_in_guest_ppa "linux-image-${kern_base_ver}" "linux-image-${kern_base_ver}"; then
+        echo "  WARNING: Host kernel revision $kern_pkg_ver is not available in guest PPAs" >&2
+        echo "  Using the latest guest PPA revision for kernel ABI $kern_base_ver" >&2
+        echo "$kern_base_ver"
+        return 0
+      fi
+
+      # The guest PPA does not provide the host kernel ABI.
       local error_msg
       error_msg=$(cat <<EOF
 ==========================================
@@ -673,7 +708,7 @@ function load_guest_ppa_configuration() {
   # Get Ubuntu version for PPA alternate selection
   local ubuntu_ver
   if [[ -z "${FORCE_UBUNTU_VER+x}" || -z "${FORCE_UBUNTU_VER}" ]]; then
-    ubuntu_ver=$(lsb_release -rs 2>/dev/null || echo "24.04")
+    ubuntu_ver=$(lsb_release -rs 2>/dev/null || echo "26.04")
   else
     ubuntu_ver=$FORCE_UBUNTU_VER
   fi
@@ -1084,17 +1119,11 @@ function validate_kernel_and_firmware() {
 
     # For host auto-detection, use latest available version from PPAs
     echo "  WARNING: Host linux-firmware version $linux_fw_ver not found in guest PPAs"
-    echo "  Will install latest available version from guest PPAs instead"
+    echo "  Will install latest available version from Ubuntu repositories instead"
 
-    # Verify linux-firmware package exists in guest PPAs
-    if check_package_in_guest_ppa "linux-firmware" "linux-firmware"; then
-      # Package exists - set empty version to install latest available
-      VALIDATED_LINUX_FW_VER=""
-      echo "  Will use latest available linux-firmware version from PPA"
-    else
-      echo "  Error: linux-firmware package not found in guest PPAs"
-      return 255
-    fi
+    # Use the latest version from the guest's Ubuntu repositories.
+    VALIDATED_LINUX_FW_VER=""
+    echo "  Will use latest available linux-firmware version from Ubuntu repositories"
   fi
 
   echo "  All required packages validated successfully"
@@ -1195,6 +1224,19 @@ function install_ubuntu() {
   touch meta-data
   # shellcheck disable=SC2016
   envsubst '$http_proxy,$ftp_proxy,$https_proxy,$socks_server,$no_proxy' < "$scriptpath/$auto_install_yaml_fname.yaml" > "$scriptpath/auto-install-ubuntu-parsed.yaml"
+  if [[ "$ubuntu_ver" == "26.04" ]]; then
+    if ! grep -qF '    - ubuntu-desktop' "$scriptpath/auto-install-ubuntu-parsed.yaml" ||
+       ! grep -qF 'apt-get install -y ubuntu-desktop' "$scriptpath/auto-install-ubuntu-parsed.yaml"; then
+      echo "Error: Ubuntu desktop package configuration is missing from autoinstall configuration"
+      return 255
+    fi
+    sed -i '/^    - ubuntu-desktop$/d' "$scriptpath/auto-install-ubuntu-parsed.yaml"
+    sed -i 's/apt-get install -y ubuntu-desktop/apt-get install -y ubuntu-desktop firefox- thunderbird-/' "$scriptpath/auto-install-ubuntu-parsed.yaml"
+    sed -i 's/^    install-server: false$/    install-server: true/' "$scriptpath/auto-install-ubuntu-parsed.yaml"
+    sed -i 's/curtin in-target -- apt/curtin in-target -- env DEBIAN_FRONTEND=noninteractive apt/g' \
+      "$scriptpath/auto-install-ubuntu-parsed.yaml"
+  fi
+
   # Update for RT install
   if [[ "$RT" == "1" ]]; then
     sed -i "s|\$RT_SUPPORT|--rt|g" "$scriptpath/auto-install-ubuntu-parsed.yaml"
@@ -1258,30 +1300,46 @@ function install_ubuntu() {
 
   sudo cloud-localds -v "$dest_tmp_path"/${UBUNTU_SEED_ISO} "$scriptpath/auto-install-ubuntu-parsed.yaml" meta-data
 
+  local os_variant="ubuntu${ubuntu_ver}"
+  local seed_disk_options="path=$dest_tmp_path/${UBUNTU_SEED_ISO},device=cdrom"
+  if [[ "$ubuntu_ver" == "26.04" ]]; then
+    os_variant="generic"
+    # Resolute discovers NoCloud data reliably from a virtio data disk.
+    seed_disk_options="path=$dest_tmp_path/${UBUNTU_SEED_ISO},format=raw,bus=virtio"
+  fi
+  local install_location="${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO},initrd=casper/initrd,kernel=casper/vmlinuz"
+  # Secure Boot must stay off: the installer is booted via direct kernel/initrd, which enrolled-keys OVMF rejects.
+  local boot_options="loader=$OVMF_DEFAULT_PATH/OVMF_CODE_4M.fd,loader.readonly=yes,loader.type=pflash,nvram.template=$OVMF_DEFAULT_PATH/OVMF_VARS_4M.fd"
+  if [[ ! -f "$OVMF_DEFAULT_PATH/OVMF_CODE_4M.fd" || ! -f "$OVMF_DEFAULT_PATH/OVMF_VARS_4M.fd" ]]; then
+    boot_options="uefi,firmware.feature0.name=secure-boot,firmware.feature0.enabled=no,firmware.feature1.name=enrolled-keys,firmware.feature1.enabled=no"
+  fi
+
   echo "$(date): Start ubuntu guest creation and auto-installation"
   if [[ "$VIEWER" -eq "1" ]]; then
     virt-viewer -w -r --domain-name "${UBUNTU_DOMAIN_NAME}" &>/dev/null &
     VIEWER_DAEMON_PID=$!
   fi
+  # q35 is required for OVMF pflash; --os-variant generic would otherwise default to i440fx.
   sudo virt-install \
   --name="${UBUNTU_DOMAIN_NAME}" \
   --ram=4096 \
   --vcpus=4 \
   --cpu host \
+  --machine q35 \
   --network network=default,model=virtio \
   --graphics vnc,listen=0.0.0.0,port=5901 \
   --disk "path=${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_IMAGE_NAME},format=qcow2,size=${SETUP_DISK_SIZE},bus=virtio,cache=none" \
-  --disk "path=$dest_tmp_path/${UBUNTU_SEED_ISO},device=cdrom" \
-  --location "${LIBVIRT_DEFAULT_IMAGES_PATH}/${UBUNTU_INSTALLER_ISO},initrd=casper/initrd,kernel=casper/vmlinuz" \
-  --os-variant "ubuntu${ubuntu_ver}" \
+  --disk "$seed_disk_options" \
+  --location "$install_location" \
+  --os-variant "$os_variant" \
   --noautoconsole \
-  --boot "loader=$OVMF_DEFAULT_PATH/OVMF_CODE_4M.fd,loader.readonly=yes,loader.type=pflash,nvram.template=$OVMF_DEFAULT_PATH/OVMF_VARS_4M.fd" \
+  --boot "$boot_options" \
   --extra-args "autoinstall" \
   --console "pty,target.type=virtio,log.file=${LIBVIRT_DEFAULT_LOG_PATH}/${UBUNTU_DOMAIN_NAME}_install.log,log.append=on" \
   --serial pty \
   --extra-args 'console=ttyS0,115200n8 serial' \
   --events on_poweroff=destroy \
-  --wait=-1
+  --wait=-1 || return 255
 
   if grep -Fq "ERROR" "$host_nc_file_out"; then
     echo "Error: Ubuntu guest install failed."
@@ -1347,7 +1405,7 @@ function show_help() {
     printf "\t--force-kern-from-deb       force Ubuntu vm to install kernel from local deb kernel files\n"
     printf "\t--force-kern-apt-ver        force Ubuntu vm to install kernel from PPA with given version\n"
     printf "\t--force-linux-fw-apt-ver    force Ubuntu vm to install linux-firmware pkg from PPA with given version\n"
-    printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"24.04\" Default: same as host.\n"
+    printf "\t--force-ubuntu-ver          force Ubuntu vm version to install. E.g. \"26.04\" Default: same as host.\n"
     printf "\t--force-sw-cursor           force enable SW cursor\n"
     printf "\t--debug                     For debugging only. Does not remove temporary files.\n"
 }

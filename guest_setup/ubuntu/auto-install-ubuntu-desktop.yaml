@@ -9,8 +9,7 @@ autoinstall:
   # version is an Autoinstall required field.
   version: 1
 
-  # This adds the default ubuntu-desktop packages to the system.
-  # Any desired additional packages may also be listed here.
+  # ubuntu-desktop is installed in late-commands, after the firefox stub is pinned out.
   packages:
     - ubuntu-desktop
     - dbus-x11
@@ -90,6 +89,13 @@ autoinstall:
   shutdown: poweroff
 
   late-commands:
+    # The firefox/thunderbird debs are snap stubs whose preinst writes to /dev/tty, which
+    # does not exist in the chroot. Firefox comes from the snaps section above instead.
+    - >-
+      printf 'Package: firefox thunderbird\nPin: release *\nPin-Priority: -1\n'
+      > /target/etc/apt/preferences.d/99-no-snap-stubs
+    - curtin in-target -- apt-get install -y ubuntu-desktop
+
     # Enable the boot splash
     - >-
       curtin in-target --

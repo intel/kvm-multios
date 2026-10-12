@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Copyright (c) 2024-2025 Intel Corporation.
+# Copyright (c) 2024-2026 Intel Corporation.
 # All rights reserved.
 
 set -Eeuo pipefail
@@ -70,27 +70,19 @@ function modify_xml_for_ubuntu22() {
         sed -i '/<console type="pty"\/>/a\    <input type="tablet" bus="usb"/>' "$file"
     fi
 
-    # 2. Remove render_sync property if present (not supported in Ubuntu 22)
-    # Handle both old format (qemu:commandline) and new format (qemu:override)
-    if grep -q 'device.video0.render_sync=true' "$file"; then
-        # Old format: remove the qemu:arg line
-        xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=true"]' "$file"
-    fi
-    # Also try to remove from new format if present
-    if grep -q 'property name="render_sync"' "$file"; then
-        xmlstarlet ed -L -d '/domain/qemu:override/qemu:device[@alias="video0"]/qemu:frontend/qemu:property[@name="render_sync"]' "$file"
-    fi
-
-    # 3. Remove hw-cursor from display options if present
-    if grep -q 'gtk,gl=on,hw-cursor=true' "$file"; then
-        sed -i 's/gtk,gl=on,hw-cursor=true/gtk,gl=on/g' "$file"
-    fi
-
     # 4. Update metadata to reflect Ubuntu 22.04 (if metadata exists)
     if xmlstarlet sel -t -v '/domain/metadata/libosinfo:libosinfo/libosinfo:os/@id' "$file" &>/dev/null; then
         xmlstarlet ed -L -u '/domain/metadata/libosinfo:libosinfo/libosinfo:os/@id' \
             -v 'http://ubuntu.com/ubuntu/22.04' "$file"
     fi
+}
+
+function set_gtk_display_opts() {
+    local file=$1
+    local opts=$2
+
+    # Rewrite whatever gtk display options the file carries, so stale values are not reused
+    sed -i -E "s/value=\"gtk,gl=on[^\"]*\"/value=\"$opts\"/g" "$file"
 }
 
 function check_libvirt_version() {
@@ -144,14 +136,12 @@ function setup_xml() {
             if grep -q "device.video0.blob=true" "$file"; then
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="-set"]' "$file"
                 xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.blob=true"]' "$file"
-                xmlstarlet ed -L -d '/domain/qemu:commandline/qemu:arg[@value="device.video0.render_sync=true"]' "$file"
                 # Insert the new <qemu:override> section
                 sed -i '/<\/domain>/i \
   <qemu:override>\
     <qemu:device alias="video0">\
       <qemu:frontend>\
         <qemu:property name="blob" type="bool" value="true"/>\
-        <qemu:property name="render_sync" type="bool" value="true"/>\
       </qemu:frontend>\
     </qemu:device>\
   </qemu:override>' "$file"
@@ -267,14 +257,31 @@ function setup_xml() {
         done
     fi 
 
+    local os_release
+    os_release=$(lsb_release -rs 2>/dev/null || echo '26.04')
+
     # Apply Ubuntu 22 specific modifications at the end (after all other modifications)
-    if [[ "$(lsb_release -rs 2>/dev/null || echo '24.04')" == "22.04" ]]; then
+    if [[ "$os_release" == "22.04" ]]; then
         for file in "${xmlfiles[@]}"; do
             check_file_valid_nonzero "$file"
             modify_xml_for_ubuntu22 "$file"
         done
     fi
 
+    # QEMU 10.2 on Ubuntu 26.04 dropped hw-cursor/render_sync and needs keep-aspect-ratio instead.
+    local display_opts="gtk,gl=on,hw-cursor=on"
+    local drop_render_sync=0
+    if [[ "$os_release" == "22.04" || "$os_release" == "26.04" ]]; then
+        display_opts="gtk,gl=on,keep-aspect-ratio=off"
+        drop_render_sync=1
+    fi
+    for file in "${xmlfiles[@]}"; do
+        check_file_valid_nonzero "$file"
+        set_gtk_display_opts "$file" "$display_opts"
+        if [[ $drop_render_sync -eq 1 ]]; then
+            sed -i '/<qemu:property name="render_sync"/d' "$file"
+        fi
+    done
 }
 
 #-------------    main processes    -------------

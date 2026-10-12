@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <!--
- Copyright (c) 2024-2025 Intel Corporation.
+ Copyright (c) 2024-2026 Intel Corporation.
  All rights reserved.
 -->
-<domain type="kvm" xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0">
+<domain xmlns:qemu="http://libvirt.org/schemas/domain/qemu/1.0" type="kvm">
   <name>windows11</name>
   <metadata>
     <libosinfo:libosinfo xmlns:libosinfo="http://libosinfo.org/xmlns/libvirt/domain/1.0">
@@ -48,7 +48,9 @@
     </kvm>
     <vmport state="off"/>
   </features>
-  <cpu mode="host-passthrough"/>
+  <cpu mode="host-passthrough">
+    <maxphysaddr mode="passthrough" limit="39"/>
+  </cpu>
   <clock offset="localtime">
     <timer name="rtc" tickpolicy="catchup"/>
     <timer name="pit" tickpolicy="delay"/>
@@ -117,11 +119,17 @@
     </tpm>
   </devices>
   <qemu:commandline>
-    <qemu:arg value="-set"/><!-- enable blob for virtio-vga-->
-    <qemu:arg value="device.video0.blob=true"/>
-    <qemu:arg value="device.video0.render_sync=true"/>
+    <!-- enable blob for virtio-vga-->
     <qemu:arg value="-display"/>
-    <qemu:arg value="gtk,gl=on,hw-cursor=true"/>
+    <qemu:arg value="gtk,gl=on,hw-cursor=on"/>
     <qemu:env name="DISPLAY" value=":0"/>
   </qemu:commandline>
+  <qemu:override>
+    <qemu:device alias="video0">
+      <qemu:frontend>
+        <qemu:property name="blob" type="bool" value="true"/>
+        <qemu:property name="render_sync" type="bool" value="false"/>
+      </qemu:frontend>
+    </qemu:device>
+  </qemu:override>
 </domain>

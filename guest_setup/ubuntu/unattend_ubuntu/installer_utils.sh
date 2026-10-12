@@ -44,7 +44,7 @@ function extract_ppa_from_installer() {
 
     # Get Ubuntu codename
     local ubuntu_codename
-    ubuntu_codename=$(lsb_release -cs 2>/dev/null || echo "noble")
+    ubuntu_codename=$(lsb_release -cs 2>/dev/null || echo "resolute")
 
     # Detect installer type first
     # External installer uses ppa_url variable and download.01.org
@@ -219,35 +219,36 @@ function extract_kernel_ver_from_installer() {
     local prefer_rt=${2:-0}  # 0=prefer non-RT (default), 1=prefer RT
 
     # Look for kernel install commands in apt-get or kernelCmd assignments
-    # Patterns: linux-headers-6.12-intel=version or linux-headers-6.12rt-intel=version
+    # Patterns: linux-headers-6.12-intel=version, linux-headers-6.12.0-intel=version,
+    #           linux-headers-6.12rt-intel=version, linux-headers-6.12.0rt-intel=version
     # Explicitly match kernel type to --rt flag: RT kernel required if flag set, non-RT otherwise
     local kernel_line
 
     if [[ "$prefer_rt" == "1" ]]; then
         # Search for RT kernel only
-        kernel_line=$(grep -E 'linux-headers-[0-9]+\.[0-9]+rt-intel=' "$installer_path" 2>/dev/null | head -1)
+        kernel_line=$(grep -E 'linux-headers-[0-9]+\.[0-9]+(\.[0-9]+)*rt-intel=' "$installer_path" 2>/dev/null | head -1)
 
         if [[ -z "$kernel_line" ]]; then
             ${LOGD:-echo} "WARNING: RT kernel requested (--rt flag) but no RT kernel found in installer.sh"
-            ${LOGD:-echo} "Expected pattern: linux-headers-X.Yrt-intel=version"
+            ${LOGD:-echo} "Expected pattern: linux-headers-X.Y[.Z]rt-intel=version"
             return 1
         fi
     else
         # Search for non-RT kernel only
-        kernel_line=$(grep -E 'linux-headers-[0-9]+\.[0-9]+-intel=' "$installer_path" 2>/dev/null | \
+        kernel_line=$(grep -E 'linux-headers-[0-9]+\.[0-9]+(\.[0-9]+)*-intel=' "$installer_path" 2>/dev/null | \
                      grep -v rt-intel | \
                      head -1)
 
         if [[ -z "$kernel_line" ]]; then
             ${LOGD:-echo} "WARNING: Non-RT kernel requested (default) but no non-RT kernel found in installer.sh"
-            ${LOGD:-echo} "Expected pattern: linux-headers-X.Y-intel=version (without rt)"
+            ${LOGD:-echo} "Expected pattern: linux-headers-X.Y[.Z]-intel=version (without rt)"
             return 1
         fi
     fi
 
     # Extract kernel name and version (e.g., "6.12-intel=250924t142248z-r2")
     local kernel_with_ver
-    kernel_with_ver=$(echo "$kernel_line" | grep -oP 'linux-headers-\K[0-9]+\.[0-9]+(rt)?-intel=[^\s"]+' | head -1)
+    kernel_with_ver=$(echo "$kernel_line" | grep -oP 'linux-headers-\K[0-9]+\.[0-9]+(?:\.[0-9]+)*(rt)?-intel=[^\s"]+' | head -1)
 
     if [[ -z "$kernel_with_ver" ]]; then
         return 1

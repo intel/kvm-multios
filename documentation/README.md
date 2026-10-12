@@ -48,6 +48,7 @@ This documentation uses "domain" to refer to a guest virtual machine's unique na
 - 1 step host platform configuration for running guest VMs with GVT-d or SR-IOV for GPU virtualization in guest VM.
 - Automated installation process for generating guest VM image with built-in Intel GPU SR-IOV and power management support for:
     - Ubuntu 24.04
+    - Ubuntu 26.04
     - Windows 11 IoT Enterprise 24H2
 - Launching multiple VMs with SR-IOV Multi-Display support in Guest VM GPU/display virtualization and device passthrough configuration via single command.
 - Cloning of VMs with SR-IOV Multi-Display support enabled.
