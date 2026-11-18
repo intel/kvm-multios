@@ -73,8 +73,8 @@
       <target type="virtio" name="com.redhat.spice.0"/>
     </channel>
     <input type="tablet" bus="usb"/>
-    <graphics type="vnc" port="5901" listen="0.0.0.0"/>
-    <graphics type="spice" port="5951" listen="0.0.0.0"/>
+    <graphics type="vnc" port="5901" listen="127.0.0.1"/>
+    <graphics type="spice" port="5951" listen="127.0.0.1"/>
     <!-- GNOME 50 aborts on the kms_swrast fallback, so give virtio-gpu a real EGL
          context; VNC and SPICE keep working off the rendered framebuffer. -->
     <graphics type="egl-headless">

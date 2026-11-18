@@ -54,7 +54,7 @@
       <target type="virtio" name="org.qemu.guest_agent.0"/>
     </channel>
     <input type="tablet" bus="usb"/>
-    <graphics type="vnc" port="5905" listen="0.0.0.0"/>
+    <graphics type="vnc" port="5905" listen="127.0.0.1"/>
     <sound model="ich9"/>
     <video>
       <model type="qxl"/>

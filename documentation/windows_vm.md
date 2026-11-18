@@ -30,8 +30,8 @@ Windows11 guest VM installation can be either via:
       - want a fully unattended install of Windows11 VM image from Microsoft installer ISO with all dependencies installed with zero human intervention during installation.
 
       ***Notes***
-      - Image has default autologon user with default password as set in guest_setup/ubuntu/unattend_winXX/autounattend.xml file \<AutoLogon\> entry. Can be modified in autounattend.xml file.
-      - Image has OpenSSH enabled as set in guest_setup/ubuntu/unattend_winXX/autounattend.xml file. Can be removed by modifying autounattend.xml file.
+      - **Security warning:** The image ships with a local administrator account (`user`) whose password is randomly generated per install run by `win11_setup.sh` and printed once to the console — it is never persisted to disk or git, so record it when it is shown. However, AutoLogon, OpenSSH, and RDP are all enabled by default, so anyone who can reach the VM's VNC/SPICE display, RDP, or SSH port still obtains an already-logged-in Administrator session (or SSH/RDP access to it) regardless of the password's strength. You **must** disable AutoLogon (`<AutoLogon>` entry in guest_setup/ubuntu/unattend_winXX/autounattend.xml) and remove OpenSSH/RDP if not required, before deploying outside an isolated/trusted network.
+      - Image has OpenSSH enabled as set in guest_setup/ubuntu/unattend_winXX/autounattend.xml file. Disable it if not required, by modifying autounattend.xml file.
       - Image has other Intel peripherals (Wi-Fi/Bluetooth/TSN Ethernet) drivers installed. Can be customised/removed by editing/removing guest_setup/ubuntu/unattend_winXX/additional_installs.yml file.
       - OS variant installed from ISO as specified by "\<InstallFrom\>" entry of guest_setup/ubuntu/unattend_winXX/autounattend.xml.
 

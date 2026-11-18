@@ -72,10 +72,10 @@ Windows Zero-copy driver release: 5.0.0.2537</br>
       <td align="left">Ubuntu 26.04 release</br></td><td>Yes</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 kb5043080</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f7475127-bd14-4dfd-b2fc-a05b89f39391/public/windows11.0-kb5101684-x64_4fbb7562c750f716a28bb2cd65ec21d44cadd2c0.msu">windows11.0-kb5101684</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8949</br>
-Windows Zero-copy driver release: 5.0.0.2585</br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required: <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 kb5043080</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">windows11.0-kb5124010</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.9087</br>
+Windows Zero-copy driver release: 5.0.0.2618</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
 </table>
@@ -120,10 +120,10 @@ Windows Zero-copy driver release: 5.0.0.2585</br>
       <td align="left">Ubuntu 26.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
    <tr>
-   <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.8973 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f7475127-bd14-4dfd-b2fc-a05b89f39391/public/windows11.0-kb5101684-x64_4fbb7562c750f716a28bb2cd65ec21d44cadd2c0.msu">(kb5101684)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8974</br>
-Windows Zero-copy driver release: 5.0.0.2583 (IntelVirtDisplay.inf)</br>
+   <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required: Windows11.0 26100.9550 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">(kb5124010)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.9150</br>
+Windows Zero-copy driver release: 5.0.0.2618(IntelVirtDisplayInstallerPackage.exe)</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -137,17 +137,17 @@ Windows Zero-copy driver release: 5.0.0.2583 (IntelVirtDisplay.inf)</br>
 <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="4" align="left">Ubuntu 26.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 24.04 release</br></td><td>NA</td><td>Yes</td>
+      <td align="left">Ubuntu 26.04 release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8117 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b1318d9f-d80a-4556-ab47-792cf5303d43/public/windows11.0-kb5086672-x64_97df4ed279e18da5b02308a5a3361313520fd346.msu">Windows11.0 26100.8117 (kb5086672)</a></br>
-BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7085</br>
-Windows Zero-copy driver release: 5.0.0.2400</br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.9550 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+BTL-S 12P Integrated GPU Intel(R) Graphics driver version:101.7092</br>
+Windows Zero-copy driver release: 5.0.0.2618</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
 </table>
@@ -161,17 +161,17 @@ Windows Zero-copy driver release: 5.0.0.2400</br>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="4" align="left">Ubuntu 26.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 24.04 release</br></td><td>NA</td><td>Yes</td>
+      <td align="left">Ubuntu 26.04 release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8117 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/b1318d9f-d80a-4556-ab47-792cf5303d43/public/windows11.0-kb5086672-x64_97df4ed279e18da5b02308a5a3361313520fd346.msu">Windows11.0 26100.8117 (kb5086672)</a></br>
-BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7085</br>
-Windows Zero-copy driver release: 5.0.0.2400</br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.9550 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+BTL-S Integrated GPU Intel(R) Graphics driver version: 101.7092</br>
+Windows Zero-copy driver release: 5.0.0.2618</br>
       </td><td>NA</td><td>Yes</td>
     </tr>
 </table>
@@ -192,10 +192,10 @@ Windows Zero-copy driver release: 5.0.0.2400</br>
       <td align="left">Ubuntu 26.04 release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8973 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f7475127-bd14-4dfd-b2fc-a05b89f39391/public/windows11.0-kb5101684-x64_4fbb7562c750f716a28bb2cd65ec21d44cadd2c0.msu">Windows11.0 26100.8973 (kb5101684)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.7088</br>
-Windows Zero-copy driver release: 5.0.0.2537</br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.9550 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7092</br>
+Windows Zero-copy driver release: 5.0.0.2618</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -211,18 +211,18 @@ Windows Zero-copy driver release: 5.0.0.2537</br>
     <tr><th align="center">Host Operating System</th><th>Guest VM Operating Systems</th><th>GVT-d Supported</th><th>GPU SR-IOV Supported</th></tr>
     <!-- Host Operating System -->
     <tr>
-      <td rowspan="4" align="left">Ubuntu 24.04 release</br></td>
+      <td rowspan="4" align="left">Ubuntu 26.04 release</br></td>
     </tr>
     <!-- Guest Operating Systems -->
     <tr>
-      <td align="left">Ubuntu 24.04 release</br></td><td>NA</td><td>Yes</td>
+      <td align="left">Ubuntu 26.04 release</br></td><td>NA</td><td>Yes</td>
     </tr>
     <tr>
       <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8457 (kb5043080)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/53914338-2058-4b75-95a6-6d674648107c/public/windows11.0-kb5089549-x64_9a542b5813b003374532dceeba49b7e07c3fc2fb.msu">Windows11.0 26100.8457 (kb5089549)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.8801</br>
-Windows Zero-copy driver release: 5.0.0.2585 (IntelVirtDisplayInstallerPackage.exe)</br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.9550 (kb5043080)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.9150</br>
+Windows Zero-copy driver release: 5.0.0.2618 (IntelVirtDisplayInstallerPackage.exe)</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -244,10 +244,10 @@ Windows Zero-copy driver release: 5.0.0.2585 (IntelVirtDisplayInstallerPackage.e
       <td align="left">Ubuntu 26.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.8973 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f7475127-bd14-4dfd-b2fc-a05b89f39391/public/windows11.0-kb5101684-x64_4fbb7562c750f716a28bb2cd65ec21d44cadd2c0.msu">Windows11.0 26100.8973 (kb5101684)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.7088</br>
-Windows Zero-copy driver release: 5.0.0.2537</br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">Windows11.0 26100.9550 (kb5043080)</a> <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7092</br>
+Windows Zero-copy driver release: 5.0.0.2618</br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
@@ -296,10 +296,10 @@ Windows Zero-copy driver release: 4.0.0.2164</br>
       <td align="left">Ubuntu 26.04 release</br></td><td>Yes*</td><td>Yes</td>
     </tr>
     <tr>
-      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 24H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
-Window 11 OS patch required: Windows11.0 26100.8973 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/f7475127-bd14-4dfd-b2fc-a05b89f39391/public/windows11.0-kb5101684-x64_4fbb7562c750f716a28bb2cd65ec21d44cadd2c0.msu">(kb5101684)</a></br>
-Integrated GPU Intel(R) Graphics driver version: 101.7088</br>
-Windows Zero-copy driver release: 5.0.0.2537(IntelVirtDisplayInstallerPackage.exe) </br>
+      <td align="left"><a href="https://www.microsoft.com/en-us/evalcenter/evaluate-windows-11-enterprise">Windows 11 IoT Enterprise 25H2</a><a href="https://go.microsoft.com/fwlink/p/?linkid=2195682&clcid=0x409&culture=en-us&country=us"> (ISO download)</a></br>
+Window 11 OS patch required: Windows11.0 26100.9550 <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/d8b7f92b-bd35-4b4c-96e5-46ce984b31e0/public/windows11.0-kb5043080-x64_953449672073f8fb99badb4cc6d5d7849b9c83e8.msu">(kb5043080)</a> and <a href="https://catalog.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/518df5fb-59fb-43d7-a44f-990e150b948a/public/windows11.0-kb5124010-x64_95a6272121df38221bfafc90b50baa8ec3e5294e.msu">Windows11.0 26100.9550 (kb5124010)</a></br>
+Integrated GPU Intel(R) Graphics driver version: 101.7092</br>
+Windows Zero-copy driver release: 5.0.0.2618(IntelVirtDisplayInstallerPackage.exe) </br>
       </td><td>Yes*</td><td>Yes</td>
     </tr>
 </table>
