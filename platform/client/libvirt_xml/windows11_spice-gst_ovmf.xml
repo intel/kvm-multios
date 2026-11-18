@@ -99,11 +99,20 @@
     </channel>
     <redirdev bus="usb" type="spicevmc"/>
     <redirdev bus="usb" type="spicevmc"/>
-    <graphics type="spice" port="5955" listen="0.0.0.0">
-      <gl enable="yes" rendernode="/dev/dri/renderD128"/>
-      <streaming mode="filter"/>
+    <!-- Deliberately no gl element on the spice device. Enabling it makes QEMU hand the
+         scanout to the client as a dmabuf fd (SPICE_MSG_DISPLAY_GL_SCANOUT_UNIX), which
+         needs SCM_RIGHTS over a unix socket. A remote client over TCP can never ack
+         gl-draw-done, so QEMU keeps virtio-gpu blocked ("no gl-draw-done within one
+         second") and the guest display hangs with nothing to encode. The egl-headless
+         device below gives QEMU a real EGL context instead; the framebuffer is read back
+         and encoded normally, which is what remote spice-gst clients require. -->
+    <graphics type="spice" port="5955" listen="127.0.0.1">
+      <streaming mode="all"/>
       <mouse mode="client"/>
       <clipboard copypaste="yes"/>
+    </graphics>
+    <graphics type="egl-headless">
+      <gl rendernode="/dev/dri/renderD128"/>
     </graphics>
     <input type="tablet" bus="usb"/>
     <sound model="ich9">

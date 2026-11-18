@@ -87,6 +87,26 @@ declare -F "check_file_valid_nonzero" >/dev/null || function check_file_valid_no
     fi
 }
 
+# Refuse to wire an unauthenticated, network-reachable VNC/SPICE console into a running domain
+declare -F "check_graphics_auth" >/dev/null || function check_graphics_auth() {
+    if [[ $# -eq 1 ]]; then
+        local xmlfile="$1"
+        if grep -E "<graphics[^>]*type=['\"](vnc|spice)['\"][^>]*listen=['\"]0\.0\.0\.0['\"]" "$xmlfile" \
+            | grep -qv "passwd="; then
+            echo "Error: $xmlfile defines a VNC/SPICE graphics device listening on 0.0.0.0 with no passwd/TLS/SASL." \
+                | tee -a "$ERROR_LOG_FILE"
+            echo "Refusing to launch an unauthenticated console reachable from the network." \
+                | tee -a "$ERROR_LOG_FILE"
+            echo "Bind the graphics listen address to 127.0.0.1 and use an SSH tunnel, or configure a passwd/TLS/SASL." \
+                | tee -a "$ERROR_LOG_FILE"
+            exit 255
+        fi
+    else
+        echo "Error: Invalid param to ${FUNCNAME[0]}" | tee -a "$ERROR_LOG_FILE"
+        exit 255
+    fi
+}
+
 # Function to log errors
 function log_error() {
   echo "$(date): line: ${BASH_LINENO[0]}: $1" >> "$ERROR_LOG_FILE"
@@ -310,6 +330,7 @@ function launch_domains() {
     # Define domain
     echo "Define domain $domain"
     check_file_valid_nonzero "$XML_DIR/${VM_DOMAIN[$domain]}"
+    check_graphics_auth "$XML_DIR/${VM_DOMAIN[$domain]}"
     virsh define "$XML_DIR/${VM_DOMAIN[$domain]}"
 
     # Passthrough devices

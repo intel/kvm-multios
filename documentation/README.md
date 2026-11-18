@@ -569,13 +569,18 @@ To connect to a VM using VNC:
    - Display `:1` = Port 5901
    - Display `:2` = Port 5902
 
-3. On the separate machine, use `remote-viewer` to connect:
+3. From the separate machine, open an SSH tunnel to the host, then connect the viewer to localhost:
 
-        $ remote-viewer vnc://<ip_of_host_running_vm>:<vnc_port_of_vm>
+        $ ssh -N -L <vnc_port_of_vm>:127.0.0.1:<vnc_port_of_vm> <user>@<ip_of_host_running_vm>
 
-   For example, if the display is `:1` and the host IP is 192.168.122.1, use:
+   In a second terminal on the separate machine:
 
-        $ remote-viewer vnc://192.168.122.1:5901
+        $ remote-viewer vnc://127.0.0.1:<vnc_port_of_vm>
+
+   For example, if the display is `:1`, use:
+
+        $ ssh -N -L 5901:127.0.0.1:5901 <user>@192.168.122.1
+        $ remote-viewer vnc://127.0.0.1:5901
 
 ### Connecting via SPICE
 
@@ -591,13 +596,18 @@ To connect to a VM using SPICE:
 
    This will output something like `spice://localhost:5951`, which directly shows the SPICE port number.
 
-3. On the separate machine, use `remote-viewer` to connect:
+3. From the separate machine, open an SSH tunnel to the host, then connect the viewer to localhost:
 
-        $ remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
+        $ ssh -N -L <spice_port_of_vm>:127.0.0.1:<spice_port_of_vm> <user>@<ip_of_host_running_vm>
 
-   For example, if the host IP is 192.168.122.1 and the port is 5951, use:
+   In a second terminal on the separate machine:
 
-        $ remote-viewer spice://192.168.122.1:5951
+        $ remote-viewer spice://127.0.0.1:<spice_port_of_vm>
+
+   For example, if the port is 5951, use:
+
+        $ ssh -N -L 5951:127.0.0.1:5951 <user>@192.168.122.1
+        $ remote-viewer spice://127.0.0.1:5951
 
 ### Connecting via SPICE-GST
 
@@ -613,32 +623,33 @@ To connect to a VM using SPICE with GStreamer acceleration:
 
    This will output something like `spice://localhost:5951`, which directly shows the SPICE port number.
 
-3. On the separate machine, use `remote-viewer` to connect:
+3. From the separate machine, open an SSH tunnel to the host, then connect the viewer to localhost:
 
-        $ remote-viewer spice://<ip_of_host_running_vm>:<spice_port_of_vm>
+        $ ssh -N -L <spice_port_of_vm>:127.0.0.1:<spice_port_of_vm> <user>@<ip_of_host_running_vm>
 
-   For example, if the host IP is 192.168.122.1 and the port is 5951, use:
+   In a second terminal on the separate machine:
 
-        $ remote-viewer spice://192.168.122.1:5951
+        $ remote-viewer spice://127.0.0.1:<spice_port_of_vm>
+
+   For example, if the port is 5951, use:
+
+        $ ssh -N -L 5951:127.0.0.1:5951 <user>@192.168.122.1
+        $ remote-viewer spice://127.0.0.1:5951
 
 **Note:** For remote desktop viewing of VMs using SPICE with GStreamer acceleration feature, only Ubuntu-based remote viewer is supported.
 
 ### Troubleshooting
 
 **Network Connectivity:**
-- Ensure the separate machine running `remote-viewer` can reach the host machine's IP address. Connectivity can be tested using `ping <ip_of_host_running_vm>`.
-- Replace `<ip_of_host_running_vm>` with the actual IP address of the host machine that is accessible from the separate machine (not `localhost` or `127.0.0.1`).
+- Ensure the separate machine can reach the host machine's IP address over SSH. Connectivity can be tested using `ping <ip_of_host_running_vm>` and `ssh <user>@<ip_of_host_running_vm>`.
+- Replace `<ip_of_host_running_vm>` with the actual IP address of the host machine that is accessible from the separate machine, and `<user>` with a valid SSH user on that host.
 - To find the host's IP address, run `ip addr` or `hostname -I` on the host machine.
+- Once the SSH tunnel is up, the `remote-viewer` connection itself goes to `127.0.0.1` on the separate machine, not to the host's IP.
 
 **Firewall Configuration:**
-- Ensure the firewall on the host machine allows incoming connections on the VNC/SPICE ports.
-- For VNC, the default ports are 5900-5910 (display :0 through :10).
-- For SPICE, the default ports are 5951-5960.
-- On Ubuntu hosts, these ports can be allowed using:
-  ```
-  $ sudo ufw allow 5900:5910/tcp  # For VNC
-  $ sudo ufw allow 5951:5960/tcp  # For SPICE
-  ```
+- VNC/SPICE ports are bound to `127.0.0.1` by default and are not reachable from the network.
+- Do not open these ports directly in the host firewall. Use the SSH tunnel workflow above for remote access instead.
+- If a deployment has a specific requirement for direct remote binding, it must be paired with `vnc_sasl`/`vnc_tls` authentication (see host libvirt `qemu.conf`) and the firewall rule should be scoped to the specific trusted source IP, not opened to all sources.
 
 ## VM Power Management
 KVM MultiOS Portfolio release provides an ease of use script (libvirt_scripts/libvirt-guests-sleep.sh) to suspend/hibernate/resume all running supported guest VM domains (Ubuntu/Windows only).

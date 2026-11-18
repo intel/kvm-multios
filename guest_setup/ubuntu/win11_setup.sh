@@ -735,7 +735,7 @@ function setup_additional_installs() {
           return 255
         fi
       fi
-    elif echo "$ftype" | grep -q "PE32+ executable (GUI) x86-64"; then
+    elif echo "$ftype" | grep -Eiq "PE32[+]? executable.*\\((GUI|console)\\)"; then
       ftype="exe"
       if [[ "$iftype" != "exe" ]]; then
         echo "Only install_type=exe supported for executable file."
@@ -1058,9 +1058,9 @@ function install_windows() {
       echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml has formatting error!"
       return 255
     fi
-    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"
-    if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml"; then
-      echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml has formatting error!"
+    check_file_valid_nonzero "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml.template"
+    if ! xmllint --noout "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml.template"; then
+      echo "Error: XML file $scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml.template has formatting error!"
       return 255
     fi
     if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then
@@ -1596,8 +1596,24 @@ EOF
 
   TMP_FILES+=("$(realpath "$fileserverdir/gfx_zc_setup.ps1")")
 
+  # Generate a random per-install local administrator password instead of a fixed/published default
+  local win_user_password
+  win_user_password=$(tr -dc 'A-Za-z0-9' </dev/urandom | head -c 24)
+
   cp "$scriptpath/$WIN_UNATTEND_FOLDER/autounattend.xml" "$dest_tmp_path/"
   sed -i "s|%FILE_SERVER_URL%|$file_server_url|g" "$dest_tmp_path/autounattend.xml"
+  sed -i "s|%WIN_USER_PASSWORD%|$win_user_password|g" "$dest_tmp_path/autounattend.xml"
+
+  cp "$scriptpath/$WIN_UNATTEND_FOLDER/unattend.xml.template" "$fileserverdir/unattend.xml"
+  sed -i "s|%WIN_USER_PASSWORD%|$win_user_password|g" "$fileserverdir/unattend.xml"
+  TMP_FILES+=("$fileserverdir/unattend.xml")
+
+  echo "==================================================================="
+  echo "Generated local administrator account for domain $WIN_DOMAIN_NAME:"
+  echo "  Username: user"
+  echo "  Password: $win_user_password"
+  echo "Record this password now; it is not stored anywhere by this script."
+  echo "==================================================================="
 
   # setup additional Windows guest installations
   if [[ -f "$scriptpath/$WIN_UNATTEND_FOLDER/additional_installs.yaml" ]]; then

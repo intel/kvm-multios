@@ -1,5 +1,5 @@
 <!--
- Copyright (c) 2025 Intel Corporation.
+ Copyright (c) 2025-2026 Intel Corporation.
  All rights reserved.
 -->
 <unattend xmlns="urn:schemas-microsoft-com:unattend">
@@ -172,7 +172,7 @@
     <component xmlns:wcm="http://schemas.microsoft.com/WMIConfig/2002/State" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" name="Microsoft-Windows-Shell-Setup" processorArchitecture="amd64" publicKeyToken="31bf3856ad364e35" language="neutral" versionScope="nonSxS">
       <AutoLogon>
         <Password>
-          <Value>user1234</Value>
+          <Value>%WIN_USER_PASSWORD%</Value>
           <PlainText>true</PlainText>
         </Password>
         <Enabled>true</Enabled>
@@ -335,7 +335,7 @@
         <LocalAccounts>
           <LocalAccount wcm:action="add">
             <Password>
-              <Value>user1234</Value>
+              <Value>%WIN_USER_PASSWORD%</Value>
               <PlainText>true</PlainText>
             </Password>
             <Description>account 1</Description>
@@ -347,7 +347,7 @@
       </UserAccounts>
       <AutoLogon>
         <Password>
-          <Value>user1234</Value>
+          <Value>%WIN_USER_PASSWORD%</Value>
           <PlainText>true</PlainText>
         </Password>
         <Enabled>true</Enabled>
